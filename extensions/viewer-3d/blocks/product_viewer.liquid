@@ -1,0 +1,101 @@
+{%- liquid
+  assign override_url = block.settings.model_url | downcase
+  assign override_valid = false
+  if override_url contains '.glb' or override_url contains '.gltf'
+    assign override_valid = true
+  endif
+
+  assign model_url = ''
+  if override_valid
+    assign model_url = block.settings.model_url
+  endif
+
+  assign poster_url = ''
+
+  if model_url == blank
+    assign model_field = product.metafields.custom.model_3d
+    if model_field.value
+      assign model_url = model_field.value.url
+    endif
+  endif
+
+  if product.featured_image
+    assign poster_url = product.featured_image | image_url: width: 1200
+  endif
+
+  assign cfg = product.metafields.custom.viewer_3d_config.value
+
+  assign viewer_height = block.settings.height
+  if cfg.height
+    assign viewer_height = cfg.height
+  endif
+
+  assign viewer_bg = block.settings.background_color
+  if cfg.background
+    assign viewer_bg = cfg.background
+  endif
+-%}
+
+{%- if model_url != blank -%}
+  <div class="viewer-3d-block" {{ block.shopify_attributes }}>
+    <div
+      id="viewer-3d-{{ block.id }}"
+      class="viewer-3d"
+      style="--viewer-height: {{ viewer_height }}px; --viewer-bg: {{ viewer_bg }}; background: {{ viewer_bg }};"
+      data-view3d
+      data-model-url="{{ model_url }}"
+      data-poster-url="{{ poster_url }}"
+      data-config='{{ cfg | json | escape }}'
+    >
+      <canvas class="view3d-canvas"></canvas>
+    </div>
+  </div>
+
+  {{ 'view3d-bundle.min.css' | asset_url | stylesheet_tag }}
+  {{ 'viewer-3d.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'view3d.pkgd.min.js' | asset_url }}" defer></script>
+  <script src="{{ 'viewer-3d.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "3D Model Viewer",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Model source"
+    },
+    {
+      "type": "paragraph",
+      "content": "By default the model comes from the product metafield custom.model_3d (managed via the 3D Viewer app). Leave the override blank for the normal flow. Only paste a direct .glb / .gltf URL below if you want to override the metafield for testing."
+    },
+    {
+      "type": "url",
+      "id": "model_url",
+      "label": "Manual model URL (must end in .glb or .gltf)",
+      "info": "Leave empty to use the product metafield. Non-model URLs are ignored."
+    },
+    {
+      "type": "header",
+      "content": "Default appearance"
+    },
+    {
+      "type": "range",
+      "id": "height",
+      "label": "Viewer height",
+      "min": 200,
+      "max": 800,
+      "step": 50,
+      "default": 500,
+      "unit": "px"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#f4f4f4"
+    }
+  ]
+}
+{% endschema %}

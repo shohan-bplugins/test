@@ -1,0 +1,7 @@
+{
+  "viewer_3d": {
+    "no_model_product": "No 3D model assigned to this product.",
+    "no_model_page": "Add a model URL in the block settings to display a 3D model.",
+    "metafield_hint": "Add one in Settings → Custom data → Products → custom.model_3d (file)."
+  }
+}

@@ -1,0 +1,95 @@
+{%- liquid
+  assign model_url = block.settings.model_url
+-%}
+
+<div class="viewer-3d-block" {{ block.shopify_attributes }}>
+  {%- if model_url != blank -%}
+    <div
+      id="viewer-3d-{{ block.id }}"
+      class="viewer-3d"
+      style="--viewer-height: {{ block.settings.height }}px; --viewer-bg: {{ block.settings.background_color }};"
+      data-view3d
+      data-model-url="{{ model_url }}"
+      data-auto-rotate="{{ block.settings.auto_rotate }}"
+      data-show-controls="{{ block.settings.show_controls }}"
+    >
+      <canvas class="view3d-canvas"></canvas>
+    </div>
+
+    {%- if block.settings.caption != blank -%}
+      <p class="viewer-3d__caption">{{ block.settings.caption }}</p>
+    {%- endif -%}
+  {%- else -%}
+    <div class="viewer-3d__empty">
+      <p>{{ 'viewer_3d.no_model_page' | t }}</p>
+    </div>
+  {%- endif -%}
+</div>
+
+{{ 'view3d-bundle.min.css' | asset_url | stylesheet_tag }}
+{{ 'viewer-3d.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'view3d.pkgd.min.js' | asset_url }}" defer></script>
+<script src="{{ 'viewer-3d.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "3D Model Viewer (page)",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Model source"
+    },
+    {
+      "type": "paragraph",
+      "content": "Upload your .glb file to Settings → Files in Shopify admin, copy the file URL, and paste it below."
+    },
+    {
+      "type": "url",
+      "id": "model_url",
+      "label": "Model URL (.glb / .gltf)"
+    },
+    {
+      "type": "text",
+      "id": "caption",
+      "label": "Caption (optional)"
+    },
+    {
+      "type": "header",
+      "content": "Appearance"
+    },
+    {
+      "type": "range",
+      "id": "height",
+      "label": "Viewer height",
+      "min": 200,
+      "max": 800,
+      "step": 50,
+      "default": 500,
+      "unit": "px"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#f4f4f4"
+    },
+    {
+      "type": "header",
+      "content": "Interaction"
+    },
+    {
+      "type": "checkbox",
+      "id": "auto_rotate",
+      "label": "Auto rotate",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_controls",
+      "label": "Show on-screen controls",
+      "default": true
+    }
+  ]
+}
+{% endschema %}
