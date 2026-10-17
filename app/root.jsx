@@ -8,6 +8,7 @@ import {
   isRouteErrorResponse,
   useLoaderData,
 } from "@remix-run/react";
+import { useEffect } from "react";
 import "./styles/style.css";
 // Bundled with the app's CSS instead of a render-blocking third-party request.
 import "plyr/dist/plyr.css";
@@ -51,6 +52,22 @@ export default function App() {
   const apiKey = loaderData?.apiKey;
   const clarityId = loaderData?.clarityId;
   const gaId = loaderData?.gaId;
+  const shop = loaderData?.shop;
+
+  // Crisp live chat. Loaded after hydration on purpose: when it was injected
+  // from <head>, its chat button landed in <body> before React hydrated, React
+  // saw a mismatch and re-rendered the document, deleting the button.
+  useEffect(() => {
+    if (window.$crisp && window.CRISP_WEBSITE_ID) return; // already loaded
+    window.$crisp = [];
+    window.CRISP_WEBSITE_ID = "e9e3fe6a-6052-4c62-9d27-3c2d73a2c277";
+    // Show support which store is writing.
+    if (shop) window.$crisp.push(["set", "session:data", [[["shop", shop]]]]);
+    const script = document.createElement("script");
+    script.src = "https://client.crisp.chat/l.js";
+    script.async = true;
+    document.head.appendChild(script);
+  }, [shop]);
 
   return (
     <html>
@@ -121,23 +138,6 @@ export default function App() {
           />
         )}
 
-        {/* Crisp live chat. The store's domain is attached to each chat so
-            support can see which shop is writing. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.$crisp=[];window.CRISP_WEBSITE_ID="e9e3fe6a-6052-4c62-9d27-3c2d73a2c277";
-              ${
-                loaderData?.shop
-                  ? `window.$crisp.push(["set","session:data",[[["shop",${JSON.stringify(
-                      String(loaderData.shop),
-                    ).replace(/</g, "\\u003c")}]]]]);`
-                  : ""
-              }
-              (function(){var d=document;var s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();
-            `,
-          }}
-        />
 
         <Meta />
         <Links />
