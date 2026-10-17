@@ -1,217 +1,275 @@
 import { useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
-import { CustomBox } from "../utils/polarisWebComponents";
+import "../styles/variables.css";
 import React, { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
-import axios from "axios";
-import { PrismaClient } from "@prisma/client";
-import { syncSubscriptionState } from "../utils/planSync.server";
-import "../styles/variables.css";
-
-const prisma = new PrismaClient();
+import prisma from "../db.server";
+import { syncPlanWithShopify } from "../lib/billing.server";
+import { useSupport } from "../components/SupportForm/SupportProvider";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "../components/PageState/PageState";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
 
   const url = new URL(request.url);
-  // Shopify charge ids are numeric; anything else would be spliced into the
-  // REST path below.
-  const rawChargeId = url.searchParams.get("charge_id");
-  const charge_id = /^\d+$/.test(rawChargeId || "") ? rawChargeId : null;
+  const charge_id = url.searchParams.get("charge_id");
 
   try {
     let appCharge;
 
     if (charge_id) {
-      const response = await axios.get(
-        `https://${session.shop}/admin/api/2026-07/recurring_application_charges/${charge_id}.json`,
-        {
-          headers: {
-            "X-Shopify-Access-Token": session?.accessToken,
-            "Content-Type": "application/json",
-          },
-        },
+      const subResponse = await admin.graphql(
+        `#graphql
+        query ActiveSubscriptions {
+          currentAppInstallation {
+            activeSubscriptions {
+              id
+              name
+              status
+              trialDays
+              createdAt
+              currentPeriodEnd
+              test
+              lineItems {
+                plan {
+                  pricingDetails {
+                    ... on AppRecurringPricing {
+                      price { amount currencyCode }
+                      interval
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }`,
       );
 
-      appCharge = await response?.data?.recurring_application_charge;
-      // return { appCharge };
+      const subJson = await subResponse.json();
+      const subscriptionGid = `gid://shopify/AppSubscription/${charge_id}`;
+      const matched =
+        subJson?.data?.currentAppInstallation?.activeSubscriptions?.find(
+          (sub) => sub.id === subscriptionGid,
+        );
+
+      const price = matched?.lineItems?.[0]?.plan?.pricingDetails?.price;
+      appCharge = matched
+        ? {
+            id: matched.id,
+            name: matched.name,
+            status: matched.status?.toLowerCase(),
+            price: price?.amount,
+            currency_code: price?.currencyCode,
+            trial_days: matched.trialDays,
+            created_at: matched.createdAt,
+            updated_at: matched.currentPeriodEnd,
+          }
+        : null;
+
       const charge = await prisma.Charges.findMany({
         where: { chargeId: charge_id },
       });
-      // return { charge, name: "Md Shohanur Rahman", charge_id };
-
-      let createCharge = [];
 
       const user = await prisma.Users.findMany({
-        where: { shop: session.shop },
+        where: { shop: session?.shop },
       });
 
-      if (!charge[0]) {
-        createCharge = await prisma.Charges.create({
+      // Only record a subscription Shopify actually reports for this shop
+      // (a declined or unknown charge_id has no match).
+      if (!charge[0] && appCharge && user[0]) {
+        await prisma.Charges.create({
           data: {
-            shop: session.shop,
+            shop: session?.shop,
             name: appCharge.name,
             price: appCharge.price,
             status: appCharge.status,
             cradit: 0,
             activated_on: appCharge?.created_at,
             trial_days: `${appCharge?.trial_days}`,
-            cancelled_on: null,
+            cancelled_on: appCharge?.updated_at,
             billing_on: appCharge?.created_at,
             planId: "",
             chargeId: charge_id,
           },
         });
-        await prisma.Users.update({
-          where: {
-            id: user[0].id,
-          },
-          data: {
-            chargeId: charge_id,
-          },
-        });
       }
 
-      // Same helper the cancel paths use, so activation and cancellation write
-      // the same columns. Replaces a hardcoded if/else on "Pro" / "Pro Plus"
-      // that granted nothing at all for any other plan name, and that set
-      // `cardits` without ever writing `planId` — so the user's plan and their
-      // credits could disagree.
-      await syncSubscriptionState({
-        shop: session.shop,
-        status: appCharge?.status,
-        planName: appCharge?.name,
-        chargeId: charge_id,
-        occurredAt: appCharge?.updated_at,
-      });
+      // Grant (or keep) the plan only if Shopify reports it ACTIVE. A declined
+      // or abandoned approval leaves the shop on its current plan.
+      await syncPlanWithShopify(admin, session?.shop);
     }
 
-    return { appCharge: appCharge, charge_id };
+    return { appCharge, charge_id };
   } catch (error) {
     console.error("Error fetching Billing:", error);
     throw error;
   }
 };
-export const action = async ({ request }) => {
-  // Authentication
-  const { admin } = await authenticate.admin(request);
 
+export const action = async ({ request }) => {
+  await authenticate.admin(request);
   return null;
 };
-const REDIRECT_SECONDS = 6;
-const REDIRECT_TO = "/app/pricing";
+
+const REDIRECT_SECONDS = 10;
 
 const SuccessBilling = () => {
+  const openSupport = useSupport();
   const loaderData = useLoaderData();
   const navigate = useNavigate();
   const nav = useNavigation();
+  const [countdown, setCountdown] = useState(REDIRECT_SECONDS);
 
-  const charge = loaderData?.appCharge;
-  const planName = charge?.name;
-  const planPrice = charge?.price;
+  const planName = loaderData?.appCharge?.name || "Pro";
+  const planPrice = loaderData?.appCharge?.price
+    ? `$${parseFloat(loaderData.appCharge.price).toFixed(2)}/month`
+    : null;
+  const trialDays = loaderData?.appCharge?.trial_days;
+  // Only an active subscription is a success; anything else gets its own state.
+  const isActive = loaderData?.appCharge?.status === "active";
 
-  const [secondsLeft, setSecondsLeft] = useState(REDIRECT_SECONDS);
-  const [autoRedirect, setAutoRedirect] = useState(true);
-
-  // Countdown that auto-forwards to the Pricing page, the way most external
-  // payment providers bounce you back after a successful charge.
   useEffect(() => {
-    if (!autoRedirect) return undefined;
-    if (secondsLeft <= 0) {
-      navigate(REDIRECT_TO);
-      return undefined;
-    }
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [secondsLeft, autoRedirect, navigate]);
-
-  const progress = ((REDIRECT_SECONDS - secondsLeft) / REDIRECT_SECONDS) * 100;
+    if (nav.state === "loading" || !isActive) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate("/app/pricing");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [nav.state, isActive]);
 
   if (nav.state === "loading") {
+    return <LoadingState label="Loading…" />;
+  }
+
+  if (!isActive) {
     return (
-      <s-box class="sb-center">
-        <s-spinner accessibilityLabel="Loading" size="large" />
-      </s-box>
+      <s-page inlineSize="large">
+        <ui-title-bar title="Subscription">
+          <button onClick={() => openSupport()}>Support</button>
+          <button variant="breadcrumb" onClick={() => navigate("/app")}>
+            Dashboard
+          </button>
+        </ui-title-bar>
+        <s-section>
+          {!loaderData?.charge_id ? (
+            <EmptyState
+              heading="Nothing to confirm"
+              message="This page confirms a plan upgrade. Choose a plan on the Pricing page to start your free trial."
+              action={
+                <s-button
+                  variant="primary"
+                  onClick={() => navigate("/app/pricing")}
+                >
+                  View plans
+                </s-button>
+              }
+            />
+          ) : (
+            <ErrorState
+              heading="Your plan wasn't activated"
+              message="The subscription wasn't approved, or Shopify is still processing it. If you approved it, wait a moment and try again. You haven't been charged."
+              onRetry={() => window.location.reload()}
+              onSupport={() =>
+                openSupport(
+                  `Plan not activated (charge ${loaderData.charge_id})`,
+                )
+              }
+            />
+          )}
+        </s-section>
+      </s-page>
     );
   }
 
+  const features = [
+    planName === "Pro Plus"
+      ? "Unlimited audio players — no caps"
+      : "Up to 10 audio players",
+    "Single, Playlist, Sticky & Button player types",
+    "Full color, skin & controls customization",
+    "Loop & embed anywhere",
+  ];
+
   return (
-    <s-box class="sb-center">
-      <s-box
-        class="sb-card"
-        border="base"
-        borderRadius="base"
-        padding="large-100"
-      >
-        {/* Animated success badge — bespoke motion, no Polaris equivalent. */}
-        <s-box class="sb-badge">
-          <s-text class="sb-ring" aria-hidden="true"  />
-          <s-box class="sb-disc">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                className="sb-check"
-                d="M5 12.5 10 17l9-10"
-                stroke="#fff"
-                strokeWidth="2.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </s-box>
-        </s-box>
+    <s-page inlineSize="large">
+      <ui-title-bar title="Trial Started">
+        <button onClick={() => openSupport()}>Support</button>
+        <button variant="breadcrumb" onClick={() => navigate("/app")}>
+          Dashboard
+        </button>
+      </ui-title-bar>
 
-        <s-stack direction="block" gap="small-300" alignItems="center">
-          <s-heading class="sb-title">Upgrade Successful 🎉</s-heading>
+      <s-section>
+        <s-stack gap="base">
+          <s-banner tone="success" heading="Trial activated!">
+            Your <s-text type="strong">{planName}</s-text> free trial is now
+            live. No charge until the trial ends.
+          </s-banner>
 
-          <s-text color="subdued">
-            {planName
-              ? `Your ${planName} plan is now active.`
-              : "Your upgrade is now active."}
-          </s-text>
+          <s-stack direction="inline">
+            <s-badge tone="info" icon="star">
+              {planName} · {trialDays || 7}-day free trial
+            </s-badge>
+          </s-stack>
 
-          {planName && planPrice ? (
-            <s-text color="subdued">
-              {planName} · ${planPrice}/month
-            </s-text>
+          <s-stack gap="small-200">
+            {features.map((feat) => (
+              <s-stack
+                key={feat}
+                direction="inline"
+                gap="small-200"
+                alignItems="center"
+              >
+                <s-icon type="check" tone="success"></s-icon>
+                <s-text>{feat}</s-text>
+              </s-stack>
+            ))}
+          </s-stack>
+
+          {trialDays > 0 ? (
+            <s-banner tone="info">
+              <s-text type="strong">Free trial — no payment today.</s-text>{" "}
+              You&apos;ll be billed{planPrice ? ` ${planPrice}` : ""} only after
+              your {trialDays}-day trial ends. Cancel any time before then.
+            </s-banner>
           ) : null}
+
+          <s-divider></s-divider>
 
           <s-stack
             direction="inline"
-            gap="small-300"
-            justifyContent="center"
+            justifyContent="space-between"
             alignItems="center"
+            gap="base"
           >
-            <s-button variant="primary" onClick={() => navigate(REDIRECT_TO)}>
-              Go to Pricing now
-            </s-button>
-            <s-button onClick={() => navigate("/app")}>
-              Go to Dashboard
-            </s-button>
-          </s-stack>
-
-          {autoRedirect ? (
-            <>
-              <s-text color="subdued">
-                Redirecting to Pricing in{" "}
-                <s-text type="strong">{secondsLeft}s</s-text>
-              </s-text>
-              {/* Plain divs: an inline style object is dropped on an s-*
-                  element, and the fill width has to be inline. */}
-              <s-box class="sb-track">
-                <CustomBox className="sb-fill" style={{ width: `${progress}%` }} />
-              </s-box>
+            <s-text color="subdued">
+              Redirecting to Pricing in {countdown}s…
+            </s-text>
+            <s-stack direction="inline" gap="small-200">
               <s-button
-                variant="tertiary"
-                onClick={() => setAutoRedirect(false)}
+                variant="primary"
+                icon="home"
+                onClick={() => navigate("/app")}
               >
-                Cancel auto-redirect
+                Go to Dashboard
               </s-button>
-            </>
-          ) : (
-            <s-text color="subdued">Auto-redirect cancelled.</s-text>
-          )}
+              <s-button icon="sound" onClick={() => navigate("/app/audios")}>
+                Add players
+              </s-button>
+            </s-stack>
+          </s-stack>
         </s-stack>
-      </s-box>
-    </s-box>
+      </s-section>
+    </s-page>
   );
 };
 

@@ -32,7 +32,8 @@ body {
   background: var(--app-bg-page, #f5f8fa);
   /* max-width: 1200px; */
   margin: 0 auto;
-  box-shadow: 0 0 20px rgba(0,0,0,0.02); /* gentle shadow to separate from background on huge screens */
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.02);
+  /* gentle shadow to separate from background on huge screens */
 }
 
 .main-container .sidebar {
@@ -43,6 +44,7 @@ body {
   height: calc(100vh - 64px) !important;
   min-width: 340px;
   position: relative;
+  overflow: visible;
   overflow-y: auto;
   scrollbar-width: thin !important;
   scrollbar-color: var(--app-scrollbar-thumb) var(--app-bg-surface) !important;
@@ -52,6 +54,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.header .headBarLeft .Polaris-Spinner {
+  height: 20px;
+  width: 20px;
 }
 
 .header .headBarLeft .title {
@@ -177,6 +184,41 @@ body {
 
 
 
+.fileUploadModal .UploadButton {
+  cursor: pointer;
+  /* width: 40px; */
+  height: 40px;
+  border: 2px solid #dfe3e8;
+  height: 34px;
+  border-radius: 0 0.5rem 0.5rem 0;
+  display: flex;
+  border-left: 0;
+}
+
+
+.fileUploadModal .Polaris-TextField__Backdrop {
+  border-radius: 0.5rem 0 0 0.5rem;
+  width: 100%;
+}
+
+.fileUploadModal {
+  display: flex;
+  align-items: end;
+  width: 100%;
+}
+
+.fileUploadModal div {
+  width: 100%
+}
+
+.width40 {
+  width: 40px;
+}
+
+.width .fileUploadModal {
+  display: inline-flex;
+  align-items: flex-end;
+}
 
 
 /* The device with borders */
@@ -222,15 +264,9 @@ body {
   border-radius: 50%;
 }
 
-/* The screen (or content) of the device.
-
-   `width` is 100%, not the 360px/768px the frame itself is: box-sizing is
-   border-box, so .smartphone's 360px already includes its 16px bezel and 20px
-   padding and only leaves 288px of screen. Asking for 360px there overflowed
-   the frame by 72px, and .smartphone's `overflow-y: auto` turns the other axis
-   into a scroller, so the extra simply got clipped off the right. */
+/* The screen (or content) of the device */
 .smartphone .content {
-  width: 100%;
+  width: 360px;
   height: 100%;
   background: white;
   display: flex;
@@ -278,10 +314,9 @@ body {
   border-radius: 50%;
 }
 
-/* The screen (or content) of the device — see .smartphone .content above for
-   why this is 100% rather than the frame's own 768px. */
+/* The screen (or content) of the device */
 .tablet .content {
-  width: 100%;
+  width: 768px;
   height: 100%;
   background: white;
   margin: -1px;
@@ -296,47 +331,128 @@ body {
   max-width: calc(100vw - 320px);
 }
 
-/* ── Preview: the control bar at phone and tablet widths ────────────────
-   Plyr thins its control bar out with `@media (max-width: 767px)`, which asks
-   about the VIEWPORT. In the customizer the viewport is the merchant's
-   desktop monitor, so a 288px-wide phone preview kept the full desktop
-   control set. `.plyr__controls` justifies to flex-end, so everything that did
-   not fit was pushed off the LEFT edge — the half-cut current time at the
-   start of the row.
 
-   A container query asks about the player's own width instead, which is the
-   thing the preview is simulating. The same rules are worth having on the
-   storefront too, where a player can sit in a narrow column on a wide screen;
-   this file only reaches the admin, so for now it fixes the preview. */
-.smartphone .content,
-.tablet .content {
-  container-type: inline-size;
+/* ================================================================================================= */
+/* Delete confirmation Modal Content Styling */
+/* ================================================================================================= */
+
+.ap-modal {
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  padding: 32px;
+  background: var(--app-bg-surface);
+  align-items: flex-start;
 }
 
-@container (max-width: 480px) {
-  /* Duration, leaving the current time. Exactly what Plyr itself drops on a
-     phone-sized viewport. */
-  .plyr__controls .plyr__time + .plyr__time {
-    display: none;
-  }
+.ap-modal__icon-box {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  /* Theme-consistent squircle */
+  background: var(--app-danger-bg, #fef0ee);
+  border: 1px solid var(--app-danger-border, #f5c6c0);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 8px 16px rgba(215, 44, 13, 0.08);
 }
 
-@container (max-width: 380px) {
-  /* The slider alone reserves 60-90px. The mute button is a sibling inside
-     .plyr__volume and stays, so the control is still reachable — which is how
-     a real phone behaves, hardware keys doing the rest. */
-  .plyr__volume input[type="range"] {
-    display: none;
-  }
-
-  /* Tightens the gaps between what is left rather than letting the row
-     overflow again. */
-  .plyr {
-    --plyr-control-spacing: 6px;
-  }
+.ap-modal__icon-box .Polaris-Icon {
+  width: 28px;
+  height: 28px;
 }
 
+.ap-modal__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 
+.ap-modal__title {
+  margin: 0 0 8px 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--app-text-primary, #1a1c1e);
+  letter-spacing: -0.02em;
+}
+
+.ap-modal__text {
+  margin: 0 0 24px 0;
+  line-height: 1.6;
+  font-size: 15px;
+  color: var(--app-text-secondary, #637381);
+}
+
+.ap-modal__footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.ap-modal__btn-modern {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  /* Exact match to Onboarding.css */
+  padding: 0 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  letter-spacing: 0.1px;
+}
+
+.ap-modal__btn-cancel {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.ap-modal__btn-cancel:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.ap-modal__btn-delete {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  /* Danger version of onboarding gradient */
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+}
+
+.ap-modal__btn-delete:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.4);
+}
+
+.ap-modal__btn-delete:active {
+  transform: translateY(0);
+}
+
+/* App Bridge Modal Container Styling */
+#delete-confirmation-modal::part(container),
+#multiple-delete-confirmation-modal::part(container) {
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+}
+
+#delete-confirmation-modal::part(content) {
+  padding: 20px;
+}
+
+#delete-confirmation-modal::part(header) {
+  padding: 16px 20px 0 20px;
+}
+
+#delete-confirmation-modal::part(footer) {
+  padding: 0 20px 16px 20px;
+}
 
 
 
@@ -433,6 +549,11 @@ body {
   flex: 2
 }
 
+.vl-mid {
+  flex: 4;
+  display: flex;
+  align-items: center
+}
 
 .vl-right {
   display: flex;
@@ -505,7 +626,7 @@ body {
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   line-height: 1;
 }
 
@@ -546,9 +667,17 @@ body {
 }
 
 @keyframes popin {
-  0% { transform: scale3d(0.95, 0.95, 1); }
-  50% { transform: scale3d(1.02, 1.02, 1); }
-  100% { transform: scale3d(1, 1, 1); }
+  0% {
+    transform: scale3d(0.95, 0.95, 1);
+  }
+
+  50% {
+    transform: scale3d(1.02, 1.02, 1);
+  }
+
+  100% {
+    transform: scale3d(1, 1, 1);
+  }
 }
 
 .modern-btn-primary {
@@ -563,47 +692,75 @@ body {
   box-shadow: 0 2px 4px rgba(215, 44, 13, 0.1);
 }
 
-/* Product Video list: hide the IndexTable horizontal scrollbar (content stays reachable). */
-.pv-table-card .Polaris-IndexTable__ScrollBarContainer {
-  display: none;
-}
-.pv-table-card .Polaris-IndexTable-ScrollContainer {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* old Edge/IE */
-}
-.pv-table-card .Polaris-IndexTable-ScrollContainer::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none; /* Chrome/Safari */
+
+
+/*
+*
+*
+*
+* --------------- Button Styles --------------- *
+*
+*
+*
+*/
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 16px;
+  background: var(--app-bg-surface);
+  border: 1px solid var(--app-border-medium);
+  border-radius: 6px;
+  color: var(--app-text-dark);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  line-height: 1;
 }
 
-/* ── Product Video (index) ─────────────────────────────────────────────── */
-/* These sit on <s-box>, which is not a block by default. */
-.pv-title-cell {
-  display: block;
-  max-width: 250px;
+.btn:disabled {
+  background: var(--app-bg-muted);
+  border-color: var(--app-border-medium);
+  cursor: not-allowed;
 }
 
-.pv-row-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+.btn--danger {
+  border-color: var(--app-danger-border);
+  color: var(--app-danger);
+  background: var(--app-danger-bg);
+  box-shadow: 0 2px 4px rgba(215, 44, 13, 0.1);
 }
 
-/* 16:9 frame for the Plyr YouTube embed in the "Watch Video" modal. */
-.pv-video-frame {
-  position: relative;
-  padding-bottom: 56.25%;
-  height: 0;
-  overflow: hidden;
-  border-radius: 8px;
-  --plyr-color-main: var(--app-primary, #008060);
+.btn--danger:hover:not(:disabled) {
+  color: var(--app-danger-bg);
+  background: var(--app-danger);
 }
 
-.pv-video-frame > div {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+.btn--primary {
+  border-color: var(--app-primary-border);
+  color: var(--app-primary);
+  background: var(--app-primary-bg);
+  box-shadow: 0 2px 4px var(--app-primary-shadow);
+}
+
+.btn--primary:hover:not(:disabled) {
+  color: var(--app-primary-bg);
+  background: var(--app-primary);
+}
+
+.btn:disabled {
+  border-color: var(--app-border-medium);
+  color: var(--app-text-dark);
+  background: var(--app-bg-muted);
+  box-shadow: none;
+}
+
+.btn span.Polaris-Icon {
+  margin: 0 !important;
 }

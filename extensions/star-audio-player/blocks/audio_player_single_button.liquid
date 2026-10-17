@@ -1,0 +1,12 @@
+<div style="width:100%;">
+  <div class="html5-audio-plyr" data-id="{{ block.settings.id | escape }}"></div>
+</div>
+  
+ {% schema %}
+  {
+    "name": "Single Button Audio",
+    "target": "body",
+    "settings": [{ "type": "text", "id": "id", "label": "Single Button Audio Player ID" }]
+  }
+ {% endschema %}
+  

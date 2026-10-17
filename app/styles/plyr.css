@@ -1,3 +1,5 @@
+@charset "UTF-8";
+
 @keyframes plyr-progress {
   to {
     background-position: 25px 0;

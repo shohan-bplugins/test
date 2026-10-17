@@ -8,29 +8,29 @@ generator client {
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+  // url comes from the DATABASE_URL environment variable
 }
 
 model Session {
-  session_id    String    @id @default(auto()) @map("_id") @db.ObjectId
-  id            String    @unique
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
+  session_id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  id                  String    @unique
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  firstName           String?
+  lastName            String?
+  email               String?
+  locale              String?
+  scope               String?
   expires             DateTime?
+  accessToken         String
+  accountOwner        Boolean   @default(false)
+  collaborator        Boolean   @default(false)
+  emailVerified       Boolean   @default(false)
+  userId              BigInt?
   refreshToken        String?
   refreshTokenExpires DateTime?
-  accessToken         String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean?
-  locale        String?
-  collaborator  Boolean?
-  emailVerified Boolean?
 }
-
 
 model WebhookCall {
   id       String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -39,98 +39,41 @@ model WebhookCall {
   calledAt DateTime @default(now())
 }
 
-model Video {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  shop       String
-  title      String
-  videoType  String
-  url        String
-  vimeo      String
-  youtube    String
-  resetOnEnd Boolean?
-  poster     String?
-  autoPlay   Boolean?
-  repeat     Boolean?
-  controls   Json?
-  styles     Json?
-  options    Json?
-  data      Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model Analytics {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId     String?
+  audioId       String
+  shop          String
+  event         String
+  duration      Int
+  currentTime   Int?
+  totalDuration Int?
+  ipAddress     String?
+  country       String?
+  userAgent     String
+  device        String
+  browser       String
+  calledAt      DateTime @default(now())
 }
 
-
-model VideoPlay {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  shop       String
-  videoId    String
-  videoTitle String?
-  visitorId  String?
-  browser    String?
-  os         String?
-  device     String?
-  country    String?
-  // Salted hash of the visitor's IP — identifies the network a play came from
-  // without storing the raw IP. Combined with visitorId, a device that switches
-  // network (e.g. turns on a VPN) counts as a distinct unique view.
-  ipHash     String?
-  referrer   String?
-  // URL of the page the play happened on (current page, not the traffic
-  // source). Used to attribute plays to the product page vs. a single video
-  // player placed on other pages.
-  pageUrl    String?
-  // Client-generated id for one play (per video, per page load). Lets the
-  // tracker patch the same row with updated watch time instead of inserting
-  // a new row on every heartbeat/beacon.
-  playId         String?
-  // Whether this play happened on a product page. Precomputed at write time
-  // (the tracker already knows pageUrl) because the alternative — matching
-  // pageUrl/referrer with `contains` at read time — compiles to an unanchored
-  // $regex, which cannot use an index and forces a full collection scan on
-  // every dashboard load.
-  isProductPage  Boolean?
-  // Seconds the visitor actually watched (accumulated, excludes seeks/pauses).
-  watchedSeconds Int?     @default(0)
-  createdAt  DateTime @default(now())
-
-  @@index([shop])
-  @@index([shop, videoId])
-  @@index([shop, createdAt])
-  @@index([playId])
-  // Serves the country-reuse lookup in the track endpoint (find a previous
-  // play from the same network that already resolved its country).
-  @@index([ipHash, createdAt])
-  // Serves the dashboard's product-vs-player split, per time window.
-  @@index([shop, isProductPage, createdAt])
-}
-
-// Real-user Core Web Vitals from the embedded admin, one row per reported
-// metric. Mirrors what Shopify shows on /monitoring/admin_performance, but
-// keeps the route and — for LCP — the phase breakdown, so a bad p75 can be
-// traced to a page and to a cause.
+// Core Web Vitals reported by App Bridge from merchants' admin sessions.
+// One row per metric per page load (re-reports of the same metric update it).
 model WebVital {
-  id      String  @id @default(auto()) @map("_id") @db.ObjectId
-  shop    String
-  metric  String // LCP | CLS | INP | TTFB | FCP
-  value   Float // milliseconds, except CLS which is unitless
-  rating  String? // good | needs-improvement | poor
-  path    String? // admin route the document loaded on
-  navType String?
-
-  // LCP only: these four sum to `value`. A large ttfb means the Remix loader;
-  // a large elementRenderDelay means the client bundle.
-  ttfb                 Float?
-  resourceLoadDelay    Float?
-  resourceLoadDuration Float?
-  elementRenderDelay   Float?
-
-  // Element the metric blames: LCP target, largest CLS shift, or INP target.
-  target String?
-
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop      String
+  path      String
+  name      String // LCP | CLS | INP | FCP | TTFB
+  value     Float
+  rating    String // good | needs-improvement | poor
+  metricId  String
+  appLoadId String?
+  userId    String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([shop, metric, createdAt])
-  @@index([shop, path, metric])
+  @@unique([shop, metricId])
+  @@index([shop, name, createdAt])
+  @@index([name, createdAt])
 }
 
 model Users {
@@ -138,8 +81,11 @@ model Users {
   shop      String   @unique
   planId    String?
   chargeId  String?
-  cardits   Int?
-  createdAt DateTime @default(now())
+  cardits      Int?
+  // true once the shop has picked a plan. Unset/false on a Free shop = sees
+  // only the Pricing page until it picks one. Paid shops are never gated.
+  planSelected Boolean?
+  createdAt    DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
@@ -162,7 +108,6 @@ model Charges {
 
 model Plans {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  title        String
   name         String
   description  String?
   features     Json
@@ -175,14 +120,52 @@ model Plans {
   updatedAt    DateTime @updatedAt
 }
 
-// One row per App Store review request made through App Bridge
-// (shopify.reviews.request). `code` is Shopify's result code: "success" means
-// the review modal was shown; "already-reviewed" means the store has reviewed
-// the app. Drives the review-popup rules in app/routes/app.api.review.jsx.
+model Audio {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop           String
+  title          String
+  url            String
+  audioPlayList  Json?
+  mainColor      String
+  screenDefault  Json
+  screenOne      Json
+  screenTwo      Json
+  selectedScreen String
+  playerType     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Screen {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop            String
+  title           String
+  controls        Json
+  width           String
+  height          String
+  borderWidth     String?
+  borderStyle     String?
+  borderColor     String?
+  borderRadius    String?
+  iconSize        String?
+  iconColor       String?
+  background      String?
+  backgroundImage String?
+  image           String?
+  margin          String?
+  padding         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// One row per in-app review request (shopify.reviews.request()). `shown` is
+// true when Shopify actually displayed the popup; `code` is Shopify's reason
+// when it didn't (e.g. "already-reviewed", "cooldown-period").
 model ReviewPrompt {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   shop      String
-  code      String
+  shown     Boolean
+  code      String?
   createdAt DateTime @default(now())
 
   @@index([shop, createdAt])

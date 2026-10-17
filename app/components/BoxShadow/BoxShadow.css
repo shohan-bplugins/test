@@ -1,0 +1,6 @@
+/* Native range slider (no Polaris web component equivalent). */
+.bs-range {
+  width: 100%;
+  accent-color: var(--p-color-bg-fill-brand, #303030);
+  cursor: pointer;
+}

@@ -1,0 +1,89 @@
+{% assign spotify_url = block.settings.url %}
+
+{% if spotify_url contains 'https://open.spotify.com/' %}
+  {% assign after_domain = spotify_url | remove: 'https://open.spotify.com/' %}
+
+  {% assign first_part = after_domain | split: '/' | first %}
+
+  {% if first_part == 'embed' %}
+    {% assign final_url = spotify_url %}
+  {% else %}
+    {% assign final_url = 'https://open.spotify.com/embed/' | append: after_domain %}
+  {% endif %}
+{% else %}
+  {% assign final_url = spotify_url %}
+{% endif %}
+
+{%- assign spotify_url_prefix = final_url | strip | slice: 0, 8 | downcase -%}
+<div>
+  {%- if spotify_url_prefix == 'https://' -%}
+  <iframe
+    data-testid="embed-iframe"
+    style="border-radius:{{ block.settings.borderRadius }}px"
+    src="{{ final_url | escape }}?theme={{ block.settings.theme }}"
+    width="{{ block.settings.width }}%"
+    height="{{ block.settings.height }}px"
+    frameBorder="0"
+    allowfullscreen=""
+    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+    loading="lazy"
+  ></iframe>
+  {%- endif -%}
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const scBlock = document.querySelector('#shopify-block-{{block.id}}');
+
+    if (scBlock) {
+      scBlock.style.width = '100%';
+      scBlock.style.maxWidth = '100%';
+    }
+  });
+</script>
+
+{% schema %}
+{
+  "name": "Spotify Block",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Spotify Setting"
+    },
+    {
+      "type": "text",
+      "id": "url",
+      "label": "Url",
+      "default": "https://open.spotify.com/embed/album/46LFi8d5QNqeghsC0DVtot?si=uyeyGQu5TNOwHsLumTrYBg"
+    },
+    { "type": "number", "id": "width", "label": "Width (%)", "default": 100 },
+    { "type": "number", "id": "height", "label": "Height (px)", "default": 352 },
+    {
+      "type": "range",
+      "id": "borderRadius",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "label": "Border Radius",
+      "default": 12
+    },
+    {
+      "type": "select",
+      "id": "theme",
+      "label": "Theme",
+      "options": [
+        {
+          "value": "0",
+          "label": "Dark"
+        },
+        {
+          "value": "1",
+          "label": "Light"
+        }
+      ],
+      "default": "1"
+    }
+  ]
+}
+{% endschema %}

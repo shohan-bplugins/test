@@ -1,83 +1,86 @@
-import { authenticate } from "../shopify.server";
-import { purgeShopData } from "../utils/purgeShopData.server";
+import { authenticate, sessionStorage } from "../shopify.server";
+
+const SWIPEONE_ENDPOINT =
+  "https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287";
 
 export const loader = async () => {
   return new Response("OK", { status: 200 });
 };
 
-export const action = async ({ request }) => {
-  // return await shopify.processWebhook(request);
-  const { shop, session, topic, payload } = await authenticate.webhook(request);
-
-  try {
-    function getFormattedDateTime() {
-      const now = new Date();
-      const pad = (n) => n.toString().padStart(2, "0");
-
-      const year = now.getFullYear();
-      const month = pad(now.getMonth() + 1); // Months are 0-indexed
-      const day = pad(now.getDate());
-      const hours = pad(now.getHours());
-      const minutes = pad(now.getMinutes());
-      const seconds = pad(now.getSeconds());
-
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+// Clear the shop's sessions and report the uninstall. Runs after the webhook
+// is acknowledged — neither a storage hiccup nor a SwipeOne outage is
+// something Shopify retrying the delivery would fix.
+async function handleUninstall({ shop, session, payload }) {
+  if (shop) {
+    const sessions = await sessionStorage.findSessionsByShop(shop);
+    if (sessions.length) {
+      await sessionStorage.deleteSessions(sessions.map((s) => s.id));
     }
-    fetch("https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([
-        {
-          type: "app.uninstalled",
-          app_name: "video-player",
-          app_full_name: "Video Player by bPlugins",
-          app_slug: "video-player-by-bplugins",
-          success: true,
-          shop,
-          user_id: session?.id,
-          install_id: payload?.id,
-          data: {
-            name: payload?.shop_owner,
+  }
+
+  const response = await fetch(SWIPEONE_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([
+      {
+        type: "app.uninstalled",
+        app_name: "audio-player",
+        app_full_name: "Audio Player by bPlugins",
+        app_slug: "html5-audio-player",
+        success: true,
+        shop,
+        user_id: session?.id,
+        install_id: payload?.id,
+        data: {
+          name: payload?.shop_owner,
+          email: payload?.email,
+          country_name: payload?.country_name,
+          address1: payload?.address1,
+          address2: payload?.address2,
+          phone: payload?.phone,
+          created_at: payload?.created_at,
+          domain: payload?.domain,
+          myshopify_domain: payload?.myshopify_domain,
+          plan_display_name: payload?.plan_display_name,
+        },
+        id: session?.id,
+        created: new Date().toISOString().slice(0, 19).replace("T", " "),
+        objects: {
+          user: {
             email: payload?.email,
-            country_name: payload?.country_name,
-            address1: payload?.address1,
-            address2: payload?.address2,
-            phone: payload?.phone,
-            created_at: payload?.created_at,
-            domain: payload?.domain,
-            myshopify_domain: payload?.myshopify_domain,
-            plan_display_name: payload?.plan_display_name,
-          },
-          id: session?.id,
-          created: getFormattedDateTime(),
-          objects: {
-            user: {
-              email: payload?.email,
-            },
           },
         },
-      ]),
-    }).catch((err) => {
-      // Fire-and-forget: a failed analytics ping must never take down the
-      // purge below, but it must not surface as an unhandled rejection either.
-      console.error("SwipeOne uninstall notification failed:", err);
-    });
+      },
+    ]),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `SwipeOne returned ${response.status} ${response.statusText}`,
+    );
+  }
+}
+
+export const action = async ({ request }) => {
+  let hook;
+  try {
+    hook = await authenticate.webhook(request);
   } catch (err) {
-    console.error("❌ Webhook error:", err);
+    // The library throws a Response (401) for a failed HMAC check — pass it
+    // through so Shopify gets the status it expects and stops retrying.
+    if (err instanceof Response) return err;
+    console.error("Uninstall webhook auth failed:", err);
+    return new Response("Unauthorized", { status: 401 });
   }
 
-  // Uninstall wipes the shop out entirely: players, analytics, billing rows and
-  // sessions. Returning 500 on failure is deliberate — it makes Shopify retry
-  // the webhook, and `purgeShopData` is idempotent, so a retry finishes the job.
-  try {
-    const deleted = await purgeShopData(shop);
-    console.log(`Purged data for ${shop}:`, deleted);
-    return new Response("OK", { status: 200 });
-  } catch (err) {
-    console.error(`❌ Failed to purge data for ${shop}:`, err);
-    return new Response("Purge failed", { status: 500 });
-  }
+  // Acknowledge before doing any slow work — Shopify counts a slow or failed
+  // reply as a failed delivery.
+  handleUninstall(hook).catch((err) =>
+    console.error("Uninstall cleanup failed:", err?.message || err),
+  );
+
+  return new Response("OK", { status: 200 });
 };

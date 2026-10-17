@@ -1,4 +1,5 @@
-/* ── Fullscreen overlay ──────────────────────────────────────── */
+/* Onboarding overlay, stepper and card animation — the step content is
+   Polaris web components. */
 .ob-fullscreen {
   position: fixed;
   inset: 0;
@@ -8,10 +9,10 @@
   align-items: center;
   justify-content: center;
   overflow-y: auto;
+  /* The blurred background blobs extend past the edges — never scroll sideways. */
+  overflow-x: hidden;
   animation: ob-fadeIn 0.5s ease;
 }
-
-/* Decorative background blobs */
 .ob-bg-blob {
   position: absolute;
   border-radius: 50%;
@@ -19,7 +20,6 @@
   opacity: 0.35;
   pointer-events: none;
 }
-
 .ob-bg-blob--1 {
   width: 600px;
   max-height: 400px;
@@ -27,7 +27,6 @@
   top: -100px;
   right: -80px;
 }
-
 .ob-bg-blob--2 {
   width: 600px;
   height: 300px;
@@ -35,24 +34,22 @@
   bottom: -60px;
   left: -40px;
 }
-
-/* ── Container ───────────────────────────────────────────────── */
-/* Direction, centring, width and gap are s-stack props. Padding stays here
-   because it retunes at three breakpoints and Polaris spacing props are
-   static; it applies to the host, outside the stack's flex box. */
 .ob-container {
   position: relative;
   z-index: 1;
+  width: 100%;
+  max-width: 950px;
   padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
 }
-
-/* ── Progress stepper ────────────────────────────────────────── */
 .ob-stepper {
   display: flex;
   align-items: center;
   gap: 0;
 }
-
 .ob-stepper-dot {
   width: 32px;
   height: 32px;
@@ -68,7 +65,6 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
-
 .ob-stepper-dot--active {
   border-color: var(--app-primary, #1a8d5a);
   background: var(--app-primary, #1a8d5a);
@@ -76,30 +72,27 @@
   box-shadow: 0 0 0 4px rgba(26, 141, 90, 0.15);
   transform: scale(1.1);
 }
-
 .ob-stepper-dot--done {
   border-color: var(--app-primary, #1a8d5a);
   background: var(--app-primary, #1a8d5a);
   color: #fff;
 }
-
 .ob-stepper-line {
   width: 40px;
   height: 2px;
   background: #d1d5db;
   transition: background 0.4s ease;
 }
-
 .ob-stepper-line--done {
   background: var(--app-primary, #1a8d5a);
 }
-
-/* ── Main card ───────────────────────────────────────────────── */
 .ob-card {
   background: #fff;
   border-radius: 20px;
   padding: 18px 16px 16px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.06),
+    0 1px 4px rgba(0, 0, 0, 0.04);
   text-align: center;
   width: 100%;
   max-width: 950px;
@@ -109,410 +102,142 @@
   overflow-y: auto;
   animation: ob-slideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-/* ── Configure Your Player (Step 2) ──────────────────────────── */
-/* The settings panel is <s-scroll-box>: background, padding, border, radius,
-   the 400px cap and the scrollbar all come from its props, so the old
-   .ob-settings-container rules (including the ::-webkit-scrollbar block) are
-   gone. */
-
-.ob-global-settings {
-  text-align: left;
-}
-
-/* Retargeted from .Polaris-Text--root when these headings became s-heading.
-   display:block so the margin actually applies to the custom element. */
-.ob-global-settings s-heading,
-.ob-multiple-settings s-heading {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.ob-multiple-settings {
-  text-align: left;
-}
-
-/* The card's exit transition. goTo() holds the step change for 300ms to let
-   this play, so without these rules the wizard just pauses on a static card. */
 .ob-card--exit-next {
   animation: ob-slideOutLeft 0.3s ease forwards;
 }
-
 .ob-card--exit-prev {
   animation: ob-slideOutRight 0.3s ease forwards;
 }
-
-/* ── Emoji ────────────────────────────────────────────────────── */
 .ob-card-emoji {
   display: flex;
-    font-size: 52px;
-    line-height: 1;
-    margin-bottom: 16px;
-    animation: ob-emojiPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-    justify-content: center;
-}
-
-/* ── Title ────────────────────────────────────────────────────── */
-.ob-card-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: #111827;
-  margin: 0;
-  letter-spacing: -0.5px;
-  line-height: 1.2;
-}
-
-.ob-card-subtitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--app-primary, #1a8d5a);
-  margin: 4px 0 0;
-  letter-spacing: 0.5px;
-}
-
-/* ── Description ──────────────────────────────────────────────── */
-.ob-card-desc {
-  font-size: 14.5px;
-  color: #6b7280;
-  line-height: 1.7;
-  margin: 0 0;
-  max-width: 420px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* ── Feature list ─────────────────────────────────────────────── */
-/* Direction, gap and max width are s-stack props. */
-.ob-features {
-  margin-top: 20px;
-  text-align: left;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Surface and spacing are s-box props; only the hover treatment, which no
-   s-* component exposes, is left here. */
-.ob-feature {
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.ob-feature:hover {
-  background: #eef9f3;
-  transform: translateX(4px);
-}
-
-.ob-feature-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-/* ── Option cards ─────────────────────────────────────────────── */
-/* Columns and gap are s-grid props (with a container query for the collapse). */
-.ob-cards-row {
-  margin-top: 22px;
-}
-
-/* The card surface stays CSS: the selected and hover states are brand green,
-   which s-box cannot express (see the brand-colour note in
-   utils/polarisWebComponents.js). Its inner layout is s-stack. */
-.ob-option-card {
-  background: #f9fafb;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 20px 16px;
-  text-align: center;
-  transition: all 0.2s ease;
-}
-
-/* s-clickable is the grid item; it needs to fill its track. */
-.ob-cards-row > s-clickable {
-  display: block;
-  min-inline-size: 0;
-}
-
-.ob-option-card {
-  cursor: pointer;
-  block-size: 100%;
-}
-
-/* Selected state. Previously an inline style on the div; as a class it also
-   survives the s-clickable wrapper and can key off the same flag the
-   accessibility state (aria-pressed) uses. */
-.ob-option-card.active-type {
-  border: 2px solid var(--app-primary, #1a8d5a);
-  background: #eef9f3;
-}
-
-.ob-option-card:hover {
-  border-color: var(--app-primary, #1a8d5a);
-  background: #eef9f3;
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(26, 141, 90, 0.1);
-}
-
-.ob-option-icon {
-  font-size: 28px;
+  font-size: 52px;
   line-height: 1;
+  margin-bottom: 16px;
+  animation: ob-emojiPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  justify-content: center;
 }
-
-/* ── Quick action link ────────────────────────────────────────── */
-/* ── Footer navigation ───────────────────────────────────────── */
-/* Direction, alignment, justification, width and gap are s-stack props
-   (direction="inline" already implies flex-wrap: wrap). */
-
-.ob-footer-left {
-  width: 80px;
-}
-
-/* ── Animations ──────────────────────────────────────────────── */
 @keyframes ob-fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+  from {
+    opacity: 0;
+  }
 
+  to {
+    opacity: 1;
+  }
+}
 @keyframes ob-slideIn {
   from {
     opacity: 0;
     transform: translateY(20px) scale(0.97);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
-
 @keyframes ob-slideOutLeft {
   from {
     opacity: 1;
     transform: translateX(0);
   }
+
   to {
     opacity: 0;
     transform: translateX(-40px);
   }
 }
-
 @keyframes ob-slideOutRight {
   from {
     opacity: 1;
     transform: translateX(0);
   }
+
   to {
     opacity: 0;
     transform: translateX(40px);
   }
 }
-
 @keyframes ob-emojiPop {
-  0%   { transform: scale(0.4); opacity: 0; }
-  60%  { transform: scale(1.15); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.15);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
-
-/* ── Responsive ──────────────────────────────────────────────── */
-
-/* Tablet */
 @media (max-width: 768px) {
   .ob-container {
     padding: 24px 16px;
+    gap: 20px;
   }
-
   .ob-card {
     padding: 20px 16px 16px;
     max-height: none;
     height: auto;
     border-radius: 16px;
   }
-
-  .ob-card-title {
-    font-size: 20px;
-  }
-
-  .ob-card-desc {
-    font-size: 13.5px;
-    max-width: 100%;
-  }
-
   .ob-stepper-line {
     width: 28px;
   }
-
-  .ob-footer-left {
-    width: auto;
-  }
 }
-
-/* Mobile */
 @media (max-width: 560px) {
   .ob-container {
     padding: 16px 12px;
+    gap: 16px;
   }
-
   .ob-card {
     padding: 16px 14px;
     border-radius: 14px;
     max-height: none;
     height: auto;
   }
-
-  .ob-card-title {
-    font-size: 18px;
-  }
-
-  .ob-card-subtitle {
-    font-size: 12px;
-  }
-
-  .ob-card-desc {
-    font-size: 13px;
-    max-width: 100%;
-  }
-
   .ob-card-emoji {
     font-size: 40px;
     margin-bottom: 10px;
   }
-
-  .ob-option-card {
-    padding: 14px 12px;
-  }
-
   .ob-stepper-dot {
     width: 26px;
     height: 26px;
     font-size: 11px;
   }
-
   .ob-stepper-line {
     width: 20px;
   }
-
-  .ob-footer-left {
-    width: auto;
-  }
-
   .ob-bg-blob--1,
   .ob-bg-blob--2 {
     display: none;
   }
 }
-
-/* Small Mobile */
 @media (max-width: 380px) {
   .ob-container {
     padding: 12px 10px;
+    gap: 12px;
   }
-
   .ob-card {
     padding: 14px 10px;
   }
-
-  .ob-card-title {
-    font-size: 16px;
-  }
-
   .ob-stepper-dot {
     width: 22px;
     height: 22px;
     font-size: 10px;
   }
-
   .ob-stepper-line {
     width: 14px;
   }
-
 }
-
-/* ── Step 3: "You're All Set" ─────────────────────────────────────────────
-   The cards, headings, copy and buttons are Polaris web components
-   (s-ordered-list / s-list-item / s-box / s-stack / s-heading / s-button), so
-   only the snippet row lives here. It is the one thing Polaris has no
-   component for: a code sample needs its own scroll and must not re-wrap. */
-.ob-final-steps {
-  text-align: left;
-  width: 100%;
-}
-
-.ob-copy-row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.ob-code {
-  flex: 1 1 0%;
-  min-inline-size: 0;
-  display: block;
-  padding: 10px 12px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  font-family: monospace;
-  font-size: 12.5px;
-  color: #1f2937;
-  /* Select the whole snippet in one click, for merchants who'd rather copy by
-     hand than press the button. */
-  user-select: all;
-}
-
-/* The embed snippet is one line and must not break mid-attribute. */
-.ob-code--nowrap {
-  white-space: nowrap;
-  overflow-x: auto;
-}
-
-.ob-code-label {
-  color: #6b7280;
-  font-size: 12px;
-}
-
-/* ── Step 2 layout ────────────────────────────────────────────────────────
-   The columns themselves are now s-grid inside s-query-container, and the
-   column padding is s-box paddingInline*. What is left here is the divider
-   rule between the two columns, which has no prop equivalent — and it is
-   written as an @container query against that same s-query-container, so it
-   flips at exactly the width the grid collapses at. */
-.ob-step2 {
-  text-align: left;
-  width: 100%;
-}
-
-.ob-center {
-  text-align: center;
-}
-
-.ob-step2-desc {
-  margin-bottom: 24px;
-}
-
-.ob-split-col {
-  min-inline-size: 0;
-}
-
-/* One divider, on the leading edge of the second column. The 24px gutter is
-   the grid's own gap, so there is no padding to unwind when it collapses. */
-.ob-split-col--right {
-  border-left: 1px solid #eee;
-  padding-left: 20px;
-}
-
-/* The items list grows to fill its column, which is an s-stack (a flex
-   column), so this is a flex child of that stack. */
-.ob-fill {
-  flex: 1;
-}
-
-/* Below the grid's own breakpoint the columns are stacked, so the vertical
-   divider becomes a horizontal one. @container, not @media: it resolves
-   against the enclosing s-query-container, which is the same box s-grid
-   measures, so the two can never disagree. */
-@container (inline-size <= 640px) {
-  .ob-split-col--right {
-    border-left: none;
-    padding-left: 0;
-    border-top: 1px solid #eee;
-    padding-top: 16px;
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }

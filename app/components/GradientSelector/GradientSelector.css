@@ -1,0 +1,17 @@
+/* Gradient preset swatches (arbitrary backgrounds). */
+.preset-button {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.preset-button.is-selected {
+  border-color: var(--p-color-text, #303030);
+}

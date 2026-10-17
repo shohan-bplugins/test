@@ -1,0 +1,76 @@
+/* Shimmer blocks for the customize page skeleton. */
+.cz-sk {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ebebeb 25%, #f5f5f5 50%, #ebebeb 75%);
+  background-size: 200% 100%;
+  animation: cz-sk-shimmer 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.cz-sk--round {
+  border-radius: 999px;
+}
+
+@keyframes cz-sk-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cz-sk {
+    animation: none;
+  }
+}
+
+/* Same proportions as .main-container / .sidebar / .content. */
+.cz-sk-body {
+  display: flex;
+  min-height: calc(100vh - 64px);
+}
+
+.cz-sk-sidebar {
+  flex: 2 1;
+  min-width: 320px;
+  background: var(--p-color-bg-surface, #fff);
+  border-right: 1px solid var(--p-color-border, #e3e3e3);
+}
+
+/* Stacked on phones, like the real editor. */
+@media (max-width: 767px) {
+  .cz-sk-body {
+    flex-direction: column;
+  }
+
+  .cz-sk-sidebar {
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--p-color-border, #e3e3e3);
+  }
+}
+
+.cz-sk-main {
+  flex: 10 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cz-sk-preview {
+  width: min(560px, 90%);
+  margin: 40px auto;
+}
+
+/* Covers the live preview until the Plyr player is built. */
+.cz-sk-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-bg-page, #f5f8fa);
+}

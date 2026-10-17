@@ -1,62 +1,75 @@
-/* Force Polaris Page wrapper to match our unified 1200px app constraint */
-.Polaris-Page {
-  max-width: 1200px !important;
+/* ── Current Plan: usage progress bar (no web-component equivalent) ── */
+.db-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--app-bg-surface-secondary, #eef0f1);
+  border-radius: 999px;
+  overflow: hidden;
 }
 
-.vp-dashboard {
+.db-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+      var(--app-primary, #008060),
+      var(--app-primary-hover, #00a47c));
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.db-progress-fill.is-unlimited {
+  background: linear-gradient(90deg, #008060, #00b386, #008060);
+  background-size: 200% 100%;
+  animation: db-shimmer 3s linear infinite;
+}
+
+@keyframes db-shimmer {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-progress-fill.is-unlimited {
+    animation: none;
+  }
+}
+
+/* ── Video thumbnails: play icon overlay ─────────────────── */
+.db-help-video {
+  position: relative;
   display: block;
-  padding: 20px 0;
-  max-width: 1400px;
-  margin: 0 auto;
 }
 
-.vp-dash-sections {
+.db-help-video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
   display: flex;
-  flex-direction: column;
-  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease;
+  pointer-events: none;
 }
 
-.vp-dash-sections.is-reversed {
-  flex-direction: column-reverse;
+.db-help-video:hover .db-help-video-play {
+  transform: translate(-50%, -50%) scale(1.08);
 }
 
-/* ── Embed-code blocks (vintage-theme guide) ──────────────────────────────
-   The surrounding card is Polaris (s-section / s-box / s-ordered-list); only
-   the code block itself lives here. `white-space: pre` and horizontal scroll
-   are the reason: no s-* component preserves snippet formatting, and a wrapped
-   embed snippet is one a merchant can paste wrong. The dark surface is
-   deliberate and fixed in both themes — it reads as "code", and the snippet is
-   copied far more often than it is read. */
-.vp-vintage-code {
-  display: block;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #1c2226;
-  color: #e8ecef;
-  font-size: 11.5px;
-  line-height: 1.55;
-  overflow-x: auto;
-  white-space: pre;
-}
-
-/* The one-line embed snippet must not wrap mid-attribute. */
-.vp-vintage-code--inline {
-  white-space: nowrap;
-}
-
-/* ── Video modal frame ────────────────────────────────────────────────────
-   16:9 responsive iframe box. Polaris has no video/embed component, so this
-   stays hand-rolled — but as a class rather than the inline styles the two
-   modals used to repeat. */
-.vp-video-frame {
-  display: block;
+/* ── Video modals: responsive 16:9 YouTube frame ─────────── */
+.db-video-frame {
   position: relative;
   padding-bottom: 56.25%;
   height: 0;
   overflow: hidden;
 }
 
-.vp-video-frame iframe {
+.db-video-frame iframe {
   position: absolute;
   top: 0;
   left: 0;
@@ -65,12 +78,43 @@
   border-radius: 8px;
 }
 
-/* ── Plan comparison table ────────────────────────────────────────────────
-   Polaris gives `.Polaris-Icon` `margin: auto`, so a bare <Icon> in a table
-   cell centres itself while every heading and value in the column is
-   left-aligned — the check and cross marks ended up on a different line to
-   the text above them. Zeroing the inline margins puts them back under the
-   column heading. */
-.vp-plan-compare td .Polaris-Icon {
-  margin-inline: 0;
+/* ── Loading skeletons (Analytics Overview + theme check) ─── */
+.db-skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ebebeb 25%, #f5f5f5 50%, #ebebeb 75%);
+  background-size: 200% 100%;
+  animation: db-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Skeleton sizes match the Polaris web components they stand in for:
+   heading / text / badge lines are 20px tall, a one-line critical banner 64px. */
+.db-skeleton--value {
+  width: 48px;
+  height: 20px;
+}
+
+.db-skeleton--line {
+  width: 70%;
+  height: 20px;
+}
+
+@keyframes db-skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-skeleton {
+    animation: none;
+  }
+}
+
+.db-skeleton--banner {
+  width: 100%;
+  height: 64px;
+  border-radius: 12px;
 }
