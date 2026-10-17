@@ -1,0 +1,38 @@
+<script id="html5-video-player-plyr-js" src="{{ 'plyr.js' | asset_url }}" defer></script>
+<link id="html5-video-player-plyr-css" rel="stylesheet" type="text/css" href="{{ 'plyr.css' | asset_url }}">
+<link id="html5-video-player-custom-js" rel="stylesheet" type="text/css" href="{{ 'styles.css' | asset_url }}">
+
+{%- comment -%}
+  The player engine (analytics + Plyr setup) lives in assets/svp-player.js so it
+  doesn't count toward the theme app extension's 100 KB Liquid limit. The only
+  value it needs from Liquid is the shop domain (used for the domain watermark),
+  which we expose on window before the deferred script runs.
+{%- endcomment -%}
+<script>
+  window.__svpShopDomain = {{ shop.domain | json }};
+</script>
+
+{%- comment -%}
+  Product Video auto-placement: expose the player ids assigned to this product
+  (Product Video page → bplugins.product_video metafield). If the merchant
+  hasn't placed them anywhere (app block / Custom Liquid / pasted embed code),
+  svp-player.js injects the players right after the Add to cart button, so
+  assignments work on every theme with zero setup.
+{%- endcomment -%}
+{%- if request.page_type == 'product' and product -%}
+  {%- assign pv = product.metafields.bplugins.product_video -%}
+  {%- if pv != blank -%}
+    <script>
+      window.__svpProductVideoIds = {% if pv.type contains 'list' %}{{ pv.value | json }}{% else %}[{{ pv.value | default: pv | json }}]{% endif %};
+    </script>
+  {%- endif -%}
+{%- endif -%}
+
+<script id="html5-video-player-svp-js" src="{{ 'svp-player.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Video Player by bPlugins",
+  "target": "body"
+}
+{% endschema %}

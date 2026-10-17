@@ -1,0 +1,61 @@
+/* Documentation route — the branded loading state and the embedded docs frame.
+
+   Lifted out of a <style> block inlined in the route's JSX. The rotating ring
+   around the app logo has no Polaris equivalent, so it stays; everything else
+   on the page is now s-*. */
+
+@keyframes doc-loader-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.doc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+}
+
+.doc-loader {
+  position: relative;
+  display: block;
+  width: 88px;
+  height: 88px;
+}
+
+.doc-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 4px solid var(--app-primary-light);
+  border-top-color: var(--app-primary);
+  border-right-color: var(--app-primary);
+  animation: doc-loader-spin 1s linear infinite;
+}
+
+.doc-loader img {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.doc-loading-title {
+  font-size: 22px;
+}
+
+.doc-frame,
+.doc-frame-placeholder {
+  display: block;
+  height: 100vh;
+  width: 98vw;
+  margin: 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-loader-ring { animation: none; }
+}

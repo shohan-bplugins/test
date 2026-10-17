@@ -1,0 +1,411 @@
+/* Pricing page styles.
+
+   Previously injected from a <style>{`...`}</style> block inside the JSX, which
+   re-ran on every render. Nothing here redefines a shared class: the
+   .vp-back-btn and .modern-btn rules are scoped overrides
+   (.pricing-status-banner .vp-back-btn, .pc-btn.modern-btn) that build on the
+   base rules in PageHeader.css and styles.css. */
+.pricing-page-container {
+  padding: 16px 0;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* ── Current plan banner ──────────────────────────────── */
+.pricing-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 14px;
+  padding: 20px 26px;
+  margin: 4px 0 24px;
+}
+.ps-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+.ps-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ps-eyebrow-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-text-secondary, #6d7175);
+}
+.ps-info-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ps-plan-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+}
+.ps-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--app-border, #d2d5d8);
+}
+.ps-sep-tall {
+  height: 36px;
+  background: var(--app-border, #e1e3e5);
+}
+.pricing-status-desc {
+  font-size: 15px;
+  color: var(--app-text-secondary, #6d7175);
+  margin: 0;
+  line-height: 1.4;
+}
+.ps-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 11px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 10px;
+  background: #fff;
+  color: #b42318;
+  border: 1px solid #f0c2bd;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+/* Larger back button inside the (bigger) current-plan banner. */
+.pricing-status-banner .vp-back-btn {
+  padding: 10px 16px 10px 13px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+.pricing-status-banner .vp-back-btn-icon {
+  width: 20px;
+  height: 20px;
+}
+.ps-cancel-btn:hover:not(:disabled) {
+  background: #d92d20;
+  border-color: #d92d20;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(217, 45, 32, 0.25);
+}
+.ps-cancel-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+.ps-cancel-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.2);
+}
+.ps-cancel-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Plan grid ────────────────────────────────────────── */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.pricing-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 12px;
+  padding: 22px 20px;
+  transition: border-color 0.15s ease;
+}
+.pricing-card:hover {
+  border-color: var(--app-border-medium, #c9cccf);
+}
+.pricing-card.popular {
+  border-color: var(--app-primary, #1a8d5a);
+}
+.pricing-card.active-tier {
+  border-color: var(--app-primary, #1a8d5a);
+  background: var(--app-primary-bg, #eef9f3);
+}
+.popular-ribbon {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--app-primary, #1a8d5a);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.pc-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+  margin: 0;
+}
+.pc-active-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a);
+  border: 1px solid rgba(26, 141, 90, 0.2);
+}
+.pc-desc {
+  font-size: 14px;
+  color: var(--app-text-secondary, #6d7175);
+  margin: 0 0 14px;
+  line-height: 1.45;
+  min-height: 38px;
+}
+.pc-price {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.pc-price-amount {
+  font-size: 32px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--app-text-primary, #202223);
+}
+.pc-price-cycle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text-secondary, #6d7175);
+}
+.pc-divider {
+  height: 1px;
+  background: var(--app-border, #e1e3e5);
+  margin: 14px 0;
+}
+.pc-features {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  margin-bottom: 18px;
+}
+.pc-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--app-text-primary, #303030);
+  line-height: 1.4;
+}
+.pc-check {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-primary, #1a8d5a);
+  margin-top: 2px;
+}
+.pc-check svg {
+  width: 13px;
+  height: 13px;
+}
+.pc-action {
+  margin-top: auto;
+}
+.pc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 42px;
+  padding: 11px 16px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  -webkit-appearance: none;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.1s ease;
+}
+.pc-btn.modern-btn {
+  background: transparent;
+  color: var(--app-text-secondary, #6d7175);
+  border-color: var(--app-secondary, #1a8d5a);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  transition: all 0.3s ease;
+}
+.pc-btn.modern-btn:hover {
+  border-color: var(--app-primary, #1a8d5a) !important;
+}
+.pc-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.pc-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.pc-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 141, 90, 0.25);
+}
+.pc-btn-primary {
+  background: var(--app-secondary, #1a8d5a);
+  color: #fff;
+  border-color: var(--app-secondary, #1a8d5a);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.pc-btn-primary:hover {
+  background: var(--app-primary, #1a8d5a);
+  color: #fff;
+  border-color: var(--app-primary, #1a8d5a);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.pc-btn-primary:hover:not(:disabled) {
+  background: var(--app-primary-hover, #157a4e);
+  border-color: var(--app-primary-hover, #157a4e);
+  box-shadow: 0 4px 12px rgba(26, 141, 90, 0.28);
+}
+.pc-btn-secondary {
+  background: #fff;
+  color: var(--app-text-primary, #202223);
+  border-color: var(--app-border-medium, #c9cccf);
+}
+.pc-btn-secondary:hover:not(:disabled) {
+  background: var(--app-bg-subtle, #f6f6f7);
+  border-color: #b5b8bc;
+}
+.pc-btn-current {
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a);
+  border-color: rgba(26, 141, 90, 0.3);
+  font-weight: 700;
+  cursor: default;
+}
+.pc-btn:disabled {
+  cursor: default;
+}
+.pc-btn-secondary:disabled {
+  opacity: 0.6;
+}
+
+/* ── Hosts that are now custom elements ──────────────────────────────────
+   s-box / s-stack / s-heading / s-paragraph are not block-level by default, so
+   any class moved onto one needs its display restated. */
+s-box.pricing-status-banner {
+  display: flex;
+}
+
+s-stack.ps-info {
+  display: flex;
+}
+
+s-heading.pc-title {
+  display: block;
+}
+
+s-paragraph.pc-desc {
+  display: block;
+}
+
+s-stack.pc-features {
+  display: flex;
+}
+
+s-box.pc-action {
+  display: block;
+}
+
+s-box.pricing-page-container,
+s-box.pricing-grid,
+s-stack.ps-left,
+s-stack.pc-head,
+s-stack.pc-price {
+  display: flex;
+}
+
+s-box.pricing-page-container {
+  display: block;
+}
+
+s-box.pricing-grid {
+  display: grid;
+}
+
+/* ── Polaris plan grid ────────────────────────────────────
+   The plan Cards are laid out by this grid rather than <InlineGrid> so each
+   card can stretch to the tallest one in the row and pin its CTA to the
+   bottom — plans list different numbers of features, and without this the
+   buttons sit at three different heights.
+
+   `.vp-pricing-grid > *` is the Card's own root element: making it a flex
+   column, and its single child fill that column, avoids depending on Polaris'
+   internal class names. */
+.vp-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--p-space-400, 16px);
+  align-items: stretch;
+}
+.vp-pricing-grid > * {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.vp-pricing-grid > * > * {
+  flex: 1;
+}
+.vp-plan-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.vp-plan-card-action {
+  margin-top: auto;
+  padding-top: var(--p-space-400, 16px);
+}
+
+@media (max-width: 489px) {
+  .vp-pricing-grid {
+    grid-template-columns: 1fr;
+  }
+}

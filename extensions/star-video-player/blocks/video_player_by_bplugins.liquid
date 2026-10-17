@@ -1,0 +1,510 @@
+{% comment %}
+  Theme-editor text settings are normalised before use: the player id is reduced
+  to a handle (real ids are lowercase hex) because it is spliced into CSS, HTML
+  and JS, and visible copy is escaped, so typed markup shows as text.
+{% endcomment %}
+{%- assign svp_id = block.settings.id | strip | handleize -%}
+{% if block.settings.show_modal %}
+  {% style %}
+       #openModal-{{ svp_id }}-{{ block.id }} {
+          padding: 10px 20px;
+          font-size:{{block.settings.font_size}}px;
+          cursor: pointer;
+          background-color: {{ block.settings.button_color }};
+          color: {{ block.settings.button_text_color }};
+          border: none;
+          border-radius: 5px;
+        }
+
+         .modal {
+          display: none;
+          position: fixed;
+          align-items: center;
+          justify-content: center;
+          z-index: 10;
+          left: 0;
+          top: 0;
+          width: 100vw;
+          height: 100vh;
+          overflow: auto;
+          background-color: rgba(0, 0, 0, 0.69);
+          animation: slideIn 0.3s ease-in-out; /* Add animation */
+          cursor: url(https://bplugins.com/wp-content/themes/b-technologies/images/icons/cross-out.png), pointer;
+        }
+
+
+
+
+
+         .modal-content {
+          margin: 10% auto;
+          /* padding: 20px; */
+          /* border: 1px solid #888; */
+          width: 100%;
+          max-width: 800px;
+          position: relative;
+          cursor: auto;
+
+        }
+        @keyframes slideIn {
+      from {
+        transform: translateY(-100%); /* Start offscreen above */
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0); /* Slide down to its position */
+        opacity: 1;
+      }
+    }
+     #close-{{ svp_id }} {
+          color: #aaa;
+          float: top right;
+          font-size: 28px;
+          font-weight: bold;
+          cursor: pointer;
+        }
+
+         #close-{{ svp_id }}:hover,
+         #close-{{ svp_id }}:focus {
+          color: black;
+          text-decoration: none;
+          cursor: pointer;
+        }
+  {% endstyle %}
+
+  {% if block.settings.modal_type == 'defult_id' %}
+    <button id="openModal-{{ svp_id }}-{{ block.id }}">{{ block.settings.button_text | escape }}</button>
+  {% endif %}
+
+  <script>
+    (function () {
+      const modal = document.createElement('div');
+      modal.id = 'videoModal-{{ svp_id }}';
+      modal.className = 'modal'; // Parent modal container
+
+      const modalContent = document.createElement('div');
+      modalContent.className = 'modal-content'; // Inner modal content
+      modalContent.innerHTML = `
+  <div>
+  <div class="video-plyr-by-bplugins" data-id="{{ svp_id }}"></div>
+  </div>
+`;
+
+      // Append the modal content to the modal
+      modal.appendChild(modalContent);
+
+      // Append the modal to the body
+      document.body.appendChild(modal);
+
+      var btn = document.querySelectorAll('#openModal-{{ svp_id }}-{{ block.id }}');
+      {% if block.settings.modal_type == "custom_id" %}
+        btn = document.querySelectorAll({{ block.settings.id_class | strip | prepend: '#' | json }});
+        {% elsif  block.settings.modal_type == "custom_class" %}
+
+        btn = document.querySelectorAll({{ block.settings.id_class | strip | prepend: '.' | json }});
+        {% else %}
+        btn = document.querySelectorAll('#openModal-{{ svp_id }}-{{ block.id }}');
+        {% endif %}
+      {% comment %} var span = document.getElementById('close-{{ svp_id }}'); // Corrected this line {% endcomment %}
+      var video = document.getElementById('videoPlayer-{{ svp_id }}');
+
+      btn.forEach(function(b, index) {
+        btn[index].onClick = function () {
+          modal.style.display = 'flex';
+        };
+      });
+
+      
+
+      
+
+      {% comment %} span.onclick = function () {
+        modal.style.display = 'none';
+        video.pause();
+      }; {% endcomment %}
+
+      window.addEventListener('click', function (event) {
+        if (event.target == modal) {
+          modal.style.display = 'none';
+          video.pause();
+        }
+      });
+    })();
+  </script>
+{% else %}
+  {% if block.settings.enable_hero_section %}
+    {% style %}
+      /* Break out of any theme container to force full screen width safely */
+      #bplugins-hero-{{ block.id }} {
+        position: relative !important;
+        width: 100vw !important;
+        min-width: 100vw !important;
+        max-width: none !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
+        flex-shrink: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        background: #000 !important; /* Fallback background */
+      }
+      #bplugins-hero-{{ block.id }} .hero-video-background {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        z-index: 1 !important;
+        pointer-events: none !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-video-background::after {
+        content: "" !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: rgba(0, 0, 0, {{ block.settings.hero_overlay_opacity }}) !important;
+        z-index: 2 !important;
+        pointer-events: none !important;
+      }
+      /* Ensure plyr/iframe covers the entire area. Using our own ID beats JS specificity */
+      #bplugins-hero-{{ block.id }} .hero-video-background .video-plyr-by-bplugins,
+      #bplugins-hero-{{ block.id }} .hero-video-background [id^="audioPlayerContainer-"],
+      #bplugins-hero-{{ block.id }} .hero-video-background [id^="starVideoPlayer-"],
+      #bplugins-hero-{{ block.id }} .hero-video-background .plyr {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        aspect-ratio: auto !important;
+        display: block !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 1 !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-video-background .plyr__video-wrapper,
+      #bplugins-hero-{{ block.id }} .hero-video-background .plyr__video-embed {
+        aspect-ratio: auto !important;
+        width: 100% !important;
+        height: 100% !important;
+        padding-bottom: 0 !important;
+        transform: none !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-video-background iframe,
+      #bplugins-hero-{{ block.id }} .hero-video-background video {
+        width: 100vw !important;
+        height: 56.25vw !important;
+        min-height: 100vh !important;
+        min-width: 177.77vh !important;
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        object-fit: cover !important;
+        max-width: none !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-video-background .plyr__controls {
+        display: none !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-overlay-content {
+        position: relative !important;
+        z-index: 3 !important;
+        text-align: {{ block.settings.hero_text_align }} !important;
+        padding: 40px !important;
+        background: transparent !important;
+        border-radius: 10px !important;
+        max-width: 800px !important;
+        width: 90% !important;
+        color: {{ block.settings.hero_text_color }} !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-title {
+        color: {{ block.settings.hero_text_color }} !important;
+        margin-bottom: 20px !important;
+        font-size: {{ block.settings.hero_title_size }}px !important;
+        line-height: 1.2 !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-body {
+        margin-bottom: 30px !important;
+        font-size: {{ block.settings.hero_body_size }}px !important;
+        line-height: 1.5 !important;
+        color: {{ block.settings.hero_text_color }} !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-body p {
+        color: {{ block.settings.hero_text_color }} !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-button {
+        display: inline-block !important;
+        padding: 12px 24px !important;
+        background-color: {{ block.settings.hero_button_bg }} !important;
+        color: {{ block.settings.hero_button_text_color }} !important;
+        text-decoration: none !important;
+        border-radius: 5px !important;
+        font-weight: bold !important;
+        transition: opacity 0.3s ease !important;
+      }
+      #bplugins-hero-{{ block.id }} .hero-button:hover {
+        opacity: 0.8 !important;
+      }
+    {% endstyle %}
+
+    <div id="bplugins-hero-{{ block.id }}" class="hero-section-wrapper-{{ block.id }}">
+      <div class="hero-video-background">
+        <div class="video-plyr-by-bplugins" data-id="{{ svp_id }}">
+          <div class="wrapper">
+            <div class="video-loader" aria-busy="true" aria-label="Loading video">
+              <!-- Background video loading state -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        // Exact viewport calculation to force full screen
+        function resizeHero_{{ block.id | replace: '-', '_' }}() {
+           const hero = document.getElementById('bplugins-hero-{{ block.id }}');
+           if (!hero) return;
+           hero.style.marginLeft = '0px'; // Reset to calculate true parent offset
+           const rect = hero.parentElement.getBoundingClientRect();
+           hero.style.setProperty('margin-left', `-${rect.left}px`, 'important');
+        }
+        window.addEventListener('resize', resizeHero_{{ block.id | replace: '-', '_' }});
+        resizeHero_{{ block.id | replace: '-', '_' }}();
+        setTimeout(resizeHero_{{ block.id | replace: '-', '_' }}, 100);
+        setTimeout(resizeHero_{{ block.id | replace: '-', '_' }}, 1000);
+
+        document.addEventListener('DOMContentLoaded', function() {
+          const checkExist = setInterval(function() {
+             const heroWrapper = document.getElementById('bplugins-hero-{{ block.id }}');
+             if (!heroWrapper) return;
+             
+             const playerEl = heroWrapper.querySelector('[id^="player-"]');
+             if (playerEl && playerEl.plyr) {
+                if(playerEl.plyr.paused) {
+                   playerEl.plyr.muted = true;
+                   playerEl.plyr.loop = true;
+                   playerEl.plyr.volume = 0;
+                   playerEl.plyr.play().catch(e => console.log('Autoplay prevented:', e));
+                } else {
+                   clearInterval(checkExist);
+                }
+             } else {
+               const videoElement = heroWrapper.querySelector('video');
+               if(videoElement && videoElement.readyState >= 2) {
+                  if(videoElement.paused) {
+                     videoElement.muted = true;
+                     videoElement.loop = true;
+                     videoElement.setAttribute('muted', '');
+                     videoElement.setAttribute('playsinline', '');
+                     videoElement.play().catch(e => console.log('Autoplay prevented:', e));
+                  } else {
+                     clearInterval(checkExist);
+                  }
+               }
+             }
+          }, 500);
+          
+          setTimeout(() => clearInterval(checkExist), 15000);
+        });
+      </script>
+
+      {% if block.settings.enable_hero_content %}
+        <div class="hero-overlay-content">
+          {% if block.settings.hero_title != blank %}
+            <h2 class="hero-title">{{ block.settings.hero_title | escape }}</h2>
+          {% endif %}
+          {% if block.settings.hero_body != blank %}
+            <div class="hero-body">{{ block.settings.hero_body }}</div>
+          {% endif %}
+          {% if block.settings.hero_button_text != blank %}
+            <a href="{{ block.settings.hero_button_link | escape }}" class="hero-button">
+              {{- block.settings.hero_button_text | escape -}}
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="video-plyr-by-bplugins" data-id="{{ svp_id }}">
+      <div class="wrapper">
+        <div class="video-loader" aria-busy="true" aria-label="Loading video">
+          <div class="vl-media">
+            <div class="vl-play">
+              <div class="vl-play-btn skel" aria-hidden="true"></div>
+            </div>
+
+            <div class="vl-controls" aria-hidden="true">
+              <div class="vl-row">
+                <div class="vl-left">
+                  <span class="ico skel"></span>
+                  <div class="vl-progress skel"></div>
+                </div>
+
+                <div class="vl-right">
+                  <div class="vl-time skel"></div>
+                  <span class="ico skel"></span>
+                  <span class="ico skel"></span>
+                  <span class="ico skel"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% schema %}
+{
+  "name": "Video Embed: Single Video",
+  "target": "section",
+  "settings": [
+    { "type": "header", "content": "Video Player" },
+    {
+      "type": "text",
+      "id": "id",
+      "label": "Video Id",
+      "info": "You can obtain video ID by adding a video in the player list or edit screen."
+    },
+    { "type": "header", "content": "Hero Section Configuration 🟢 NEW" },
+    { "type": "checkbox", "id": "enable_hero_section", "label": "Enable as Hero Section", "default": false },
+    { "type": "checkbox", "id": "enable_hero_content", "label": "Enable Overlay Content", "default": true },
+    { "type": "text", "id": "hero_title", "label": "Hero Title", "default": "Welcome to our store" },
+    {
+      "type": "richtext",
+      "id": "hero_body",
+      "label": "Hero Body",
+      "default": "<p>Discover our amazing products and offers.</p>"
+    },
+    { "type": "text", "id": "hero_button_text", "label": "Button Text", "default": "Shop Now" },
+    { "type": "url", "id": "hero_button_link", "label": "Button Link" },
+    {
+      "type": "range",
+      "id": "hero_height",
+      "min": 300,
+      "max": 1000,
+      "step": 10,
+      "unit": "px",
+      "label": "Section Height",
+      "default": 600
+    },
+    {
+      "type": "select",
+      "id": "hero_text_align",
+      "label": "Text Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    { "type": "color", "id": "hero_text_color", "label": "Text Color", "default": "#ffffff" },
+    { "type": "color", "id": "hero_button_bg", "label": "Button Background", "default": "#000000" },
+    { "type": "color", "id": "hero_button_text_color", "label": "Button Text Color", "default": "#ffffff" },
+    {
+      "type": "range",
+      "id": "hero_overlay_opacity",
+      "min": 0,
+      "max": 1,
+      "step": 0.1,
+      "label": "Overlay Opacity",
+      "default": 0.4
+    },
+    {
+      "type": "range",
+      "id": "hero_title_size",
+      "min": 16,
+      "max": 80,
+      "step": 1,
+      "unit": "px",
+      "label": "Title Font Size",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "hero_body_size",
+      "min": 12,
+      "max": 40,
+      "step": 1,
+      "unit": "px",
+      "label": "Body Font Size",
+      "default": 18
+    }
+  ]
+}
+{% endschema %}
+
+{% comment %}
+  {
+    "type": "header",
+    "content": "All Controls for Modal"
+  },
+  {
+    "type": "checkbox",
+    "id": "show_modal",
+    "label": "Show On Modal",
+    "default": false
+  },
+  {
+    "type": "select",
+    "id": "modal_type",
+    "label": "Modal Show Type",
+    "options": [
+      {
+        "value": "defult_id",
+        "label": "Defult"
+      },
+      {
+        "value": "custom_class",
+        "label": "Custom Class"
+      },
+      {
+        "value": "custom_id",
+        "label": "Custom ID"
+      }
+    ],
+    "default": "defult_id"
+  },
+  { "type": "text", "id": "id_class", "label": "Set Your Button ID or Class" },
+  { "type": "text", "id": "button_text", "label": "Modal Button Text", "default": "Open Modal" },
+  {
+    "type": "range",
+    "id": "font_size",
+    "min": 12,
+    "max": 24,
+    "step": 1,
+    "unit": "px",
+    "label": "Font size",
+    "default": 16
+  },
+  {
+    "type": "color",
+    "id": "button_color",
+    "label": "Button Color",
+    "default": "#4CAF50"
+  },
+  {
+    "type": "color",
+    "id": "button_text_color",
+    "label": "Button Text Color",
+    "default": "#ffffff"
+  },
+  {
+    "type": "range",
+    "id": "margin",
+    "min": 0,
+    "max": 50,
+    "step": 1,
+    "unit": "px",
+    "label": "Margin",
+    "default": 10
+  }
+{% endcomment %}

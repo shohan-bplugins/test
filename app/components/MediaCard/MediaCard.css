@@ -1,0 +1,41 @@
+/* MediaCard — hover-reveal preview button and selected state.
+
+   Only what Polaris cannot express lives here: absolute positioning of the
+   preview control, the hover reveal, and single-line truncation of the name. */
+
+.media-card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.media-card.is-selected {
+  background: var(--app-primary);
+}
+
+.media-card:hover {
+  background: var(--app-bg-surface-hover, rgba(184, 184, 184, 0.4));
+}
+
+.media-card-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.media-card-preview {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+}
+
+.media-card:hover .media-card-preview,
+.media-card.is-previewing .media-card-preview {
+  display: block;
+}

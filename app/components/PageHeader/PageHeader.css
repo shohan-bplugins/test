@@ -1,0 +1,116 @@
+
+.vp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 10px 16px;
+  background: var(--app-primary-light);
+  color: var(--app-primary);
+  border: 1px solid var(--app-primary-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.vp-back-btn:hover:not(:disabled) {
+  background: var(--app-primary);
+  color: #fff;
+  transform: translateX(-2px);
+  box-shadow: 0 4px 12px var(--app-primary-shadow-strong);
+}
+
+.vp-back-btn:active:not(:disabled) {
+  transform: translateX(0);
+}
+
+.vp-back-btn:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.vp-back-btn-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.vp-back-spinner {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: vp-back-spin 0.7s linear infinite;
+}
+
+@keyframes vp-back-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Single product-video page header (back + thumb + title + store) ===== */
+.vp-ph {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.vp-ph-thumb {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--app-border, #e1e3e5);
+  background: var(--app-bg-muted, #f1f2f3);
+}
+
+.vp-ph-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.vp-ph-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+  line-height: 1.2;
+}
+
+.vp-ph-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vp-ph-handle {
+  font-size: 14px;
+  color: var(--app-text-secondary, #6d7175);
+}
+
+/* ===== Product Video single page: two-column layout + sidebar ===== */
+/* Header right-side action group (Preview + View on store) */
+.vp-ph-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}

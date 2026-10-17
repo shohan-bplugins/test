@@ -1,0 +1,536 @@
+<script>
+  fetch('https://shopify-video-app.bplugins.com/app/api/user?shop={{ shop.domain }}')
+    .then((response) => response.json())
+    .then((data) => {
+      if (data?.userType === 'free') {
+        document.querySelector('#starVideoPlayer-{{block.id}}').style.display = 'none';
+        document.querySelector('.alart-from-video-plyr-bp-{{ block.id }}').style.display = 'flex';
+      } else if (data?.userType === 'premium') {
+        document.querySelector('#starVideoPlayer-{{block.id}}').style.display = 'flex';
+        document.querySelector('.alart-from-video-plyr-bp-{{ block.id }}').style.display = 'none';
+      }
+    })
+    .catch((error) => {
+      console.error('Error fetching user data:', error);
+    });
+</script>
+
+{%- assign url = block.settings.poster | file_url -%}
+{%- assign cleaned_url = url | replace: '//', 'https://' -%}
+{%- assign poster_url = cleaned_url | replace: '/files/files/', '/files/' -%}
+
+{% assign video_file = product.metafields.custom.video_player %}
+{% assign video_poster = product.metafields.custom.video_poster %}
+
+{%- assign video_parts = block.settings.externals_video | split: '/' -%}
+
+{%- assign video_id = '' -%}
+
+{%- if video_parts[4] != blank -%}
+  {%- assign video_id = video_parts[4] -%}
+{%- elsif video_parts[3] != blank -%}
+  {%- assign video_id = video_parts[3] -%}
+{%- else -%}
+  {%- assign video_id = 'No video ID found' -%}
+{%- endif -%}
+
+{% assign video_url = block.settings.externals_video %}
+
+{% assign video_type = 'html5' %}
+
+{% if video_url contains 'youtube.com' or video_url contains 'youtu.be' %}
+  {% assign video_type = 'youtube' %}
+{% elsif video_url contains 'vimeo.com' %}
+  {% assign video_type = 'vimeo' %}
+{% else %}
+  {% assign video_type = 'html5' %}
+{% endif %}
+
+{% assign externals_video = '' %}
+
+{% if video_type == 'youtube' %}
+  {% assign auto_play = block.settings.autoPlay | default: false %}
+
+  {% if auto_play %}
+    {% assign auto_play_value = '1' %}
+  {% else %}
+    {% assign auto_play_value = '0' %}
+  {% endif %}
+
+  {% assign externals_video = 'https://www.youtube.com/embed/'
+    | append: video_id
+    | append: '?autoplay='
+    | append: auto_play_value
+    | append: '&enablejsapi=1&rel=0&modestbranding=1'
+  %}
+{% elsif video_type == 'vimeo' %}
+  {% assign externals_video = 'https://player.vimeo.com/video/'
+    | append: video_id
+    | append: '?loop=false&byline=false&portrait=false&title=false&speed=true&transparent=0&gesture=media'
+  %}
+{% endif %}
+
+{% assign shop_name = shop.domain | split: '.myshopify' | first %}
+
+<style>
+    :root {
+    }
+    #audioPlayerContainer-{{block.id}} {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      {% comment %} margin: 10px; {% endcomment %}
+  }
+    #starVideoPlayer-{{block.id}} {
+      --plyr-color-main: {{block.settings.brandColor}} !important;
+      border-radius: {{block.settings.border_radius}}px;
+      overflow: hidden;
+      width: {{block.settings.width}}%;
+        height:auto;
+      }
+
+      #starVideoPlayer-{{block.id}} .thumbInPause img {
+          position: absolute;
+          display: block;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+      }
+
+      #starVideoPlayer-{{block.id}} .thumbInPause img {
+          display: block;
+      }
+
+      #starVideoPlayer-{{block.id}} .plyr__control--overlaid img {
+          display: none;
+      }
+      #starVideoPlayer-{{block.id}} .thumbInPause {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          transform: none;
+          border-radius: 0;
+          background-color: rgba(0, 0, 0, 0) !important;
+          z-index: 3;
+          opacity: 1;
+      }
+
+      #starVideoPlayer-{{block.id}} .plyr__control--overlaid {
+          transition: none;
+      }
+      @media only screen and (max-width: 768px) {
+        #starVideoPlayer-{{ block.id }} .plyr__controls__item.plyr__volume input[range] {
+            max-width: 60px;
+        }
+      }
+      #audioPlayerContainer-{{block.id}} .alart-from-audio-plyr-bp-{{ block.id }} {
+        justify-content: center;
+        align-items: center;
+        display: none;
+        text-align: center;
+        width: 100%;
+        background-color: rgba(255, 166, 166, 0.84);
+        border-radius: 10px;
+      }
+      #audioPlayerContainer-{{block.id}} .pro-feature-alert {
+        background-color: #ffcc00;
+        color: #333;
+        padding: 15px;
+        font-size: 16px;
+        border-radius: 5px;
+        text-align: center;
+        width: 80%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+      }
+      #audioPlayerContainer-{{block.id}} .pro-feature-alert p {
+        font-size: 22px;
+      }
+
+      #audioPlayerContainer-{{block.id}} .pro-feature-alert a {
+        text-decoration: none;
+        color: #fff;
+        font-weight: bold;
+        background-color: #008CBA;
+        padding: 10px 15px;
+        border-radius: 5px;
+        margin-left: 10px;
+      }
+
+      #audioPlayerContainer-{{block.id}} .pro-feature-alert a:hover {
+        background-color: #005f6a;
+      }
+</style>
+
+{% if video_file and video_poster %}
+  {%- assign poster_url = video_poster -%}
+{% endif %}
+
+<div id="audioPlayerContainer-{{block.id}}">
+  <div
+    id="starVideoPlayer-{{block.id}}"
+  >
+    {% if block.settings.video.sources[1].url %}
+      <video
+        id="player-{{block.id}}"
+        controls
+        
+        {% if block.settings.autoPlay %}
+          autoplay
+        {% endif %}
+        {% if block.settings.muted %}
+          muted
+        {% endif %}
+        poster="{{poster_url}}"
+        resetonend="{{block.settings.resetOnEnd}}"
+      >
+        {% if video_file %}
+          <source src="{{video_file}}" type="video/mp4">
+        {% else %}
+          <source src="{{ block.settings.video.sources[1].url }}" type="video/mp4">
+        {% endif %}
+      </video>
+    {% elsif videoType contains 'youtube' or videoType contains 'vimeo' %}
+      {% comment %}
+        <div class="plyr__video-embed" id="player-{{block.id}}">
+          <iframe
+            src="{{externals_video}}"
+          ></iframe>
+        </div>
+      {% endcomment %}
+
+      <div class="plyr__video-embed" id="player-{{block.id}}">
+        <iframe
+          src="{{externals_video}}"
+          allowfullscreen
+          allowtransparency
+          allow="{% if block.settings.autoPlay %}autoplay{% endif %}"
+        ></iframe>
+      </div>
+      {% comment %}
+        <div
+          id="player-{{block.id}}"
+          data-plyr-provider="{{videoType}}"
+          data-poster="{{poster_url}}"
+          data-plyr-embed-id="{{video_id}}"
+        ></div>
+      {% endcomment %}
+    {% endif %}
+  </div>
+  {% comment %}
+    <div class="alart-from-video-plyr-bp-{{ block.id }}" style="width:100%; justify-content: center;">
+      <div class="pro-feature-alert">
+        <p>🚀 Unlock Pro Features! Upgrade now to access these features.</p>
+        <a
+          href="https://admin.shopify.com/store/{{ shop_name }}/apps/video-player-by-bplugins/app/pricing"
+          class="upgrade-btn"
+          target="_blank"
+        >
+          Upgrade Now
+        </a>
+      </div>
+    </div>
+  {% endcomment %}
+</div>
+{% comment %}
+  Hide the Star Rating Block for Free customers
+{% endcomment %}
+
+<script>
+    
+    
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof Plyr !== 'undefined') {
+            let player;
+            // Initialize Plyr for each player
+            {% comment %} const player = new Plyr("#player-{{block.id}}", {
+              {% comment %} autoplay: {{block.settings.autoPlay}}, {% endcomment %}
+              poster:  "{{ poster_url }}",
+              controls: [
+                {{block.settings.playLarge}} && "play-large" , // The large play button in the center
+                {{block.settings.restart}} && "restart", // Restart playback
+                {{block.settings.rewind}} && "rewind", // Rewind by the seek time (default 10 seconds)
+                {{block.settings.play}} && "play", // Play/pause playback
+                {{block.settings.fastForward}} && "fast-forward", // Fast forward by the seek time (default 10 seconds)
+                {{block.settings.progress}} && "progress", // The progress bar and scrubber for playback and buffering
+                {{block.settings.currentTime}} && "current-time", // The current time of playback
+                {{block.settings.duration}} && "duration", // The full duration of the media
+                {{block.settings.mute}} && "mute", // Toggle mute
+                {{block.settings.volume}} && "volume", // Volume control
+                {{block.settings.pip}} && "pip", // Picture-in-picture (currently Safari only)
+                {{block.settings.airplay}} && "airplay", // Airplay (currently Safari only)
+                {{block.settings.plyr_settings}} && "settings", // Settings menu
+                {{block.settings.download}} && "download", // Show a download button with a link to either the current source or a custom URL you specify in your options
+                {{block.settings.fullscreen}} && "fullscreen", // Toggle fullscreen
+              ]?.filter((item) => item !== false),
+              debug: false,
+              loop: { active:  {{block.settings.repeat}} },
+              playsInline:true,
+              autoPlay: {{block.settings.autoPlay}},
+              muted:  {{block.settings.muted}},
+              hideControls: {{block.settings.autoHideControls}},
+              resetOnEnd:{{ block.settings.resetOnEnd }}
+          }); {% endcomment %}
+
+          if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+            // Clear Plyr's persisted localStorage so muted/autoplay settings aren't overridden
+            {% if block.settings.autoPlay or block.settings.muted %}
+            try { localStorage.removeItem('plyr'); } catch(e) {}
+            {% endif %}
+
+            // Initialize Plyr
+            player = new Plyr("#player-{{block.id}}", {
+              {% comment %} autoplay: {{block.settings.autoPlay}}, {% endcomment %}
+              poster:  "{{ poster_url }}",
+              controls: [
+                {{block.settings.playLarge}} && "play-large" , // The large play button in the center
+                {{block.settings.restart}} && "restart", // Restart playback
+                {{block.settings.rewind}} && "rewind", // Rewind by the seek time (default 10 seconds)
+                {{block.settings.play}} && "play", // Play/pause playback
+                {{block.settings.fastForward}} && "fast-forward", // Fast forward by the seek time (default 10 seconds)
+                {{block.settings.progress}} && "progress", // The progress bar and scrubber for playback and buffering
+                {{block.settings.currentTime}} && "current-time", // The current time of playback
+                {{block.settings.duration}} && "duration", // The full duration of the media
+                {{block.settings.mute}} && "mute", // Toggle mute
+                {{block.settings.volume}} && "volume", // Volume control
+                {{block.settings.pip}} && "pip", // Picture-in-picture (currently Safari only)
+                {{block.settings.airplay}} && "airplay", // Airplay (currently Safari only)
+                {{block.settings.plyr_settings}} && "settings", // Settings menu
+                {{block.settings.download}} && "download", // Show a download button with a link to either the current source or a custom URL you specify in your options
+                {{block.settings.fullscreen}} && "fullscreen", // Toggle fullscreen
+              ]?.filter((item) => item !== false),
+              debug: false,
+              loop: { active:  {{block.settings.repeat}} },
+              playsInline:true,
+              autoPlay: {{block.settings.autoPlay}},
+              muted:  {{block.settings.muted}},
+              hideControls: {{block.settings.autoHideControls}},
+              resetOnEnd:{{ block.settings.resetOnEnd }}
+          });
+
+            if ({{ block.settings.resetOnEnd }}) {
+              player.on("ended", () => {
+                player.stop();
+                if (player.elements?.poster) {
+                  player.elements.poster.style.display = "block";
+                }
+              });
+            }
+          }
+            
+            if (player) {
+              player.on("ready", () => {
+              const interval = setInterval(() => {
+                if (player.elements.poster) {
+                  clearInterval(interval);
+                }
+                player.elements.poster.style.backgroundImage = `url({{poster_url}})`;
+                {% comment %} player.elements.poster.style.opacity = 1; {% endcomment %}
+                player.elements.poster.style.display = "block";
+              }, 500);
+            });
+            }
+        }
+    });
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const element = document.querySelector('#player-{{block.id}}');
+    const rect = element.getBoundingClientRect();
+    const width = rect.width;
+
+
+    if (width < 400) {
+      const volume = document.querySelector(`#starVideoPlayer-{{ block.id }} .plyr__controls .plyr__volume input`);
+      if (volume) {
+        volume.style.width = '50px';
+        volume.style.minWidth = '50px';
+      }
+    }
+  });
+</script>
+
+{% schema %}
+{
+  "name": "Product Video Old",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Basic Settings"
+    },
+    { "type": "video", "id": "video", "label": "Video" },
+
+    {
+      "type": "video_url",
+      "id": "externals_video",
+      "label": "Video url (if Video don't exist)",
+      "accept": ["youtube", "vimeo"]
+    },
+
+    { "type": "image_picker", "id": "poster", "label": "Poster" },
+    {
+      "type": "checkbox",
+      "id": "repeat",
+      "label": "Repeat",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "autoPlay",
+      "label": "Auto Play",
+      "default": false,
+      "info": "Autoplay might require muting based on the browser."
+    },
+    {
+      "type": "checkbox",
+      "id": "muted",
+      "label": "Muted",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "resetOnEnd",
+      "label": "Reset On End",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "autoHideControls",
+      "label": "Auto Hide Controls",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "All Controls"
+    },
+    {
+      "type": "checkbox",
+      "id": "playLarge",
+      "label": "Play Large",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "restart",
+      "label": "Restart",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "rewind",
+      "label": "Rewind",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "play",
+      "label": "Play",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "fastForward",
+      "label": "Fast Forward",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "progress",
+      "label": "Progress",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "currentTime",
+      "label": "Current Time",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "duration",
+      "label": "Duration",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "mute",
+      "label": "Mute",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "volume",
+      "label": "Volume",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "pip",
+      "label": "PIP",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "airplay",
+      "label": "Airplay",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "plyr_settings",
+      "label": "Settings",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "download",
+      "label": "Download",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "fullscreen",
+      "label": "Fullscreen",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Styles"
+    },
+    {
+      "type": "color",
+      "id": "brandColor",
+      "label": "Brand Color",
+      "default": "#00b3ff"
+    },
+    {
+      "type": "range",
+      "id": "width",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Width",
+      "default": 100
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "label": "Border Radius",
+      "default": 5
+    }
+  ]
+}
+{% endschema %}

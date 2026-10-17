@@ -1,0 +1,67 @@
+/* Collapse — the blurred "pro" gate.
+
+   Everything else this file used to hold (the .collapse shell, the header row,
+   the max-height container animation and the hand-rolled .modal backdrop) is
+   gone: those are now s-section, s-clickable and an App Bridge modal. What is
+   left has no Polaris equivalent — a dimming overlay with a centred Upgrade
+   label that reveals on hover and navigates to the Pricing page. */
+
+.pro-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+/* A <button>, so the UA button styles have to be cleared before the overlay
+   looks like an overlay again. */
+.pro-overlay {
+  position: absolute;
+  inset: 0;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* Keyboard focus has to reveal it too — otherwise tabbing lands on a control
+   that is fully transparent and gives no sign it is the thing about to fire. */
+.pro-wrapper:hover .pro-overlay,
+.pro-overlay:focus-visible {
+  opacity: 1;
+}
+
+.pro-overlay:focus-visible {
+  outline: 2px solid var(--p-color-border-focus, #005bd3);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pro-overlay {
+    transition: none;
+  }
+}
+
+/* Locked settings stay visible but inert; the overlay is the only target. */
+.pro-wrapper > *:not(.pro-overlay) {
+  pointer-events: none;
+}
+
+.pro-label {
+  background: var(--app-primary);
+  color: white;
+  font-weight: bold;
+  padding: 6px 14px;
+  border-radius: 6px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  user-select: none;
+}

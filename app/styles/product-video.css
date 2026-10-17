@@ -1,0 +1,755 @@
+/* Product Video page styles.
+   These lived in components/PageHeader/PageHeader.css, which pricing, setup
+   and customize import too — so ~630 lines of Product-Video-only CSS were
+   loading on four routes that never render it. Scoped to the two
+   product-video routes now. */
+
+
+/* Full-width assigned card, then the two-column row below it */
+.pv-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.pv-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .pv-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Pill tab control ("Create new" / "Use existing (N)") */
+.pv-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pv-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--app-bg-muted, #f1f2f3);
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.pv-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-text-secondary, #6d7175);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pv-tab:hover {
+  color: var(--app-text-primary, #202223);
+}
+
+.pv-tab--active {
+  background: var(--app-bg-surface, #fff);
+  color: var(--app-text-primary, #202223);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Player-type chooser grid + cards */
+.pv-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .pv-type-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pv-type-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 22px 16px;
+  border: 1.5px solid var(--app-border, #e1e3e5);
+  border-radius: 12px;
+  /* background: var(--app-bg-surface, #fff); */
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pv-type-card:hover {
+  border-color: var(--app-primary, #008060);
+  /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); */
+  background: #e6f6ee;
+}
+
+.pv-type-card--selected {
+  border-color: var(--app-primary, #008060);
+  background: var(--app-primary-light, #e6f6ee);
+}
+
+.pv-type-card--selected:hover {
+  background: var(--app-primary-light, #e6f6ee);
+}
+
+.pv-type-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  color: var(--app-primary, #008060);
+}
+
+.pv-type-check svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.pv-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-primary, #008060);
+}
+
+.pv-type-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+/* "Use existing" players grid */
+.pv-existing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+/* "How this works" sidebar */
+.pv-side {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.pv-hiw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pv-watch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--app-text-primary, #202223);
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pv-watch-btn:hover {
+  background: var(--app-bg-hover, #f6f6f7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.pv-watch-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.pv-hiw-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pv-hiw-step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 18px;
+}
+
+.pv-hiw-step:last-child {
+  padding-bottom: 0;
+}
+
+/* vertical connector between step numbers */
+.pv-hiw-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 28px;
+  bottom: 0;
+  width: 2px;
+  background: var(--app-border, #e1e3e5);
+}
+
+.pv-hiw-num {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--app-primary-light, #e6f6ee);
+  color: var(--app-primary, #008060);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pv-hiw-step-text {
+  min-width: 0;
+}
+
+.pv-hiw-step-title {
+  margin: 2px 0 3px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--app-text-primary, #1a1a1a);
+  line-height: 1.3;
+}
+
+.pv-hiw-step-body {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--app-text-secondary, #6b7177);
+  line-height: 1.5;
+}
+
+/* Sidebar tip box */
+.pv-tip {
+  border-left: 3px solid var(--app-primary, #008060);
+  background: var(--app-primary-bg, #eef9f3);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-text-secondary, #4a4f54);
+}
+
+.pv-tip strong {
+  color: var(--app-text-primary, #202223);
+  font-weight: 700;
+}
+
+/* Add-player card: body + flush footer bar */
+.pv-add {
+  display: flex;
+  flex-direction: column;
+}
+
+.pv-add-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.pv-card-foot {
+  display: block;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--app-border, #e1e3e5);
+  background: var(--app-bg-muted, #f6f6f7);
+}
+
+.pv-foot-status {
+  font-size: 13.5px;
+  color: var(--app-text-secondary, #6d7175);
+}
+
+/* Search field (Use existing) */
+.pv-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 9px;
+  background: var(--app-bg-surface, #fff);
+}
+
+.pv-search:focus-within {
+  border-color: var(--app-primary, #008060);
+  box-shadow: 0 0 0 2px var(--app-primary-light, #e6f6ee);
+}
+
+.pv-search svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--app-text-muted, #8c9196);
+}
+
+.pv-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--app-text-primary, #202223);
+}
+
+/* Use-existing checkbox list */
+.pv-erow-list {
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pv-erow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  border-top: 1px solid var(--app-border, #e1e3e5);
+}
+
+.pv-erow:first-child {
+  border-top: none;
+}
+
+.pv-erow:hover {
+  background: var(--app-bg-hover, #f6f6f7);
+}
+
+.pv-erow--checked {
+  background: var(--app-bg-hover, #f6f6f7);
+}
+
+.pv-erow-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--app-primary, #008060);
+  cursor: pointer;
+}
+
+.pv-erow-main {
+  /* Now carried by an <s-stack>, which is not a block by itself. */
+  display: flex;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Already-assigned rows: shown checked + disabled */
+.pv-erow--assigned {
+  cursor: default;
+}
+
+.pv-erow--assigned .pv-erow-check {
+  cursor: default;
+}
+
+.pv-erow-empty {
+  padding: 16px 14px;
+  font-size: 13.5px;
+  color: var(--app-text-secondary, #6d7175);
+}
+
+.pv-erow-pagination {
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+/* The dark ring on the green "Assign video" button is the PRIMARY button's
+   inset box-shadow (Polaris --p-shadow-button-primary contains rgba(48,48,48,1)),
+   not a focus outline. Kill it ONLY on the primary variant — the default
+   "Change videos" button relies on its box-shadow for its visible border. */
+.pv-assign-btn .Polaris-Button--variantPrimary,
+.pv-assign-btn .Polaris-Button--variantPrimary:hover,
+.pv-assign-btn .Polaris-Button--variantPrimary:focus,
+.pv-assign-btn .Polaris-Button--variantPrimary:focus-visible,
+.pv-assign-btn .Polaris-Button--variantPrimary:active {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Row icons */
+.pv-row-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--app-text-secondary, #6d7175);
+}
+
+.pv-row-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pv-row-iconbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--app-bg-muted, #f1f2f3);
+  color: var(--app-text-secondary, #6d7175);
+}
+
+.pv-row-iconbox svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Assigned player rows */
+/* -- list (custom container so we can react during a drag). */
+.pv-alist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    padding 0.18s ease;
+}
+
+/* While a drag is in progress the whole drop zone lights up. */
+.pv-alist--dragging {
+  padding: 8px;
+  background: var(--app-primary-light, #e6f6ee);
+  box-shadow: 0 0 0 1.5px var(--app-primary-border, #b6e0cd) inset;
+}
+
+.pv-arow {
+  position: relative;
+  /* display: flex; */
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 0;
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 10px;
+  background: var(--app-bg-surface, #fff);
+  transition:
+    opacity 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* The dragged row turns into an empty dashed "drop here" slot (in place).
+   Its real content is hidden; only the hint shows. */
+.pv-arow--placeholder {
+  background: var(--app-primary-light, #e6f6ee);
+  border: 2px dashed var(--app-primary, #008060);
+  box-shadow: 0 0 0 3px var(--app-primary-shadow-strong, rgba(0, 128, 96, 0.18));
+  animation: pv-ph-pulse 1s ease-in-out infinite;
+}
+
+/* Hide the row's real contents while it's acting as the placeholder. */
+.pv-arow--placeholder>*:not(.pv-arow-ph-hint) {
+  visibility: hidden;
+}
+
+/* "Drop here" label, centred in the empty slot. */
+.pv-arow-ph-hint {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--app-primary, #008060);
+  pointer-events: none;
+}
+
+.pv-arow--placeholder .pv-arow-ph-hint {
+  display: flex;
+}
+
+@keyframes pv-ph-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--app-primary-shadow-strong, rgba(0, 128, 96, 0.16));
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px var(--app-primary-shadow-strong, rgba(0, 128, 96, 0.08));
+  }
+}
+
+/* Drop target: highlight the row + show an insertion line above/below it. */
+.pv-arow--over {
+  border-color: var(--app-primary, #008060);
+  box-shadow: 0 0 0 1px var(--app-primary, #008060) inset;
+}
+
+.pv-arow--over::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--app-primary, #008060);
+  box-shadow: 0 0 6px var(--app-primary, #008060);
+  pointer-events: none;
+}
+
+.pv-arow--before::after {
+  top: -6px;
+}
+
+.pv-arow--after::after {
+  bottom: -6px;
+}
+
+.pv-arow-handle {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--app-text-muted, #8c9196);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pv-arow-handle:active {
+  cursor: grabbing;
+}
+
+.pv-arow-num {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--app-text-secondary, #6d7175);
+  min-width: 12px;
+}
+
+.pv-arow-main {
+  /* Now carried by an <s-stack>, which is not a block by itself. */
+  display: flex;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1;
+}
+
+/* 16:9 frame for the "Watch Video" modal embed (both product-video routes). */
+.pv-video-frame {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.pv-video-frame>iframe,
+.pv-video-frame>div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Hosts that are now custom elements need an explicit display. */
+.pv-banner-slot {
+  display: block;
+  margin-bottom: 16px;
+}
+
+/* vp-ph-title / vp-ph-handle now sit on <s-heading> / <s-text>, which are not
+   block-level by themselves. Defined here rather than in PageHeader.css so the
+   shared component keeps its own markup contract. */
+s-heading.vp-ph-title {
+  display: block;
+}
+
+s-text.vp-ph-handle {
+  display: inline;
+}
+
+/* Hosts that are now <s-box>. */
+s-box.pv-video-frame {
+  display: block;
+}
+
+s-box.pv-table-card {
+  display: block;
+}
+
+s-box.pv-assign-btn {
+  display: block;
+  width: 125px;
+}
+
+/* Structural wrappers now rendered as <s-box>; display restated. */
+s-box.pv-add {
+  display: flex;
+}
+
+s-box.pv-add-body {
+  display: flex;
+}
+
+s-box.pv-arow-num {
+  display: block;
+}
+
+s-box.pv-arow-ph-hint {
+  display: none;
+}
+
+/* s-box.pv-card-foot {
+  display: flex;
+} */
+
+s-box.pv-erow-empty {
+  display: block;
+}
+
+s-box.pv-erow-list {
+  display: block;
+}
+
+s-box.pv-erow-pagination {
+  display: flex;
+}
+
+s-box.pv-foot-status {
+  display: block;
+}
+
+s-box.pv-hiw-head {
+  display: flex;
+}
+
+s-box.pv-layout {
+  display: grid;
+}
+
+s-box.pv-main {
+  display: flex;
+}
+
+s-box.pv-page-body {
+  display: flex;
+}
+
+s-box.pv-search {
+  display: flex;
+}
+
+s-box.pv-tabs {
+  display: inline-flex;
+}
+
+s-box.pv-tabs-row {
+  display: flex;
+}
+
+s-box.pv-type-grid {
+  display: grid;
+}
+
+s-box.pv-video-frame {
+  display: block;
+}
+
+s-box.vp-ph {
+  display: flex;
+}
+
+s-box.vp-ph-actions {
+  display: flex;
+}
+
+s-box.vp-ph-main {
+  display: flex;
+}
+
+s-box.vp-ph-sub {
+  display: flex;
+}
+
+
+/* Drag list + handle, now <s-box>. */
+s-box.pv-alist,
+s-button.pv-alist {
+  display: flex;
+}
+
+s-box.pv-arow,
+s-button.pv-arow {
+  display: block;
+}
+
+s-box.pv-arow-handle,
+s-button.pv-arow-handle {
+  display: inline-flex;
+}
+
+s-box.vp-back-btn,
+s-button.vp-back-btn {
+  display: inline-flex;
+}
+
+
+/* TypeCard is now an <s-clickable>. */
+s-clickable.pv-type-card {
+  display: flex;
+}
+
+/* Product title inside the index table's first cell. The host is an s-text,
+   which is not block-level, so the truncation needs a display of its own. */
+.pv-title-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}

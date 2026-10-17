@@ -1,0 +1,91 @@
+{%- comment -%}
+  Product Video app block.
+  Renders the video that was assigned to this product in the
+  "Video Player by bPlugins" admin (Product Video page). The assignment is
+  stored in the product metafield bplugins.product_video, and the shared app
+  embed script turns the <div data-id> below into a real player.
+{%- endcomment -%}
+
+{%- assign pv = product.metafields.bplugins.product_video -%}
+
+{%- if pv != blank -%}
+  <div
+    class="bp-product-video"
+    style="max-width: {{ block.settings.max_width }}{{ block.settings.max_width_unit | default: '%' }}; margin-left: auto; margin-right: auto; display: grid; gap: {{ block.settings.gap }}px;"
+    {{ block.shopify_attributes }}
+  >
+    {%- if pv.type contains 'list' -%}
+      {%- for vid in pv.value -%}
+        {%- if vid != blank -%}
+          <div 
+          class="video-plyr-by-bplugins" 
+          data-id="{{ vid | escape }}" 
+          style="
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            padding: 0 20px;
+       " ></div>
+        {%- endif -%}
+      {%- endfor -%}
+    {%- else -%}
+      <div class="video-plyr-by-bplugins" data-id="{{ pv.value | default: pv | escape }}" style="
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            padding: 0 20px;
+       "></div>
+    {%- endif -%}
+  </div>
+{%- else -%}
+  {%- if request.design_mode -%}
+    <div
+      style="padding:16px;border:1px dashed #c9ccd0;border-radius:8px;text-align:center;color:#6d7175;font-size:14px;"
+      {{ block.shopify_attributes }}
+    >
+      No video is assigned to this product yet. Open the
+      <strong>Video Player by bPlugins</strong> app &rarr;
+      <strong>Product Video</strong> and assign a video.
+    </div>
+  {%- endif -%}
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Product Video New",
+  "target": "section",
+  "settings": [
+            {
+          "type": "range",
+          "id": "max_width",
+          "min": 0,
+          "max": 2000,
+          "step": 20,
+          "label": "Max width",
+          "default": 100
+        },
+        {
+          "type": "select",
+          "id": "max_width_unit",
+          "label": "Width unit",
+          "default": "%",
+          "options": [
+            { "value": "px", "label": "px" },
+            { "value": "%", "label": "%" },
+            { "value": "rem", "label": "rem" },
+            { "value": "vw", "label": "vw" }
+          ]
+        },
+    {
+      "type": "range",
+      "id": "gap",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "unit": "px",
+      "label": "Gap between videos",
+      "default": 24
+    }
+  ]
+}
+{% endschema %}
