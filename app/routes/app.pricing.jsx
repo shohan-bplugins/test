@@ -529,7 +529,13 @@ const SubscriptionBtn = () => {
                           loading={flag(isLoading)}
                           fullWidth
                         >
-                          Upgrade
+                          {/* First run: make the trial explicit, so a paid
+                          plan can't be mistaken for the Free one. */}
+                          {planChosen
+                            ? "Upgrade"
+                            : Number(plan_item?.trial_days) > 0
+                              ? `Start ${Number(plan_item.trial_days)}-day free trial`
+                              : `Choose ${plan_item?.title || "plan"}`}
                         </Button>
                       ) : !planChosen ? (
                         <Button
