@@ -20,6 +20,7 @@ import {
   sanitizeVideoRecord,
   validateUpload,
 } from "../utils/sanitize";
+import { requestReviewAfterTask } from "../utils/reviewPrompt.client";
 import { verifyShopPlan } from "../utils/planSync.server";
 import React, {
   useCallback,
@@ -1213,6 +1214,18 @@ export const action = async ({ request }) => {
 
 const Customize = () => {
   const nav = useNavigation();
+
+  // A finished Save (the PUT going back to idle) is a completed task — the
+  // moment to maybe ask for a review. requestReviewAfterTask applies the rules.
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (nav.state === "submitting" && nav.formMethod === "PUT") {
+      savingRef.current = true;
+    } else if (nav.state === "idle" && savingRef.current) {
+      savingRef.current = false;
+      requestReviewAfterTask();
+    }
+  }, [nav.state, nav.formMethod]);
   const submit = useSubmit();
   const actionData = useActionData();
   const location = useLocation();

@@ -74,13 +74,27 @@ export const loader = async ({ request }) => {
 };
 
 export default function App() {
-  const { apiKey, planChosen } = useLoaderData();
+  const { apiKey, shop, planChosen } = useLoaderData();
 
   // Real-user Core Web Vitals for every admin route. Client-only, and imported
   // lazily so web-vitals never lands in the server bundle or blocks first paint.
   useEffect(() => {
     import("../utils/webVitals.client").then((m) => m.startWebVitals());
   }, []);
+
+  // Crisp live chat, admin pages only. Loaded here rather than in root.jsx so
+  // it never appears on the storefront-facing embed/proxy routes. The guard
+  // keeps client-side navigation (and dev HMR) from injecting it twice.
+  useEffect(() => {
+    if (window.$crisp) return;
+    window.$crisp = [];
+    window.CRISP_WEBSITE_ID = "e9e3fe6a-6052-4c62-9d27-3c2d73a2c277";
+    if (shop) window.$crisp.push(["set", "session:data", [[["shop", shop]]]]);
+    const s = document.createElement("script");
+    s.src = "https://client.crisp.chat/l.js";
+    s.async = true;
+    document.head.appendChild(s);
+  }, [shop]);
 
   const navigation = useNavigation();
   const loading =

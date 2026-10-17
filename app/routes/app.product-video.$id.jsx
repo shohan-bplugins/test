@@ -48,6 +48,7 @@ import InlinePlayerCreatorModal from "../components/InlinePlayerCreatorModal";
 import "../styles/product-video.css";
 import "../styles/styles.css";
 import { verifyShopPlan } from "../utils/planSync.server";
+import { requestReviewAfterTask } from "../utils/reviewPrompt.client";
 
 const NS = "bplugins";
 const KEY = "product_video";
@@ -462,6 +463,13 @@ export default function ProductVideoAssign() {
     product.onlineStoreUrl ||
     (product.handle ? `https://${shop}/products/${product.handle}` : null);
   const actionData = useActionData();
+
+  // Assigning videos to a product is a completed task — maybe ask for a review.
+  useEffect(() => {
+    if (actionData?.ok && actionData?.assignedVideoIds?.length) {
+      requestReviewAfterTask();
+    }
+  }, [actionData]);
   const navigate = useNavigate();
   const navigation = useNavigation();
   const submit = useSubmit();
