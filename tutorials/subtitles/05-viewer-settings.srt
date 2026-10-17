@@ -1,0 +1,430 @@
+1
+00:00:00,250 --> 00:00:02,694
+A 3D model on a page is only half the job.
+
+2
+00:00:02,754 --> 00:00:07,224
+How it's lit, how far away the camera
+sits, what a customer is allowed to do
+
+3
+00:00:07,284 --> 00:00:08,952
+with it — that's all in here.
+
+4
+00:00:10,162 --> 00:00:13,610
+The viewer settings card sits under the
+model file, on the left.
+
+5
+00:00:13,670 --> 00:00:18,050
+Everything you change here is saved to
+that product's own config metafield, so it
+
+6
+00:00:18,110 --> 00:00:21,887
+applies to this product only and overrides
+the theme block's defaults.
+
+7
+00:00:22,747 --> 00:00:26,263
+On the right is the live preview, and this
+is the thing to trust.
+
+8
+00:00:26,323 --> 00:00:30,829
+It renders the same viewer your customers
+get, loading the same file the storefront
+
+9
+00:00:30,889 --> 00:00:31,489
+will.
+
+10
+00:00:31,164 --> 00:00:34,791
+Nothing here needs saving to see — the
+preview updates as you drag.
+
+11
+00:00:35,651 --> 00:00:36,703
+Start with Display.
+
+12
+00:00:36,763 --> 00:00:41,619
+Viewer height sets how tall the viewer is
+on the page, from two hundred up to twelve
+
+13
+00:00:41,679 --> 00:00:42,496
+hundred pixels.
+
+14
+00:00:42,556 --> 00:00:44,545
+Drag it and watch the preview grow.
+
+15
+00:00:45,405 --> 00:00:48,563
+Background colour is the one setting
+people change first.
+
+16
+00:00:48,623 --> 00:00:53,023
+Pick a colour that matches your theme — a
+white viewer dropped into a dark page
+
+17
+00:00:53,083 --> 00:00:54,265
+reads as a broken box.
+
+18
+00:00:54,325 --> 00:00:56,692
+You can use the swatch or type a hex
+value.
+
+19
+00:00:57,552 --> 00:01:01,915
+Exposure is brightness, and it's the fix
+for a model that came out of Blender
+
+20
+00:01:01,975 --> 00:01:03,638
+looking too dark or blown out.
+
+21
+00:01:03,698 --> 00:01:06,625
+Zero to five, and small moves make a big
+difference.
+
+22
+00:01:07,485 --> 00:01:12,311
+Tone mapping decides how bright values get
+compressed into what your screen can show.
+
+23
+00:01:12,371 --> 00:01:13,863
+Linear is the safe default.
+
+24
+00:01:13,923 --> 00:01:18,692
+ACES Filmic is the most photographic and
+usually the best-looking for product
+
+25
+00:01:18,752 --> 00:01:20,359
+Try them — it's one dropdown.
+
+26
+00:01:21,219 --> 00:01:22,910
+Three switches finish Display.
+
+27
+00:01:22,970 --> 00:01:27,405
+Default environment map generates lighting
+so metals and glossy plastics have
+
+28
+00:01:27,465 --> 00:01:29,449
+something to reflect — leave it on.
+
+29
+00:01:29,509 --> 00:01:31,842
+Blur skybox softens the background image.
+
+30
+00:01:31,902 --> 00:01:36,337
+And Cast shadow puts a contact shadow
+under the model, which is what stops it
+
+31
+00:01:36,397 --> 00:01:37,913
+looking like it's floating.
+
+32
+00:01:38,773 --> 00:01:42,178
+Environment is for when the generated
+lighting isn't enough.
+
+33
+00:01:42,238 --> 00:01:46,451
+Point Skybox at an HDR image and it
+becomes the visible background and the
+
+34
+00:01:46,511 --> 00:01:47,202
+light source.
+
+35
+00:01:47,262 --> 00:01:51,591
+Environment map is a separate HDR used
+only for reflections, so you can have
+
+36
+00:01:51,651 --> 00:01:54,767
+studio lighting on the model without a
+photo behind it.
+
+37
+00:01:55,627 --> 00:01:56,227
+Camera.
+
+38
+00:01:56,031 --> 00:02:00,819
+FOV mode is Auto by default, which frames
+the model to fit whatever its size happens
+
+39
+00:02:00,879 --> 00:02:03,590
+to be — leave it there unless you have a
+reason.
+
+40
+00:02:03,650 --> 00:02:08,149
+Switch to Custom and the FOV slider wakes
+up: low numbers are a long lens, high
+
+41
+00:02:08,209 --> 00:02:09,650
+numbers a wide-angle look.
+
+42
+00:02:10,510 --> 00:02:14,516
+Initial yaw and pitch are the angle the
+model faces when the page loads.
+
+43
+00:02:14,576 --> 00:02:19,090
+This is worth spending a minute on: turn
+the shoe so the logo faces the customer,
+
+44
+00:02:19,150 --> 00:02:20,954
+tilt it so they can see the sole.
+
+45
+00:02:21,014 --> 00:02:23,043
+Watch the preview rotate as you drag.
+
+46
+00:02:23,903 --> 00:02:27,001
+Initial zoom moves the camera in or out
+from that framing.
+
+47
+00:02:27,061 --> 00:02:28,580
+Positive numbers move closer.
+
+48
+00:02:28,640 --> 00:02:32,936
+Combined with yaw and pitch, these three
+give you a proper hero shot rather than
+
+49
+00:02:32,996 --> 00:02:35,114
+whatever angle the file was exported at.
+
+50
+00:02:35,974 --> 00:02:38,423
+Controls decide what a customer can do.
+
+51
+00:02:38,483 --> 00:02:41,898
+Allow rotate, allow pan, allow zoom — all
+independent.
+
+52
+00:02:41,958 --> 00:02:47,239
+Turning pan on is useful for large models;
+turning zoom off is useful when you want
+
+53
+00:02:47,299 --> 00:02:48,719
+one fixed presentation.
+
+54
+00:02:49,579 --> 00:02:51,872
+Auto rotate spins the model gently on
+load.
+
+55
+00:02:51,932 --> 00:02:56,249
+It's the single best way to tell a shopper
+that this image is interactive — most
+
+56
+00:02:56,309 --> 00:02:59,750
+people won't try to drag a picture unless
+something moves first.
+
+57
+00:03:00,610 --> 00:03:02,008
+These two matter on mobile.
+
+58
+00:03:02,068 --> 00:03:06,382
+Page scroll on touch lets a finger drag
+scroll the page instead of trapping it in
+
+59
+00:03:06,442 --> 00:03:07,678
+the viewer — keep it on.
+
+60
+00:03:07,738 --> 00:03:11,998
+Page scroll on mouse wheel does the same
+for the wheel, so the wheel scrolls the
+
+61
+00:03:12,058 --> 00:03:13,888
+page rather than zooming the model.
+
+62
+00:03:14,748 --> 00:03:18,818
+Control bar is the on-screen buttons, each
+one an individual switch.
+
+63
+00:03:18,878 --> 00:03:23,860
+By default you get zoom in, zoom out, and
+fullscreen — that's a deliberate minimum,
+
+64
+00:03:23,920 --> 00:03:26,228
+so the model isn't buried under chrome.
+
+65
+00:03:27,088 --> 00:03:30,534
+Switch the rest on and you can see them
+appear in the preview.
+
+66
+00:03:30,594 --> 00:03:32,400
+The axis gizmo shows orientation.
+
+67
+00:03:32,460 --> 00:03:35,453
+The camera button downloads a PNG of the
+current view.
+
+68
+00:03:35,513 --> 00:03:38,167
+Reset returns the camera to your starting
+angle.
+
+69
+00:03:38,227 --> 00:03:42,464
+And the animation switcher shows the
+playing clip — note that with this off,
+
+70
+00:03:42,524 --> 00:03:44,330
+the model doesn't animate at all.
+
+71
+00:03:45,190 --> 00:03:45,790
+Animation.
+
+72
+00:03:45,831 --> 00:03:51,088
+If your model has clips baked in, default
+animation index picks which one autoplays
+
+73
+00:03:51,148 --> 00:03:52,369
+— zero is the first.
+
+74
+00:03:52,429 --> 00:03:57,366
+Repeat mode: one loops that clip, all
+cycles through every clip, none plays it
+
+75
+00:03:57,426 --> 00:03:58,327
+once and stops.
+
+76
+00:03:59,187 --> 00:04:02,207
+AR lets a shopper put the product in their
+room.
+
+77
+00:04:02,267 --> 00:04:06,442
+WebXR and Google Scene Viewer cover
+Android and are on by default.
+
+78
+00:04:06,502 --> 00:04:11,575
+Apple Quick Look covers iPhone and iPad,
+but it needs a separate USDZ file — glb
+
+79
+00:04:11,635 --> 00:04:16,516
+won't do — so upload one to Shopify Files
+and paste its URL in the box below.
+
+80
+00:04:17,376 --> 00:04:19,563
+Advanced holds two specialist options.
+
+81
+00:04:19,623 --> 00:04:24,294
+Material variant switches the model to a
+named variant, if your glb was authored
+
+82
+00:04:24,354 --> 00:04:26,245
+with them — handy for colourways.
+
+83
+00:04:26,305 --> 00:04:30,976
+And fix skinned bounding box recalculates
+the model's bounds using its skeleton,
+
+84
+00:04:31,036 --> 00:04:34,170
+which fixes rigged models that frame
+themselves badly.
+
+85
+00:04:35,030 --> 00:04:37,517
+Nothing is stored until you hit Save
+settings.
+
+86
+00:04:37,577 --> 00:04:41,448
+The button only lights up when you
+actually have unsaved changes, so it
+
+87
+00:04:41,508 --> 00:04:43,220
+doubles as your dirty indicator.
+
+88
+00:04:44,080 --> 00:04:48,548
+Once saved, a Customized chip appears next
+to the product name, and a Reset to
+
+89
+00:04:48,608 --> 00:04:50,755
+defaults button appears in the header.
+
+90
+00:04:50,815 --> 00:04:55,225
+Reset deletes the config metafield
+entirely, so the product falls back to the
+
+91
+00:04:55,285 --> 00:04:56,560
+theme block's defaults.
+
+92
+00:04:57,420 --> 00:04:58,483
+That's every setting.
+
+93
+00:04:58,543 --> 00:05:02,813
+Next, the three different ways this app
+lets you check your work before customers
+
+94
+00:05:02,873 --> 00:05:03,473
+see it.

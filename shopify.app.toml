@@ -1,39 +1,78 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "c90e2e56005a663bb55073a36ec66c9d"
-name = "3D Viewer"
-handle = "viewer-3d"
-application_url = "https://shopify.dev/apps/default-app-home"
+client_id = "d3dfc5540fc3cac9a78654f0352323fc"
+name = "Easy 3D Viewer"
+handle = "easy-3d-viewer-shohan"
+application_url = "https://3d-viewer-app.bplugins.com"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
-api_version = "2025-10"
+api_version = "2026-01"
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/installed"
-  topics = ["app/installed"]
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "/webhooks/app/uninstalled"
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = ["app/uninstalled"]
+[[webhooks.subscriptions]]
+topics = [ "app/scopes_update" ]
+uri = "/webhooks/app/scopes_update"
 
-  [[webhooks.subscriptions]]
-  topics = ["app/scopes_update"]
-  uri = "/webhooks/app/scopes_update"
+[[webhooks.subscriptions]]
+topics = [ "app_subscriptions/update" ]
+uri = "/webhooks/app/subscriptions_update"
 
-  [[webhooks.subscriptions]]
-  topics = ["app_subscriptions/update"]
-  uri = "/webhooks/app/subscriptions_update"
+# Shopify's three mandatory privacy webhooks. An App Store submission without
+# them is rejected, and unlike the topics above they are declared with
+# `compliance_topics` rather than `topics` — Shopify tracks them separately and
+# will not accept them in a `topics` list.
+#
+# All three land on one route; see app/routes/webhooks.compliance.tsx.
+[[webhooks.subscriptions]]
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact",
+]
+uri = "/webhooks/compliance"
+
+# Shopify's app-management contract now expects an `events` module (the Events
+# API that supersedes webhooks). Its schema is validated on every `shopify app
+# dev`/`deploy`, and a missing section fails with "[events]: Required" — even
+# though the CLI still writes `[webhooks]` itself. Declaring the section with no
+# subscriptions satisfies the contract and registers nothing; the webhook
+# subscriptions above keep working unchanged.
+[events]
+# The Events API is only served on `unstable`; any dated version is rejected
+# ("Expected 'unstable'"). This is independent of the `[webhooks] api_version`
+# above, which is what the app's actual webhook subscriptions run on.
+api_version = "unstable"
+subscription = []
 
 [access_scopes]
-scopes = "write_products,write_files"
+scopes = "write_products,write_files,write_themes"
+
+# Lets the storefront reach this app on the shop's own domain:
+#
+#   https://<shop>/apps/viewer-3d/model/<id>  ->  <application_url>/proxy/model/<id>
+#
+# The theme block uses this to resolve a Model ID. It has no way to learn the
+# app's URL on its own, so before the proxy existed that URL was hardcoded in
+# Liquid — and any mismatch (a `shopify app dev` tunnel, a domain change) made
+# every request fail with the browser's opaque "Failed to fetch". Routing through
+# Shopify removes both the hardcoded URL and CORS from the picture.
+#
+# `url` must track `application_url` above; the CLI rewrites both on deploy when
+# automatically_update_urls_on_dev is set.
+[app_proxy]
+url = "https://3d-viewer-app.bplugins.com/proxy"
+subpath = "viewer-3d"
+prefix = "apps"
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://3d-viewer-app.bplugins.com/auth/callback" ]
 
 [pos]
 embedded = false

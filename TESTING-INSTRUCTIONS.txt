@@ -1,0 +1,32 @@
+WHAT IT DOES
+Easy 3D Viewer displays a .glb/.gltf model as an interactive 3D viewer on the storefront through a theme app block. Shoppers rotate, zoom, and on a phone place the product in their room with AR. A model is attached to a product via the custom.model_3d metafield, which the app creates for you.
+
+BEFORE YOU START
+- Install on any development store with a modern theme (e.g. Dawn).
+- You will need a 3D model. Sample .glb: <SAMPLE GLB LINK>
+- Already set up, if you prefer: <DEMO STORE URL> / <EMAIL> / <PASSWORD>
+- The Free plan shows the whole feature set; plans only change volume.
+
+MAIN FLOW (~3 MIN)
+1. Install. The app opens on "Get started", a three-step checklist.
+2. Step 1 - click "Create definitions". This creates two metafield definitions with storefront read access: custom.model_3d (File) and custom.viewer_3d_config (JSON). Nothing else on the store is touched. Verify in Settings > Custom data > Products, or on the app's Setup page.
+3. Step 2 - click "Pick a product", choose any product, drop the .glb on the upload area. The file goes to the store's own Shopify Files. A live preview appears with the viewer settings beside it; every change renders before you save.
+4. Step 3 - click "Add block for me". The app inserts the "3D Viewer - Product" block into the published theme's product template. Or click "Open theme editor" and add it under Add block > Apps; the app detects either route.
+5. Open that product on the storefront. Drag to rotate, scroll or pinch to zoom, try the controls: fullscreen, reset view, zoom, snapshot. No console errors.
+6. On a phone, tap "View in your room" for AR.
+
+ALSO WORTH SEEING
+- 3D Model Library: manage models independently of products.
+- "3D Viewer - Page" block: a viewer on any page, by Model ID or URL.
+- Each model has a shareable /viewer/<id> link and an iframe embed - the path for themes without app-block support.
+- A product with no model renders normally: no viewer, no error.
+
+BILLING
+Real charges via Shopify's Billing API; test mode is not enabled. Monthly, USD: Free $0 (3 products/3 models), Starter $7.99 (15/15), Growth $17.99 (100/100), Advance $37.99 (unlimited). Paid plans include a 7-day trial. Subscribe to Starter, confirm the approval screen shows $7.99/month and the trial, then cancel in-app: limits return to Free and no model is deleted.
+
+EXPECTED, NOT BUGS
+- iPhone AR (Quick Look) needs a separate .usdz the merchant supplies. Without it, iPhone shoppers still get the 3D viewer. Android works from the .glb.
+- One model per product, on every plan.
+- .glb and .gltf only, up to 20 MB.
+
+Questions: <SUPPORT EMAIL>

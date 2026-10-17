@@ -1,68 +1,115 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
 import {
-  Form,
-  Link,
   useActionData,
   useLoaderData,
-  useNavigate,
   useNavigation,
+  useRevalidator,
   useSubmit,
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import {
-  Boxes,
-  ChevronRight,
-  Copy,
-  FolderOpen,
-  LayoutGrid,
-  List,
-  Search,
-  Settings2,
-  Trash2,
-  Upload,
-  UploadCloud,
-  X,
-} from "lucide-react";
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { resolveFileUrl, stagedUploadAndCreate } from "~/lib/files.server";
-import { isValidModelFilename } from "~/lib/files";
-import { countAssignedModels, getPlanLimitForShop } from "~/lib/billing.server";
+import { resolveAppOrigin } from "~/lib/app-origin.server";
+import { syncModelLibrary } from "~/lib/model-library.server";
+import { resolveFile } from "~/lib/files.server";
+import {
+  modelQuotaError,
+  uploadModelToLibrary,
+} from "~/lib/model-upload.server";
+import {
+  describeSaving,
+  MAX_MODEL_FILE_SIZE_MB,
+  MAX_RAW_UPLOAD_MB,
+  needsOptimizationToFit,
+  validateModelFile,
+} from "~/lib/files";
+import {
+  OPTIMIZE_DETAILS,
+  useOptimizePreference,
+} from "~/components/useOptimizePreference";
+import { buildEmbedSnippet } from "~/lib/embed";
+import {
+  countDistinctModels,
+  getAssignedModelGidsCached,
+  getPlanLimitForShop,
+} from "~/lib/billing.server";
+import { formatLimit } from "~/lib/billing-constants";
 
-import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
+import { BackButton } from "~/components/BackButton";
+import { SupportAction } from "~/components/SupportAction";
+import { ConfirmModal } from "~/components/polaris/ConfirmModal";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+  fieldChecked,
+  fieldValue,
+  flag,
+  useRouteNav,
+} from "~/components/polaris/helpers";
 import { FilePickerDialog } from "~/components/FilePickerDialog";
 import type { FileItem } from "~/routes/api.files";
-import { cn } from "~/lib/utils";
+import {
+  cancelQueuedUploads,
+  clearFinishedUploads,
+  enqueueUploads,
+  getServerUploads,
+  getUploads,
+  onModelUploaded,
+  removeUpload,
+  restoreUploads,
+  retryFailedUploads,
+  subscribeUploads,
+  type UploadItem,
+} from "~/lib/upload-queue";
+
+// The three things a row can put on the clipboard. "id" is the one the
+// "3D Viewer — Any Model" theme block wants; "embed" is the iframe for pages a
+// theme block can't reach.
+type CopyKind = "id" | "url" | "embed";
+
+const COPY_LABELS: Record<CopyKind, string> = {
+  id: "Model ID",
+  url: "File URL",
+  embed: "Embed code",
+};
+
+/**
+ * How many missing file sizes to repair per load of this page. See the backfill
+ * in the loader for why this is capped rather than exhaustive.
+ */
+const SIZE_BACKFILL_PER_LOAD = 10;
+
+const UPLOAD_STATUS: Record<
+  UploadItem["status"],
+  { label: string; tone: "neutral" | "info" | "success" | "critical" }
+> = {
+  queued: { label: "Waiting", tone: "neutral" },
+  uploading: { label: "Uploading", tone: "info" },
+  processing: { label: "Processing", tone: "info" },
+  done: { label: "Added", tone: "success" },
+  error: { label: "Failed", tone: "critical" },
+};
 
 type ModelRow = {
   id: string;
   name: string;
   fileUrl: string;
   fileSize: number | null;
+  /** ISO, kept for sorting — never rendered. */
   createdAt: string;
+  /** Preformatted date and time; see formatDateTime. */
+  createdAtLabel: string;
 };
 
 type LoaderData = {
@@ -71,6 +118,10 @@ type LoaderData = {
   planName: string;
   planLimit: number;
   productModelCount: number;
+  distinctModelsUsed: number;
+  appOrigin: string;
+  /** Scopes the browser's saved upload queue to this shop. */
+  shop: string;
 };
 
 export const loader = async ({
@@ -79,14 +130,96 @@ export const loader = async ({
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop ?? "";
 
-  const [models, planInfo, productCount] = await Promise.all([
+  const [models, planInfo, assignedModels] = await Promise.all([
     prisma.model3D.findMany({
       where: { shop },
       orderBy: { createdAt: "desc" },
+      // Only what the list shows and the repairs read — not each row's
+      // `config` blob, which nothing on this page uses.
+      select: {
+        id: true,
+        name: true,
+        fileGid: true,
+        fileUrl: true,
+        fileSize: true,
+        createdAt: true,
+      },
     }),
     getPlanLimitForShop(shop),
-    countAssignedModels(admin, shop),
+    getAssignedModelGidsCached(admin, shop),
   ]);
+  const distinctModelsUsed = countDistinctModels(
+    models.map((m) => m.fileGid),
+    assignedModels.gids,
+  );
+
+  /*
+   * Fill in what Shopify knows but this row does not.
+   *
+   * A missing URL is always repaired — the model is unusable without one, and
+   * it is rare. A missing *size* is neither: every model imported from Shopify
+   * Files before this was recorded has one, so a large library could be
+   * hundreds of rows, and each repair is its own round trip. Repairing them all
+   * on one page load would turn opening the library into a minutes-long stall.
+   *
+   * So size-only repairs are capped per load. The rows fill in over the next
+   * few visits, and the cost of any single visit stays bounded.
+   */
+  const repair = async (m: (typeof models)[number], mutate: boolean) => {
+    const resolved = await resolveFile(admin, m.fileGid);
+    if (!resolved) return false;
+
+    const data: { fileUrl?: string; fileSize?: number } = {};
+    if (!m.fileUrl && resolved.url) {
+      if (mutate) m.fileUrl = resolved.url;
+      data.fileUrl = resolved.url;
+    }
+    if (m.fileSize == null && resolved.size != null) {
+      if (mutate) m.fileSize = resolved.size;
+      data.fileSize = resolved.size;
+    }
+    if (Object.keys(data).length === 0) return false;
+
+    await prisma.model3D.update({ where: { id: m.id }, data });
+    // Only a newly resolved URL changes what the theme block can see; a size
+    // is display-only, so it must not trigger a library re-sync.
+    return Boolean(data.fileUrl);
+  };
+
+  /*
+   * A missing URL is repaired before responding. The model is unusable without
+   * one — it is what the theme block reads — and it is rare, so the wait is
+   * both justified and almost never paid.
+   */
+  const needsUrl = models.filter((m) => !m.fileUrl);
+  if (needsUrl.length > 0) {
+    const repaired = await Promise.all(needsUrl.map((m) => repair(m, true)));
+    // Entries without a file URL are omitted from the mirror, so resolving one
+    // here means the library the theme block sees is now out of date. Synced
+    // beside the response, not in front of it: it is ~6 sequential Shopify and
+    // Mongo calls (2–3s) and this page renders from `models`, not the mirror.
+    if (repaired.some(Boolean)) void syncModelLibrary(admin, shop);
+  }
+
+  /*
+   * Missing sizes are repaired beside the response instead of in front of it.
+   *
+   * Ten rows was ten Shopify round trips and ten Mongo writes on the critical
+   * path of every visit until the library finished filling in, to populate a
+   * display-only column. The design already accepted that these appear over
+   * several visits rather than all at once; detaching the work costs one more
+   * visit before a given row shows its size, and takes the whole batch off
+   * TTFB. `mutate: false` because this response has already been decided —
+   * writing into `models` now would change nothing and only mislead a reader.
+   */
+  const needsSize = models
+    .filter((m) => m.fileUrl && m.fileSize == null)
+    .slice(0, SIZE_BACKFILL_PER_LOAD);
+  if (needsSize.length > 0) {
+    void Promise.all(needsSize.map((m) => repair(m, false))).catch((err) => {
+      console.error("[models] background size backfill failed", err);
+    });
+  }
 
   return {
     models: models.map((m) => ({
@@ -95,11 +228,15 @@ export const loader = async ({
       fileUrl: m.fileUrl,
       fileSize: m.fileSize ?? null,
       createdAt: m.createdAt.toISOString(),
+      createdAtLabel: formatDateTime(m.createdAt),
     })),
     totalCount: models.length,
     planName: planInfo.planName,
-    planLimit: planInfo.limit,
-    productModelCount: productCount,
+    planLimit: planInfo.modelLimit,
+    productModelCount: assignedModels.count,
+    distinctModelsUsed,
+    appOrigin: resolveAppOrigin(request),
+    shop,
   };
 };
 
@@ -113,34 +250,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const id = String(formData.get("id") ?? "");
     if (!id) return { ok: false, error: "Missing model id" };
     await prisma.model3D.delete({ where: { id } });
+    await syncModelLibrary(admin, shop);
     return { ok: true, message: "Model deleted from library" };
   }
 
   if (intent === "bulk_delete") {
     const raw = String(formData.get("ids") ?? "");
-    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const ids = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (ids.length === 0) {
       return { ok: false, error: "Nothing selected" };
     }
     const result = await prisma.model3D.deleteMany({
       where: { shop, id: { in: ids } },
     });
+    await syncModelLibrary(admin, shop);
     return {
       ok: true,
       message: `${result.count} model${result.count === 1 ? "" : "s"} deleted`,
     };
   }
 
-  const planInfo = await getPlanLimitForShop(shop);
-  const libraryCount = await prisma.model3D.count({ where: { shop } });
-  const productCount = await countAssignedModels(admin, shop);
-  const totalInUse = libraryCount + productCount;
-  if (totalInUse >= planInfo.limit) {
-    return {
-      ok: false,
-      error: `You've reached your ${planInfo.planName} plan limit of ${planInfo.limit} 3D models. Upgrade your plan to add more.`,
-    };
-  }
+  const quotaError = await modelQuotaError(admin, shop);
+  if (quotaError) return { ok: false, error: quotaError };
 
   if (intent === "assign_existing") {
     const fileGid = String(formData.get("fileGid") ?? "");
@@ -148,43 +282,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!fileGid.startsWith("gid://shopify/")) {
       return { ok: false, error: "Invalid file id" };
     }
-    const fileUrl = await resolveFileUrl(admin, fileGid);
-    if (!fileUrl) return { ok: false, error: "Could not resolve file URL" };
+    // resolveFile, not resolveFileUrl: this path stored no size at all, so
+    // every model imported from Shopify Files showed a dash in the Size column
+    // while uploaded ones showed a real figure.
+    const resolved = await resolveFile(admin, fileGid);
+    if (!resolved) return { ok: false, error: "Could not resolve file URL" };
+    const { url: fileUrl, size: fileSize } = resolved;
     const finalName =
       name ||
       decodeURIComponent(fileUrl.split("?")[0]?.split("/").pop() ?? "Model");
     const created = await prisma.model3D.create({
-      data: { shop, name: finalName, fileGid, fileUrl },
+      data: { shop, name: finalName, fileGid, fileUrl, fileSize },
     });
+    await syncModelLibrary(admin, shop);
     return { ok: true, message: "Model added to library", id: created.id };
   }
 
-  const file = formData.get("file") as File | null;
-  if (!file || file.size === 0) {
-    return { ok: false, error: "Please choose a .glb or .gltf file" };
-  }
-  if (!isValidModelFilename(file.name)) {
-    return { ok: false, error: "Only .glb or .gltf files are supported" };
-  }
-
-  const result = await stagedUploadAndCreate(
+  // Uploads go through /api/models/upload, one request per file, so this route
+  // only handles them if something still posts here directly.
+  const result = await uploadModelToLibrary(
     admin,
-    file,
-    `Library model: ${file.name}`,
+    shop,
+    formData.get("file") as File | null,
+    formData.get("name") as string | null,
   );
   if (!result.ok) return { ok: false, error: result.error };
-
-  const name = (formData.get("name") as string | null)?.trim() || file.name;
-  const created = await prisma.model3D.create({
-    data: {
-      shop,
-      name,
-      fileGid: result.fileGid,
-      fileUrl: result.fileUrl ?? "",
-      fileSize: file.size,
-    },
-  });
-  return { ok: true, message: "Model uploaded to library", id: created.id };
+  return { ok: true, message: "Model uploaded to library", id: result.id };
 };
 
 function formatBytes(n: number | null) {
@@ -194,9 +317,26 @@ function formatBytes(n: number | null) {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function formatDate(iso: string) {
+/**
+ * "Added" as a date *and* time, formatted on the server.
+ *
+ * Formatted in the loader rather than the component on purpose. The page is
+ * server-rendered, so a toLocale* call in the component runs twice — once in
+ * Node and again in the browser — and the two disagree whenever their locale or
+ * timezone differs, which React reports as a hydration mismatch. A date alone
+ * mostly survived that; adding a time makes any timezone offset visible, so it
+ * would break routinely rather than occasionally.
+ *
+ * The trade-off is that this is the *server's* timezone, not the merchant's.
+ * That is the same choice the dashboard's month labels already make, for the
+ * same reason, and it is at least consistent between the two.
+ */
+function formatDateTime(value: Date) {
   try {
-    return new Date(iso).toLocaleDateString();
+    return value.toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
   } catch {
     return "";
   }
@@ -221,24 +361,65 @@ function sortModels(models: ModelRow[], sort: SortKey): ModelRow[] {
 }
 
 export default function ModelsIndex() {
-  const { models, totalCount, planName, planLimit, productModelCount } =
-    useLoaderData<typeof loader>();
+  const {
+    models,
+    totalCount,
+    planName,
+    planLimit,
+    productModelCount,
+    distinctModelsUsed,
+    appOrigin,
+    shop,
+  } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
-  const navigate = useNavigate();
   const shopify = useAppBridge();
+  const routeTo = useRouteNav();
   const submitting = navigation.state === "submitting";
+  const revalidator = useRevalidator();
+  const uploads = useSyncExternalStore(
+    subscribeUploads,
+    getUploads,
+    getServerUploads,
+  );
+  const uploading = uploads.some(
+    (u) =>
+      u.status === "queued" ||
+      u.status === "uploading" ||
+      u.status === "processing",
+  );
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadFormRef = useRef<HTMLFormElement>(null);
+  // Resume whatever an earlier visit left unfinished — after a reload, a
+  // closed tab, or a trip to another page — and refresh the list when a batch
+  // lands. See upload-queue.ts.
+  useEffect(() => {
+    void restoreUploads(shop);
+  }, [shop]);
+  // Refresh the library after every file that lands, so the table fills in
+  // as the batch goes rather than all at once at the end. Through a ref so the
+  // subscription isn't torn down and rebuilt on every progress tick.
+  const revalidateRef = useRef(revalidator.revalidate);
+  revalidateRef.current = revalidator.revalidate;
+  useEffect(() => onModelUploaded(() => void revalidateRef.current()), []);
+
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [copyingId, setCopyingId] = useState<string | null>(null);
+  // Was just the row id, which was enough while a row had one copy button. Now
+  // that a row can copy three different things, the kind has to be part of the
+  // state or clicking "ID" would flash "Copied" on the URL button too.
+  const [copying, setCopying] = useState<{
+    id: string;
+    kind: CopyKind;
+  } | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [dragOver, setDragOver] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  // Which delete the merchant is being asked to confirm. `null` means no
+  // dialog; a string is a single row; "bulk" is the whole selection.
+  const [pendingDelete, setPendingDelete] = useState<string | "bulk" | null>(
+    null,
+  );
 
   useEffect(() => {
     if (actionData?.ok) {
@@ -249,7 +430,7 @@ export default function ModelsIndex() {
     }
   }, [actionData, shopify]);
 
-  const totalInUse = totalCount + productModelCount;
+  const totalInUse = distinctModelsUsed;
   const limitReached = totalInUse >= planLimit;
 
   const filtered = useMemo(() => {
@@ -268,38 +449,135 @@ export default function ModelsIndex() {
     submit(fd, { method: "post" });
   }
 
-  function handleFileChosen() {
-    uploadFormRef.current?.requestSubmit();
-  }
+  /**
+   * Queue whatever the drop zone just received, one file or many, whether it
+   * arrived by drop or by the file dialog — s-drop-zone reports both the same
+   * way. The queue (upload-queue.ts) does the rest. The input holding the files
+   * lives in the drop zone's shadow DOM, so no form on this route could carry
+   * them anyway.
+   */
+  /*
+   * Files waiting for the merchant to confirm them. Several files are shown
+   * here first rather than sent at once, so anything that can't be added is
+   * visible — and removable — before a single byte goes up.
+   *
+   * Only the File is kept; each one's problem is worked out on every render.
+   * The plan-limit one has to be: it depends on how many files are ahead of it
+   * in the list, so removing one row can clear the error on another.
+   */
+  const [staged, setStaged] = useState<{ key: string; file: File }[]>([]);
+  const [optimize, setOptimize] = useOptimizePreference();
+  const limitMessage = `Over your ${planName} plan limit of ${formatLimit(planLimit)} models.`;
+  // Room left on the plan, net of files already queued or uploading.
+  const room =
+    planLimit -
+    totalInUse -
+    uploads.filter(
+      (u) =>
+        u.status === "queued" ||
+        u.status === "uploading" ||
+        u.status === "processing",
+    ).length;
+  const stagedRows = useMemo(() => {
+    let left = room;
+    return staged.map((s) => {
+      const fileError = validateModelFile(s.file, optimize);
+      if (fileError) return { ...s, error: fileError };
+      if (left <= 0) return { ...s, error: limitMessage };
+      left--;
+      return { ...s, error: null };
+    });
+  }, [staged, room, limitMessage, optimize]);
+  const stagedErrors = stagedRows.filter((r) => r.error).length;
+  const stagedBlocked = stagedRows.length === 0 || stagedErrors > 0;
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    setDragOver(false);
-    if (limitReached || submitting) return;
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    if (!isValidModelFilename(file.name)) {
-      shopify.toast.show("Only .glb or .gltf files are supported", {
-        isError: true,
-      });
+  function handleFiles(event: Event) {
+    const input = event.currentTarget as HTMLElement & {
+      files?: FileList | null;
+    };
+    const files = Array.from(input.files ?? []);
+    // Empty the zone so picking the same file again still fires onInput.
+    try {
+      (input as HTMLElement & { value?: string }).value = "";
+    } catch {
+      // Older polaris.js without a settable value; harmless.
+    }
+    if (files.length === 0) return;
+
+    // One good file, with nothing already waiting for review, needs no
+    // confirmation — it goes straight up, as a single upload always has.
+    if (
+      staged.length === 0 &&
+      files.length === 1 &&
+      !validateModelFile(files[0], optimize) &&
+      room > 0
+    ) {
+      enqueueUploads(
+        shop,
+        files,
+        planLimit - totalInUse,
+        limitMessage,
+        optimize,
+      );
       return;
     }
-    const fd = new FormData();
-    fd.set("intent", "upload");
-    fd.append("file", file);
-    submit(fd, { method: "post", encType: "multipart/form-data" });
+    setStaged((prev) => [
+      ...prev,
+      ...files.map((file) => ({ key: crypto.randomUUID(), file })),
+    ]);
   }
 
-  async function handleCopyUrl(id: string, url: string) {
-    setCopyingId(id);
+  function confirmStaged() {
+    if (stagedBlocked) return;
+    enqueueUploads(
+      shop,
+      staged.map((s) => s.file),
+      planLimit - totalInUse,
+      limitMessage,
+      optimize,
+    );
+    setStaged([]);
+  }
+
+  // Bytes landed across the batch, counting a finished file as whole and a
+  // failed one not at all — so the bar ends full even when some failed.
+  const uploadProgress = useMemo(() => {
+    const counted = uploads.filter((u) => u.status !== "error");
+    const total = counted.reduce((n, u) => n + u.size, 0);
+    const sent = counted.reduce(
+      (n, u) =>
+        n +
+        (u.status === "done" || u.status === "processing"
+          ? u.size
+          : u.status === "uploading"
+            ? (u.loaded ?? 0)
+            : 0),
+      0,
+    );
+    return total > 0 ? Math.min(1, sent / total) : 1;
+  }, [uploads]);
+  const uploadsDone = uploads.filter((u) => u.status === "done").length;
+  const uploadsFailed = uploads.filter((u) => u.status === "error").length;
+  const uploadsRetryable = uploads.some((u) => u.status === "error" && u.file);
+
+  async function handleCopy(id: string, kind: CopyKind, value: string) {
+    setCopying({ id, kind });
     try {
-      await navigator.clipboard.writeText(url);
-      shopify.toast.show("URL copied");
+      await navigator.clipboard.writeText(value);
+      shopify.toast.show(`${COPY_LABELS[kind]} copied`);
     } catch {
-      shopify.toast.show("Couldn't copy URL", { isError: true });
+      shopify.toast.show(`Couldn't copy ${COPY_LABELS[kind].toLowerCase()}`, {
+        isError: true,
+      });
     } finally {
-      setTimeout(() => setCopyingId(null), 600);
+      setTimeout(() => setCopying(null), 600);
     }
+  }
+
+  // Responsive mode, so the snippet needs no height and a row doesn't have to
+  // carry each model's saved config just to offer an embed code.
+  function embedFor(id: string) {
+    return buildEmbedSnippet(`${appOrigin}/viewer/${id}`, 500, "responsive");
   }
 
   function toggleOne(id: string) {
@@ -311,47 +589,114 @@ export default function ModelsIndex() {
     });
   }
 
-  function selectAllOnPage() {
-    setSelected(new Set(filtered.map((m) => m.id)));
-  }
-
-  function clearSelection() {
-    setSelected(new Set());
-  }
-
-  function handleBulkDelete() {
-    if (selected.size === 0) return;
-    if (
-      !window.confirm(
-        `Delete ${selected.size} model${selected.size === 1 ? "" : "s"} from the library? The .glb files themselves stay in Shopify Files.`,
-      )
-    ) {
-      return;
+  function confirmDelete() {
+    if (pendingDelete === null) return;
+    const fd = new FormData();
+    if (pendingDelete === "bulk") {
+      fd.set("intent", "bulk_delete");
+      fd.set("ids", Array.from(selected).join(","));
+    } else {
+      fd.set("intent", "delete");
+      fd.set("id", pendingDelete);
     }
-    const fd = new FormData();
-    fd.set("intent", "bulk_delete");
-    fd.set("ids", Array.from(selected).join(","));
     submit(fd, { method: "post" });
-  }
-
-  function handleDeleteOne(id: string) {
-    if (
-      !window.confirm(
-        "Delete this model from the library? The .glb file itself stays in Shopify Files.",
-      )
-    )
-      return;
-    const fd = new FormData();
-    fd.set("intent", "delete");
-    fd.set("id", id);
-    submit(fd, { method: "post" });
+    setPendingDelete(null);
   }
 
   const allSelected =
     filtered.length > 0 && filtered.every((m) => selected.has(m.id));
 
+  /**
+   * The copy/customize/delete actions a row offers, in an overflow menu.
+   *
+   * s-menu is an overlay, not inline content: it stays hidden until something
+   * targets its id, so the trigger button beside it is required — rendering the
+   * menu on its own puts five invisible buttons in the cell and nothing else.
+   */
+  function rowActions(m: ModelRow) {
+    const copied = (kind: CopyKind) =>
+      copying?.id === m.id && copying.kind === kind;
+    const menuId = `model-actions-${m.id}`;
+    return (
+      <>
+        <s-button
+          variant="tertiary"
+          icon="menu-horizontal"
+          accessibilityLabel={`Actions for ${m.name}`}
+          commandFor={menuId}
+          command="--show"
+        />
+        <s-menu id={menuId} accessibilityLabel={`Actions for ${m.name}`}>
+          <s-button
+            icon={copied("id") ? "check" : "clipboard"}
+            onClick={() => handleCopy(m.id, "id", m.id)}
+          >
+            Copy model ID
+          </s-button>
+          <s-button
+            icon={copied("embed") ? "check" : "code"}
+            onClick={() => handleCopy(m.id, "embed", embedFor(m.id))}
+          >
+            Copy embed code
+          </s-button>
+          <s-button
+            icon={copied("url") ? "check" : "link"}
+            onClick={() => handleCopy(m.id, "url", m.fileUrl)}
+          >
+            Copy file URL
+          </s-button>
+          <s-button
+            icon="settings"
+            href={`/app/models/${m.id}`}
+            onClick={routeTo(`/app/models/${m.id}`)}
+          >
+            Customize
+          </s-button>
+          {/*
+            Two steps, and both are needed.
+
+            `command="--hide"` closes the menu explicitly, and the dialog is
+            opened on the next frame rather than in this handler. A menu and a
+            modal are both overlays: opening the second while the first is still
+            dismissing means the menu's teardown runs last and takes the dialog
+            down with it, so the confirmation never appears and the model can
+            never be deleted. Deferring by one frame lets the menu finish first.
+
+            The copy items above need neither, because they change no overlay —
+            which is why they kept working while this did not.
+          */}
+          <s-button
+            tone="critical"
+            icon="delete"
+            commandFor={menuId}
+            command="--hide"
+            onClick={() => requestAnimationFrame(() => setPendingDelete(m.id))}
+          >
+            Delete
+          </s-button>
+        </s-menu>
+      </>
+    );
+  }
+
+  const deletingCount = pendingDelete === "bulk" ? selected.size : 1;
+
   return (
-    <div className="min-h-screen bg-background">
+    <s-page heading="3D model library">
+      <BackButton to="/app" label="Dashboard" />
+
+      <s-button
+        slot="primary-action"
+        variant="primary"
+        icon="folder"
+        disabled={flag(submitting || limitReached)}
+        onClick={() => setPickerOpen(true)}
+        accessibilityLabel="Open file picker to choose a 3D model from Shopify Files"
+      >
+        Choose from Files
+      </s-button>
+      <SupportAction />
+
       <FilePickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -359,407 +704,489 @@ export default function ModelsIndex() {
         onSelect={handleFilePicked}
       />
 
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-        <div className="flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              3D Model Library
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage standalone 3D models you embed via the &ldquo;3D Model
-              Viewer (page)&rdquo; block.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">
-              <Boxes className="size-3 mr-1" />
-              {planName} plan
-            </Badge>
-            <Badge variant={limitReached ? "destructive" : "outline"}>
-              {totalInUse} / {planLimit} models
-            </Badge>
-          </div>
-        </div>
+      <ConfirmModal
+        id="delete-models"
+        open={pendingDelete !== null}
+        heading={
+          deletingCount === 1
+            ? "Delete model?"
+            : `Delete ${deletingCount} models?`
+        }
+        confirmLabel={deletingCount === 1 ? "Delete model" : "Delete models"}
+        loading={submitting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      >
+        <s-paragraph>
+          {deletingCount === 1
+            ? "This removes the model from your library."
+            : `This removes ${deletingCount} models from your library.`}{" "}
+          The .glb file itself stays in Shopify Files, and any page still
+          embedding the model will stop rendering it.
+        </s-paragraph>
+      </ConfirmModal>
 
-        {limitReached && (
-          <Card className="border-amber-500 bg-amber-50">
-            <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <div className="text-sm font-semibold">
-                  Plan limit reached
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Includes {productModelCount} product assignments and{" "}
-                  {totalCount} library models.
-                </div>
-              </div>
-              <Button asChild>
-                <Link to="/app/pricing">Upgrade plan</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+      <s-section>
+        <s-stack direction="block" gap="base">
+          <s-paragraph color="subdued">
+            Manage standalone 3D models you embed with the “3D Viewer — Any
+            Model” theme block.
+          </s-paragraph>
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-badge icon="three-d-environment">{`${planName} plan`}</s-badge>
+            <s-badge tone={limitReached ? "critical" : "neutral"}>
+              {`${totalInUse} / ${formatLimit(planLimit)} models`}
+            </s-badge>
+          </s-stack>
+        </s-stack>
+      </s-section>
 
-        <div
-          onDragEnter={(e) => {
-            e.preventDefault();
-            if (!limitReached) setDragOver(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (!limitReached) setDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            if (e.currentTarget === e.target) setDragOver(false);
-          }}
-          onDrop={handleDrop}
-          onClick={() =>
-            !limitReached && !submitting && fileInputRef.current?.click()
-          }
-          className={cn(
-            "border-2 border-dashed p-8 flex flex-col items-center justify-center text-center gap-2 transition-colors",
-            limitReached
-              ? "opacity-50 cursor-not-allowed bg-muted/30"
-              : "cursor-pointer hover:bg-accent/30",
-            dragOver && !limitReached
-              ? "border-primary bg-primary/5"
-              : "border-border",
-          )}
-        >
-          <UploadCloud
-            className={cn(
-              "size-8 mb-1",
-              dragOver ? "text-primary" : "text-muted-foreground",
-            )}
-          />
-          <div className="text-sm font-medium">
-            {dragOver
-              ? "Release to upload"
-              : "Drop a .glb or .gltf file here, or click to choose"}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Stored in Shopify Files. Max 10&nbsp;MB recommended.
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={submitting || limitReached}
-              onClick={(e) => {
-                e.stopPropagation();
-                setPickerOpen(true);
-              }}
-            >
-              <FolderOpen /> Choose from Files
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={submitting || limitReached}
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-            >
-              <Upload /> Upload new
-            </Button>
-          </div>
-        </div>
-
-        <Form
-          ref={uploadFormRef}
-          method="post"
-          encType="multipart/form-data"
-          className="hidden"
-        >
-          <input type="hidden" name="intent" value="upload" />
-          <input
-            ref={fileInputRef}
-            type="file"
-            name="file"
-            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-            onChange={handleFileChosen}
-          />
-        </Form>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search models by name"
-              className="pl-9"
-            />
-          </div>
-          <Select
-            value={sort}
-            onValueChange={(v) => setSort(v as SortKey)}
+      {limitReached ? (
+        <s-banner tone="warning" heading="Plan limit reached">
+          <s-paragraph>
+            {totalCount} model{totalCount === 1 ? "" : "s"} in your library,{" "}
+            {productModelCount} product assignment
+            {productModelCount === 1 ? "" : "s"} (files used in both count
+            once).
+          </s-paragraph>
+          <s-button
+            slot="primary-action"
+            variant="primary"
+            href="/app/pricing"
+            onClick={routeTo("/app/pricing")}
           >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Newest first</SelectItem>
-              <SelectItem value="oldest">Oldest first</SelectItem>
-              <SelectItem value="name">Name (A→Z)</SelectItem>
-              <SelectItem value="size">Largest first</SelectItem>
-            </SelectContent>
-          </Select>
-          {filtered.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={allSelected ? clearSelection : selectAllOnPage}
-            >
-              {allSelected ? "Clear" : "Select all"}
-            </Button>
-          )}
-          <div className="flex border bg-card">
-            <Button
-              type="button"
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("list")}
-              aria-label="List view"
-              aria-pressed={viewMode === "list"}
-            >
-              <List />
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("grid")}
-              aria-label="Grid view"
-              aria-pressed={viewMode === "grid"}
-            >
-              <LayoutGrid />
-            </Button>
-          </div>
-        </div>
+            Upgrade plan
+          </s-button>
+        </s-banner>
+      ) : null}
 
-        {selected.size > 0 && (
-          <div className="sticky top-0 z-10 -mx-4 sm:mx-0 bg-primary text-primary-foreground px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3 shadow">
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={clearSelection}
-                className="text-primary-foreground hover:bg-primary-foreground/10"
+      <s-section heading="Add a model">
+        {/*
+          Polaris's own drop zone, rather than a div with drag handlers. It
+          brings the admin's drag-over and rejected-file states with it, and
+          more importantly it is keyboard reachable and announced — the hand
+          rolled version was a div with role="button" that screen readers had
+          no way to describe as a file target.
+        */}
+        {/*
+          No `accept` filter on purpose. Polaris drops files that don't match
+          it before onInput ever sees them, and its `droprejected` event says
+          nothing about which — so a wrong file just vanished, and a drop of
+          only wrong files did nothing at all. Every file comes through instead,
+          and enqueueUploads checks type, size and plan room in the browser,
+          listing each refused file with its reason before anything is sent.
+        */}
+        <s-drop-zone
+          label="Drop .glb or .gltf files here, or click to choose"
+          multiple
+          disabled={flag(limitReached || submitting)}
+          onInput={handleFiles}
+        />
+        <s-paragraph color="subdued">
+          Add several at once. Each stored file can be up to{" "}
+          {MAX_MODEL_FILE_SIZE_MB} MB.
+          {optimize
+            ? ` With optimization on you can upload up to ${MAX_RAW_UPLOAD_MB} MB; the size is checked after compression.`
+            : ""}
+        </s-paragraph>
+        <s-checkbox
+          label="Optimize for faster loading"
+          details={OPTIMIZE_DETAILS}
+          checked={flag(optimize)}
+          onInput={(e) => setOptimize(fieldChecked(e))}
+        />
+        {stagedRows.length > 0 ? (
+          <s-stack direction="block" gap="small">
+            <s-text type="strong">
+              {`${stagedRows.length} file${stagedRows.length === 1 ? "" : "s"} ready to upload`}
+            </s-text>
+            {stagedErrors > 0 ? (
+              <s-banner tone="critical">
+                <s-paragraph>
+                  {stagedErrors === 1
+                    ? "1 file can't be added. Remove it to continue."
+                    : `${stagedErrors} files can't be added. Remove them to continue.`}
+                </s-paragraph>
+              </s-banner>
+            ) : null}
+            {stagedRows.map((r) => (
+              <s-box
+                key={r.key}
+                padding="small-200"
+                borderWidth="base"
+                borderRadius="base"
               >
-                <X />
-              </Button>
-              <span className="text-sm font-medium">
-                {selected.size} selected
-              </span>
-            </div>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={handleBulkDelete}
-              disabled={submitting}
+                <s-stack
+                  direction="inline"
+                  gap="small"
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <s-stack direction="block" gap="small-500">
+                    <s-text>{r.file.name}</s-text>
+                    {r.error ? (
+                      <s-text tone="critical">{r.error}</s-text>
+                    ) : (
+                      <s-text color="subdued">
+                        {needsOptimizationToFit(r.file)
+                          ? `${formatBytes(r.file.size)} · must optimize to ${MAX_MODEL_FILE_SIZE_MB} MB or less`
+                          : formatBytes(r.file.size)}
+                      </s-text>
+                    )}
+                  </s-stack>
+                  <s-button
+                    variant="tertiary"
+                    tone={r.error ? "critical" : undefined}
+                    icon="x"
+                    accessibilityLabel={`Remove ${r.file.name}`}
+                    onClick={() =>
+                      setStaged((prev) => prev.filter((p) => p.key !== r.key))
+                    }
+                  >
+                    Remove
+                  </s-button>
+                </s-stack>
+              </s-box>
+            ))}
+            <s-stack direction="inline" gap="small">
+              <s-button
+                variant="primary"
+                icon="upload"
+                disabled={flag(stagedBlocked)}
+                onClick={confirmStaged}
+              >
+                {`Upload ${stagedRows.length} file${stagedRows.length === 1 ? "" : "s"}`}
+              </s-button>
+              <s-button onClick={() => setStaged([])}>Cancel</s-button>
+            </s-stack>
+          </s-stack>
+        ) : null}
+        {uploads.length > 0 ? (
+          <s-stack direction="block" gap="small">
+            <s-stack
+              direction="inline"
+              gap="small"
+              alignItems="center"
+              justifyContent="space-between"
             >
-              <Trash2 /> Delete selected
-            </Button>
-          </div>
-        )}
-
-        {totalCount === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Boxes className="size-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No models in your library yet.</p>
-            <p className="text-xs mt-1">
-              Drop a .glb file above or import an existing one.
-            </p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Search className="size-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">
-              No models match &ldquo;{query}&rdquo;.
-            </p>
-          </div>
-        ) : viewMode === "list" ? (
-          <div className="border bg-card divide-y">
-            {filtered.map((m) => {
-              const isSelected = selected.has(m.id);
-              return (
-                <div
-                  key={m.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => navigate(`/app/models/${m.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/app/models/${m.id}`);
-                    }
-                  }}
-                  className={cn(
-                    "group flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-accent/40",
-                    isSelected && "bg-primary/5",
-                  )}
+              <s-text type="strong">
+                {uploading
+                  ? `Uploading ${uploadsDone + uploadsFailed + 1} of ${uploads.length}…`
+                  : uploadsFailed
+                    ? `${uploadsFailed} file${uploadsFailed === 1 ? "" : "s"} couldn't be added`
+                    : `${uploadsDone} of ${uploads.length} added`}
+              </s-text>
+              <s-button-group>
+                {uploading ? (
+                  <s-button
+                    slot="secondary-actions"
+                    variant="tertiary"
+                    onClick={cancelQueuedUploads}
+                  >
+                    Cancel remaining
+                  </s-button>
+                ) : null}
+                {!uploading && uploadsRetryable ? (
+                  <s-button
+                    slot="secondary-actions"
+                    variant="tertiary"
+                    onClick={retryFailedUploads}
+                  >
+                    Retry failed
+                  </s-button>
+                ) : null}
+                {!uploading ? (
+                  <s-button
+                    slot="secondary-actions"
+                    variant="tertiary"
+                    onClick={clearFinishedUploads}
+                  >
+                    Clear
+                  </s-button>
+                ) : null}
+              </s-button-group>
+            </s-stack>
+            {uploading ? (
+              <div
+                className="upload-progress"
+                role="progressbar"
+                aria-label="Upload progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(uploadProgress * 100)}
+              >
+                <div style={{ width: `${uploadProgress * 100}%` }} />
+              </div>
+            ) : null}
+            {uploading ? (
+              <s-text color="subdued">
+                You can reload or leave this page — uploads continue in the
+                background and pick up where they left off. If you close the
+                app, they resume the next time you open this page.
+              </s-text>
+            ) : null}
+            {uploads.map((u) => (
+              <s-box
+                key={u.key}
+                padding="small-200"
+                borderWidth="base"
+                borderRadius="base"
+              >
+                <s-stack
+                  direction="inline"
+                  gap="small"
+                  alignItems="center"
+                  justifyContent="space-between"
                 >
-                  <label
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "flex items-center justify-center size-5 border bg-background cursor-pointer transition-opacity shrink-0",
-                      isSelected || selected.size > 0
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100",
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleOne(m.id)}
-                      className="size-4 cursor-pointer"
-                    />
-                  </label>
+                  <s-stack direction="block" gap="small-500">
+                    <s-text>{u.name}</s-text>
+                    <s-text color="subdued">
+                      {u.error ??
+                        (u.status === "uploading"
+                          ? `${formatBytes(u.loaded ?? 0)} of ${formatBytes(u.size)} · ${Math.round(((u.loaded ?? 0) / Math.max(u.size, 1)) * 100)}%`
+                          : u.status === "processing"
+                            ? u.optimize === false
+                              ? "Saving to Shopify Files…"
+                              : "Optimizing and saving to Shopify Files…"
+                            : u.status === "done" &&
+                                u.originalSize &&
+                                u.uploadedSize
+                              ? (describeSaving(
+                                  u.originalSize,
+                                  u.uploadedSize,
+                                ) ?? formatBytes(u.uploadedSize))
+                              : formatBytes(u.size))}
+                    </s-text>
+                  </s-stack>
+                  <s-stack direction="inline" gap="small" alignItems="center">
+                    <s-badge tone={UPLOAD_STATUS[u.status].tone}>
+                      {UPLOAD_STATUS[u.status].label}
+                    </s-badge>
+                    {/*
+                      On every failed row: a file refused for its format, its
+                      size or the plan limit will never upload as it is, so
+                      the merchant needs a way to drop it from the list without
+                      clearing the rest.
+                    */}
+                    {u.status === "error" ? (
+                      <s-button
+                        variant="tertiary"
+                        tone="critical"
+                        icon="x"
+                        accessibilityLabel={`Remove ${u.name}`}
+                        onClick={() => removeUpload(u.key)}
+                      >
+                        Remove
+                      </s-button>
+                    ) : null}
+                  </s-stack>
+                </s-stack>
+              </s-box>
+            ))}
+          </s-stack>
+        ) : null}
+      </s-section>
 
-                  <div className="size-9 border bg-muted/40 flex items-center justify-center shrink-0">
-                    <Boxes className="size-4 text-muted-foreground/70" />
-                  </div>
+      <s-section>
+        <s-stack direction="block" gap="base">
+          {/*
+            One row: search takes the space left over, the sort select and the
+            two view toggles hug their content.
 
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate" title={m.name}>
-                      {m.name}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {formatBytes(m.fileSize)} · {formatDate(m.createdAt)}
-                    </div>
-                  </div>
-
-                  <div
-                    className="flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopyUrl(m.id, m.fileUrl)}
-                      title="Copy URL"
-                    >
-                      <Copy />
-                      {copyingId === m.id ? "Copied" : "URL"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteOne(m.id)}
-                      aria-label="Delete model"
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-
-                  <ChevronRight className="size-4 text-muted-foreground/60 shrink-0" />
-                </div>
-              );
-            })}
+            Explicit grid tracks rather than an inline stack. A Polaris field is
+            block-level and fills its container, so in a stack the search box and
+            the select each claimed the full width and the row broke onto four
+            lines. `1fr auto auto auto` is what actually states which control
+            absorbs the slack and which keep their own size.
+          */}
+          {/*
+            Two cells — search, and the controls beside it — rather than four
+            fixed tracks. At `1fr auto auto auto` the select and both view
+            toggles held their width on a phone and the search box was squeezed
+            into whatever was left, around 60px. The controls cell drops onto its
+            own row there instead; see .model-toolbar in critical.css.
+          */}
+          <div className="model-toolbar">
+            <s-search-field
+              label="Search models"
+              labelAccessibilityVisibility="exclusive"
+              placeholder="Search models by name"
+              value={query}
+              onInput={(e) => setQuery(fieldValue(e))}
+            />
+            {/*
+              A fixed track for the select, not `1fr`. Its four options are all
+              short — "Newest first" is the longest — so a share of the row buys
+              nothing but empty space inside the control, next to a search box
+              that had to give that space up.
+            */}
+            <s-grid
+              gridTemplateColumns="170px auto auto"
+              gap="small"
+              alignItems="end"
+            >
+              <s-select
+                label="Sort"
+                labelAccessibilityVisibility="exclusive"
+                value={sort}
+                onInput={(e) => setSort(fieldValue(e) as SortKey)}
+              >
+                <s-option value="newest">Newest first</s-option>
+                <s-option value="oldest">Oldest first</s-option>
+                <s-option value="name">Name (A→Z)</s-option>
+                <s-option value="size">Largest first</s-option>
+              </s-select>
+              <s-button
+                variant={viewMode === "list" ? "secondary" : "tertiary"}
+                icon="list-bulleted"
+                accessibilityLabel="List view"
+                onClick={() => setViewMode("list")}
+              />
+              <s-button
+                variant={viewMode === "grid" ? "secondary" : "tertiary"}
+                icon="grid"
+                accessibilityLabel="Grid view"
+                onClick={() => setViewMode("grid")}
+              />
+            </s-grid>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filtered.map((m) => {
-              const isSelected = selected.has(m.id);
-              return (
-                <div
-                  key={m.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => navigate(`/app/models/${m.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/app/models/${m.id}`);
+
+          {selected.size > 0 ? (
+            /*
+              One row rather than the banner's action slots, which stack each
+              button on a line of its own beneath the count.
+            */
+            <s-banner tone="info">
+              <s-stack
+                direction="inline"
+                gap="small"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <s-text>{selected.size} selected</s-text>
+                <s-stack direction="inline" gap="small" alignItems="center">
+                  <s-button
+                    variant="primary"
+                    tone="critical"
+                    icon="delete"
+                    disabled={flag(submitting)}
+                    onClick={() => setPendingDelete("bulk")}
+                  >
+                    Delete selected
+                  </s-button>
+                  <s-button onClick={() => setSelected(new Set())}>
+                    Clear
+                  </s-button>
+                </s-stack>
+              </s-stack>
+            </s-banner>
+          ) : null}
+
+          {totalCount === 0 ? (
+            <s-stack direction="block" gap="small" alignItems="center">
+              <s-icon type="three-d-environment" color="subdued" />
+              <s-text color="subdued">No models in your library yet.</s-text>
+              <s-text color="subdued">
+                Drop .glb files above or import an existing one.
+              </s-text>
+            </s-stack>
+          ) : filtered.length === 0 ? (
+            <s-stack direction="block" gap="small" alignItems="center">
+              <s-icon type="search" color="subdued" />
+              <s-text color="subdued">No models match “{query}”.</s-text>
+            </s-stack>
+          ) : viewMode === "list" ? (
+            <s-table variant="auto">
+              <s-table-header-row>
+                <s-table-header>
+                  <s-checkbox
+                    accessibilityLabel="Select all models"
+                    checked={flag(allSelected)}
+                    onInput={() =>
+                      setSelected(
+                        allSelected
+                          ? new Set()
+                          : new Set(filtered.map((m) => m.id)),
+                      )
                     }
-                  }}
-                  className={cn(
-                    "relative border bg-card shadow-sm flex flex-col group transition-colors cursor-pointer",
-                    isSelected
-                      ? "border-primary ring-1 ring-primary"
-                      : "hover:border-primary/40",
-                  )}
+                  />
+                </s-table-header>
+                <s-table-header listSlot="primary">Model</s-table-header>
+                <s-table-header format="numeric">Size</s-table-header>
+                <s-table-header>Added</s-table-header>
+                <s-table-header>Actions</s-table-header>
+              </s-table-header-row>
+              <s-table-body>
+                {filtered.map((m) => (
+                  <s-table-row key={m.id}>
+                    <s-table-cell>
+                      <s-checkbox
+                        accessibilityLabel={`Select ${m.name}`}
+                        checked={flag(selected.has(m.id))}
+                        onInput={() => toggleOne(m.id)}
+                      />
+                    </s-table-cell>
+                    <s-table-cell>
+                      <s-link
+                        href={`/app/models/${m.id}`}
+                        onClick={routeTo(`/app/models/${m.id}`)}
+                      >
+                        {m.name}
+                      </s-link>
+                    </s-table-cell>
+                    <s-table-cell>{formatBytes(m.fileSize)}</s-table-cell>
+                    <s-table-cell>{m.createdAtLabel}</s-table-cell>
+                    <s-table-cell>{rowActions(m)}</s-table-cell>
+                  </s-table-row>
+                ))}
+              </s-table-body>
+            </s-table>
+          ) : (
+            <s-grid
+              gridTemplateColumns="repeat(auto-fill, minmax(min(100%, 220px), 1fr))"
+              gap="base"
+            >
+              {filtered.map((m) => (
+                <s-box
+                  key={m.id}
+                  padding="base"
+                  borderWidth="base"
+                  borderStyle="solid"
+                  borderColor={selected.has(m.id) ? "strong" : "base"}
+                  borderRadius="base"
                 >
-                  <label
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "absolute top-2 left-2 z-10 flex items-center justify-center size-5 border bg-background cursor-pointer transition-opacity",
-                      isSelected || selected.size > 0
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100",
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleOne(m.id)}
-                      className="size-4 cursor-pointer"
-                    />
-                  </label>
-
-                  <div className="flex items-center justify-center h-32 bg-muted/40 border-b">
-                    <Boxes className="size-10 text-muted-foreground/60" />
-                  </div>
-
-                  <div className="p-3 flex flex-col gap-1 flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate" title={m.name}>
+                  <s-stack direction="block" gap="small">
+                    <s-stack
+                      direction="inline"
+                      gap="small"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      inlineSize="100%"
+                    >
+                      <s-checkbox
+                        accessibilityLabel={`Select ${m.name}`}
+                        checked={flag(selected.has(m.id))}
+                        onInput={() => toggleOne(m.id)}
+                      />
+                      {rowActions(m)}
+                    </s-stack>
+                    <s-link
+                      href={`/app/models/${m.id}`}
+                      onClick={routeTo(`/app/models/${m.id}`)}
+                    >
                       {m.name}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {formatBytes(m.fileSize)} · {formatDate(m.createdAt)}
-                    </div>
-                  </div>
-
-                  <div
-                    className="border-t p-2 flex items-center gap-1 justify-end"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopyUrl(m.id, m.fileUrl)}
-                      title="Copy URL"
-                    >
-                      <Copy />
-                      {copyingId === m.id ? "Copied" : "URL"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                      title="Customize"
-                    >
-                      <Link to={`/app/models/${m.id}`}>
-                        <Settings2 />
-                      </Link>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteOne(m.id)}
-                      aria-label="Delete model"
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+                    </s-link>
+                    <s-text color="subdued">
+                      {formatBytes(m.fileSize)} · {m.createdAtLabel}
+                    </s-text>
+                  </s-stack>
+                </s-box>
+              ))}
+            </s-grid>
+          )}
+        </s-stack>
+      </s-section>
+    </s-page>
   );
 }
 

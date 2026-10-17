@@ -1,0 +1,60 @@
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  width:1600px;height:900px;overflow:hidden;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:#EEF2FB;color:#0f1729;
+  display:grid;grid-template-columns:592px 1fr;align-items:center;
+}
+.pane{padding:0 0 0 76px}
+.eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+.dot{width:30px;height:30px;border-radius:8px;background:#146ef5;display:grid;place-items:center}
+.dot svg{width:18px;height:18px;display:block}
+.eyebrow span{font-size:15px;font-weight:600;letter-spacing:.01em;color:#42506b}
+h1{font-size:52px;line-height:1.08;letter-spacing:-.022em;font-weight:700;margin:0 0 20px}
+h1 em{font-style:normal;color:#146ef5}
+p.sub{font-size:20px;line-height:1.5;color:#42506b;margin:0;max-width:452px}
+ul{list-style:none;margin:30px 0 0;padding:0;display:grid;gap:13px}
+li{display:flex;gap:11px;align-items:flex-start;font-size:17px;color:#28324a;line-height:1.4}
+li svg{width:20px;height:20px;flex:none;margin-top:1px}
+.stage{height:900px;position:relative;overflow:hidden;display:grid;align-items:center}
+.frame{
+  position:relative;width:1020px;margin-left:16px;
+  border-radius:16px;background:#fff;overflow:hidden;
+  box-shadow:0 30px 70px -20px rgba(15,23,41,.34),0 0 0 1px rgba(15,23,41,.07);
+}
+.bar{height:38px;background:#fbfbfc;border-bottom:1px solid #e6e8ee;display:flex;align-items:center;padding:0 15px;gap:7px}
+.bar i{width:10px;height:10px;border-radius:50%;background:#dfe2e9;display:block}
+.bar b{margin-left:14px;font-size:12px;font-weight:500;color:#8791a5;letter-spacing:.01em}
+.body{background:#f1f1f1}
+.scale{transform-origin:top left}
+
+/* --- storefront product page mock --- */
+.frame{width:936px;margin-left:0}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:34px;padding:30px 34px 36px}
+.media{position:relative;border:1px solid #e6e8ee;border-radius:12px;overflow:hidden;background:#fff}
+.media img{width:100%;display:block}
+.pill{position:absolute;top:12px;left:12px;background:rgba(15,23,41,.82);color:#fff;font-size:12px;font-weight:600;
+  padding:6px 11px;border-radius:99px;display:flex;align-items:center;gap:6px;letter-spacing:.01em}
+.pill svg{width:13px;height:13px}
+.thumbs{display:flex;gap:9px;margin-top:12px}
+.thumbs div{width:56px;height:56px;border-radius:8px;border:1px solid #e6e8ee;background:#f7f8fa}
+.thumbs div.on{border:2px solid #146ef5;background:#eef4ff}
+.info h2{font-size:27px;margin:2px 0 8px;letter-spacing:-.015em}
+.info .price{font-size:22px;font-weight:600;margin-bottom:15px}
+.info .vend{font-size:13px;color:#8791a5;text-transform:uppercase;letter-spacing:.09em;font-weight:600}
+.info p{font-size:14px;color:#5b6479;line-height:1.62;margin:0 0 20px}
+.btn{display:block;text-align:center;padding:13px;border-radius:9px;font-size:15px;font-weight:600}
+.btn.b{background:#0f1729;color:#fff;margin-bottom:10px}
+.btn.o{background:#fff;color:#0f1729;border:1px solid #c9ced9}
+
+/* --- admin screen frames --- */
+.frame.admin .body{background:#f1f1f1;padding:0}
+.frame.admin{width:1000px}
+.admin-inner{width:1000px}
+/* product thumbnails, 32px like the real ProductThumb */
+.th{width:32px;height:32px;border:1px solid #e3e3e3;border-radius:8px;background:#f7f7f7;overflow:hidden;display:grid;place-items:center;flex:none}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th svg{width:20px;height:20px}
+.cellp{display:flex;align-items:center;gap:8px}
+.cellp a{color:#005bd3;text-decoration:none;font-size:13px}

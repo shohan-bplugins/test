@@ -64,6 +64,14 @@ export default defineConfig({
     assetsInlineLimit: 0,
   },
   optimizeDeps: {
-    include: ["@shopify/app-bridge-react"],
+    /*
+     * Pre-bundled at dev-server start rather than discovered at runtime. Both
+     * 3D packages are loaded by dynamic import() (ViewerPreview's model viewer
+     * and its hotspot picker), which Vite only sees when that code first runs.
+     * Discovering one mid-session makes Vite re-optimize and reload with new
+     * chunk hashes while the open page still holds the old ones — two copies of
+     * react-router, and "useLoaderData must be used within a data router".
+     */
+    include: ["@shopify/app-bridge-react", "@egjs/view3d", "three"],
   },
 }) satisfies UserConfig;

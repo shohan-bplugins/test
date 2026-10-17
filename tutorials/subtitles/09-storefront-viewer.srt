@@ -1,0 +1,258 @@
+1
+00:00:00,250 --> 00:00:02,327
+Everything so far has been from your side.
+
+2
+00:00:02,387 --> 00:00:06,143
+Now let's sit in the customer's seat and
+go through every control they get.
+
+3
+00:00:07,353 --> 00:00:08,523
+This is the default.
+
+4
+00:00:08,583 --> 00:00:13,383
+The model, a soft contact shadow so it
+sits on something, and two small buttons
+
+5
+00:00:13,443 --> 00:00:14,245
+in the corner.
+
+6
+00:00:14,305 --> 00:00:18,367
+Deliberately quiet — the product is the
+subject, not the interface.
+
+7
+00:00:19,227 --> 00:00:23,362
+The main interaction is drag to rotate.
+Mouse or finger, any direction.
+
+8
+00:00:23,422 --> 00:00:27,970
+If you enabled the grab cursor, the
+pointer turns into a hand over the canvas,
+
+9
+00:00:28,030 --> 00:00:30,510
+which is the hint that makes people try
+it.
+
+10
+00:00:31,370 --> 00:00:35,439
+If you turned auto rotate on, it spins by
+itself until someone touches it.
+
+11
+00:00:35,499 --> 00:00:39,791
+That's the strongest signal you can give
+that the image is interactive, and it
+
+12
+00:00:39,851 --> 00:00:40,572
+costs nothing.
+
+13
+00:00:41,432 --> 00:00:45,970
+Zoom works two ways: the plus and minus
+buttons, or the scroll wheel and pinch.
+
+14
+00:00:46,030 --> 00:00:50,684
+This is where 3D beats photography — a
+customer can get close enough to judge the
+
+15
+00:00:50,744 --> 00:00:53,245
+stitching or the finish, on their own
+terms.
+
+16
+00:00:54,105 --> 00:00:58,202
+Once someone has spun a model to a strange
+angle, they need a way back.
+
+17
+00:00:58,262 --> 00:01:02,887
+Reset view returns the camera to exactly
+the yaw, pitch and zoom you configured.
+
+18
+00:01:02,947 --> 00:01:06,400
+It's off by default — switch it on for
+anything complicated.
+
+19
+00:01:07,260 --> 00:01:10,168
+The camera button downloads a PNG of the
+current view.
+
+20
+00:01:10,228 --> 00:01:14,455
+Customers use it to send a colleague the
+exact angle they're looking at, which
+
+21
+00:01:14,515 --> 00:01:17,313
+quietly turns your product page into a
+sharing tool.
+
+22
+00:01:18,173 --> 00:01:22,568
+If your model has animation clips, the
+switcher appears top-left showing the
+
+23
+00:01:22,628 --> 00:01:23,330
+playing clip.
+
+24
+00:01:23,390 --> 00:01:28,136
+Click it and the customer picks another —
+open the lid, fold the frame, extend the
+
+25
+00:01:28,196 --> 00:01:28,796
+legs.
+
+26
+00:01:28,489 --> 00:01:32,239
+Remember: with this switch off, the model
+doesn't animate at all.
+
+27
+00:01:33,099 --> 00:01:36,696
+The axis gizmo shows X, Y and Z
+orientation in the corner.
+
+28
+00:01:36,756 --> 00:01:41,236
+It's genuinely useful for technical
+products — furniture, machine parts,
+
+29
+00:01:41,296 --> 00:01:45,460
+anything where which way is up matters —
+and clutter for a sneaker.
+
+30
+00:01:46,320 --> 00:01:48,589
+Fullscreen is the one I'd always leave on.
+
+31
+00:01:48,649 --> 00:01:52,913
+A viewer inside a product page column is
+small; fullscreen gives the model the
+
+32
+00:01:52,973 --> 00:01:53,634
+whole screen.
+
+33
+00:01:54,494 --> 00:01:58,600
+In fullscreen the controls follow, and an
+exit button appears top-left.
+
+34
+00:01:58,660 --> 00:02:02,825
+The model re-fits to the new shape rather
+than staying at its old scale.
+
+35
+00:02:02,885 --> 00:02:03,881
+Escape also works.
+
+36
+00:02:04,741 --> 00:02:06,571
+On a phone, an AR button appears.
+
+37
+00:02:06,631 --> 00:02:10,694
+Tapping it drops the product into the
+camera view at real scale — on the
+
+38
+00:02:10,754 --> 00:02:13,672
+customer's floor, on their desk, against
+their wall.
+
+39
+00:02:13,732 --> 00:02:18,425
+For furniture and anything size-sensitive,
+this is the feature that answers will it
+
+40
+00:02:18,485 --> 00:02:19,085
+fit.
+
+41
+00:02:19,515 --> 00:02:21,481
+Two platforms, two mechanisms.
+
+42
+00:02:21,541 --> 00:02:26,954
+Android uses WebXR or Google Scene Viewer
+and works straight from your glb, on by
+
+43
+00:02:27,014 --> 00:02:27,614
+default.
+
+44
+00:02:27,554 --> 00:02:32,967
+iOS uses Apple Quick Look, which needs a
+separate USDZ file — so if AR matters to
+
+45
+00:02:33,027 --> 00:02:36,683
+you, export one and paste its URL into the
+AR settings.
+
+46
+00:02:36,743 --> 00:02:39,656
+Desktop browsers just don't show the
+button.
+
+47
+00:02:40,516 --> 00:02:42,166
+One last warning about mobile.
+
+48
+00:02:42,226 --> 00:02:46,899
+If you turned page scroll on touch off, a
+finger drag inside the viewer rotates the
+
+49
+00:02:46,959 --> 00:02:48,780
+model and never scrolls the page.
+
+50
+00:02:48,840 --> 00:02:52,144
+On a tall product page that means a
+customer can get stuck.
+
+51
+00:02:52,204 --> 00:02:55,052
+Leave it on unless you have a very
+specific reason.
+
+52
+00:02:55,912 --> 00:03:00,322
+And while a model loads, the viewer shows
+a spinner in your chosen background colour
+
+53
+00:03:00,382 --> 00:03:04,367
+rather than a blank hole — so a slow
+connection looks intentional instead of
+
+54
+00:03:04,427 --> 00:03:05,027
+broken.
+
+55
+00:03:05,600 --> 00:03:10,461
+That's the customer experience. Next, the
+practical matter of plans and limits.

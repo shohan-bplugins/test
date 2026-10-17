@@ -1,8 +1,10 @@
+import { ADMIN_API_VERSION } from "./app-config";
+
 const SWIPEONE_URL =
   "https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287";
 
 export const APP_NAME = "viewer-3d";
-export const APP_FULL_NAME = "3D Viewer by bPlugins";
+export const APP_FULL_NAME = "Easy 3D Viewer";
 export const APP_SLUG = "viewer-3d-by-bplugins";
 
 function formatNow(): string {
@@ -90,20 +92,77 @@ export async function notifySwipeone({
   }
 }
 
+/*
+ * The shop's own details, for the CRM payload above.
+ *
+ * GraphQL rather than the old /admin/api/2025-01/shop.json: the REST Admin API
+ * is legacy, and an app submitted to the App Store must be built exclusively on
+ * the GraphQL Admin API. The returned shape is unchanged — REST's snake_case
+ * keys are mapped back so ShopInfo and everything consuming it stay as they
+ * were.
+ *
+ * A raw fetch rather than an `admin.graphql` client because the two hottest
+ * callers don't have one: shopify.server's afterAuth hook and the uninstall
+ * webhook both hold a session, not an authenticated admin client.
+ */
 export async function fetchShopInfo(
   shop: string,
   accessToken: string,
 ): Promise<ShopInfo | null> {
   try {
-    const res = await fetch(`https://${shop}/admin/api/2025-01/shop.json`, {
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
+    const res = await fetch(
+      `https://${shop}/admin/api/${ADMIN_API_VERSION}/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: `#graphql
+            query ShopInfo {
+              shop {
+                id
+                name
+                email
+                contactEmail
+                createdAt
+                shopOwnerName
+                myshopifyDomain
+                primaryDomain { host }
+                plan { displayName }
+                shopAddress {
+                  address1
+                  address2
+                  phone
+                  country
+                }
+              }
+            }`,
+        }),
       },
-    });
+    );
     if (!res.ok) return null;
-    const data: any = await res.json();
-    return data?.shop ?? null;
+    const json: any = await res.json();
+    const s = json?.data?.shop;
+    if (!s) return null;
+
+    return {
+      shop_owner: s.shopOwnerName ?? undefined,
+      email: s.email ?? s.contactEmail ?? undefined,
+      country_name: s.shopAddress?.country ?? undefined,
+      address1: s.shopAddress?.address1 ?? undefined,
+      address2: s.shopAddress?.address2 ?? undefined,
+      phone: s.shopAddress?.phone ?? undefined,
+      created_at: s.createdAt ?? undefined,
+      domain: s.primaryDomain?.host ?? shop,
+      myshopify_domain: s.myshopifyDomain ?? undefined,
+      plan_display_name: s.plan?.displayName ?? undefined,
+      // A GID ("gid://shopify/Shop/123") where REST returned the bare number.
+      // Kept as the numeric tail so CRM records created before this migration
+      // still match the ones created after it.
+      id: String(s.id ?? "").split("/").pop() ?? undefined,
+    };
   } catch {
     return null;
   }

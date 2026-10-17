@@ -3,3 +3,26 @@ node_modules
 .env
 .DS_Store
 dist
+
+# SQLite database — never versioned or deployed.
+# It holds live Shopify access tokens, and a git-based deploy that carried it
+# would overwrite the production database on every push.
+prisma/*.sqlite
+prisma/*.sqlite-journal
+prisma/*.sqlite-wal
+prisma/*.sqlite-shm
+
+# Working scratch that must never reach a deploy.
+#
+# The build output is uploaded as-is by most hosts, so anything sitting in the
+# project root ships with it. These zips are ~3.3MB of old snapshots — nothing
+# the app reads, and a merchant-facing server has no business serving them.
+Archive*.zip
+*.zip
+
+# Local reference checkout of another app, tracked as an empty gitlink with no
+# .gitmodules entry. Nothing here is part of this app.
+reference_shopify_app/
+
+# Build output.
+build/

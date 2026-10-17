@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Viewer — icon variants</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 40px 24px;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #fafafa; color: #111;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #111114; color: #f2f2f4; } }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { opacity: .6; margin: 0 0 32px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 24px; max-width: 1100px; }
+  .card { border: 1px solid rgba(128,128,128,.25); border-radius: 12px; padding: 20px; text-align: center; }
+  .card img { width: 128px; height: 128px; }
+  .name { font-weight: 600; margin-top: 12px; }
+  .note { opacity: .6; font-size: 12px; margin-top: 2px; }
+  .sizes { display: flex; gap: 12px; align-items: flex-end; justify-content: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(128,128,128,.2); }
+  .sizes img { width: auto; }
+  .s64 { height: 64px } .s32 { height: 32px } .s16 { height: 16px }
+  .mono { color: #5449e4; }
+  @media (prefers-color-scheme: dark) { .mono { color: #8fb4ff; } }
+</style>
+</head>
+<body>
+<h1>3D Viewer — icon variants</h1>
+<p class="sub">Brand gradient #5449e4 → #3277f4. Each shown at 128px plus 64/32/16px legibility check.</p>
+<div class="grid">
+  <div class="card">
+    <img src="icon-1-tile.svg" alt="">
+    <div class="name">1 · Tile</div>
+    <div class="note">App Store listing, favicon</div>
+    <div class="sizes"><img class="s64" src="icon-1-tile.svg" alt=""><img class="s32" src="icon-1-tile.svg" alt=""><img class="s16" src="icon-1-tile.svg" alt=""></div>
+  </div>
+  <div class="card">
+    <img src="icon-2-orbit.svg" alt="">
+    <div class="name">2 · Orbit</div>
+    <div class="note">Main brand mark, marketing</div>
+    <div class="sizes"><img class="s64" src="icon-2-orbit.svg" alt=""><img class="s32" src="icon-2-orbit.svg" alt=""><img class="s16" src="icon-2-orbit.svg" alt=""></div>
+  </div>
+  <div class="card">
+    <img src="icon-3-wireframe.svg" alt="">
+    <div class="name">3 · Wireframe</div>
+    <div class="note">Docs, empty states</div>
+    <div class="sizes"><img class="s64" src="icon-3-wireframe.svg" alt=""><img class="s32" src="icon-3-wireframe.svg" alt=""><img class="s16" src="icon-3-wireframe.svg" alt=""></div>
+  </div>
+  <div class="card">
+    <img src="icon-4-viewport.svg" alt="">
+    <div class="name">4 · Viewport</div>
+    <div class="note">Alt tile, theme block thumb</div>
+    <div class="sizes"><img class="s64" src="icon-4-viewport.svg" alt=""><img class="s32" src="icon-4-viewport.svg" alt=""><img class="s16" src="icon-4-viewport.svg" alt=""></div>
+  </div>
+  <div class="card mono">
+    <img src="icon-5-mono.svg" alt="">
+    <div class="name">5 · Mono</div>
+    <div class="note">currentColor — nav, print, watermark</div>
+    <div class="sizes"><img class="s64" src="icon-5-mono.svg" alt=""><img class="s32" src="icon-5-mono.svg" alt=""><img class="s16" src="icon-5-mono.svg" alt=""></div>
+  </div>
+</div>
+</body>
+</html>

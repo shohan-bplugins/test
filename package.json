@@ -11,7 +11,7 @@
     "env": "shopify app env",
     "start": "react-router-serve ./build/server/index.js",
     "docker-start": "npm run setup && npm run start",
-    "setup": "prisma generate && prisma migrate deploy",
+    "setup": "prisma generate && prisma db push",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "prisma": "prisma",
@@ -25,6 +25,9 @@
   },
   "dependencies": {
     "@egjs/view3d": "^2.10.1",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@prisma/client": "^6.16.3",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
@@ -45,6 +48,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "draco3dgltf": "^1.5.7",
     "isbot": "^5.1.31",
     "lucide-react": "^1.16.0",
     "prisma": "^6.16.3",
@@ -52,8 +56,10 @@
     "react-dom": "^18.3.1",
     "react-resizable-panels": "^4.11.1",
     "react-router": "^7.12.0",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.0",
+    "three": "0.134.0",
     "vite-tsconfig-paths": "^5.1.4"
   },
   "devDependencies": {

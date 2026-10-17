@@ -1,0 +1,227 @@
+1
+00:00:00,250 --> 00:00:03,460
+Theme blocks only work inside modern
+Shopify themes.
+
+2
+00:00:03,520 --> 00:00:08,615
+But sometimes you need a model in a blog
+post, a legacy template, an email landing
+
+3
+00:00:08,675 --> 00:00:11,256
+page, or a site that isn't Shopify at all.
+
+4
+00:00:11,316 --> 00:00:12,765
+That's what this is for.
+
+5
+00:00:13,975 --> 00:00:17,670
+Open any library model and you'll find the
+Share and embed card.
+
+6
+00:00:17,730 --> 00:00:20,898
+It gives you two things: a link, and an
+iframe snippet.
+
+7
+00:00:21,758 --> 00:00:26,533
+The viewer link is a real, public page
+that renders just this model at full size.
+
+8
+00:00:26,593 --> 00:00:29,160
+Anyone with the link can open it — no
+login.
+
+9
+00:00:29,220 --> 00:00:33,756
+The ID is a random UUID so it isn't
+guessable, and the page is marked noindex
+
+10
+00:00:33,816 --> 00:00:36,025
+so it won't turn up in search results.
+
+11
+00:00:36,885 --> 00:00:37,866
+Here's that page.
+
+12
+00:00:37,926 --> 00:00:42,584
+Nothing but your model, filling the
+window, with your saved settings applied.
+
+13
+00:00:42,644 --> 00:00:47,179
+Send it to a client, drop it in a Slack
+message, put it behind a QR code on
+
+14
+00:00:47,239 --> 00:00:47,839
+packaging.
+
+15
+00:00:48,652 --> 00:00:51,619
+The embed code wraps that same page in an
+iframe.
+
+16
+00:00:51,679 --> 00:00:56,745
+It's deliberately built to survive: every
+style is inline, there are no CSS classes
+
+17
+00:00:56,805 --> 00:01:01,625
+and no script tag, so Shopify's HTML
+sanitiser leaves it alone and your theme's
+
+18
+00:01:01,685 --> 00:01:03,231
+CSS can't collide with it.
+
+19
+00:01:04,091 --> 00:01:04,691
+Two modes.
+
+20
+00:01:04,647 --> 00:01:09,037
+Responsive keeps a four-to-three box at
+whatever width the column happens to be,
+
+21
+00:01:09,097 --> 00:01:12,820
+which is what you want inside a page
+layout you don't fully control.
+
+22
+00:01:13,680 --> 00:01:16,475
+Fixed pins the model's saved height in
+pixels instead.
+
+23
+00:01:16,535 --> 00:01:20,018
+Use it when you want the viewer exactly as
+tall as you designed it.
+
+24
+00:01:20,878 --> 00:01:22,192
+Three places it goes.
+
+25
+00:01:22,252 --> 00:01:27,492
+A Shopify page or blog post — switch the
+rich text editor to the HTML view first,
+
+26
+00:01:27,552 --> 00:01:29,127
+the angle-bracket button.
+
+27
+00:01:29,187 --> 00:01:34,427
+A Custom Liquid section, which works in
+every theme including legacy liquid ones.
+
+28
+00:01:34,487 --> 00:01:35,866
+Or any website at all.
+
+29
+00:01:36,726 --> 00:01:38,601
+Hit Copy and it's on your clipboard.
+
+30
+00:01:39,311 --> 00:01:42,674
+And there it is, sitting in a blog post,
+fully interactive.
+
+31
+00:01:42,734 --> 00:01:47,201
+Your theme's typography above and below
+it, the model in the middle, no layout
+
+32
+00:01:47,261 --> 00:01:47,861
+fighting.
+
+33
+00:01:48,583 --> 00:01:49,693
+Now the clever bit.
+
+34
+00:01:49,753 --> 00:01:54,743
+Two settings can ride on the URL, so one
+model can suit several placements without
+
+35
+00:01:54,803 --> 00:01:55,543
+re-saving it.
+
+36
+00:01:55,603 --> 00:02:00,408
+Question mark b g equals a hex colour
+changes the background — and note there's
+
+37
+00:02:00,468 --> 00:02:03,672
+no hash symbol, because a hash starts a
+URL fragment.
+
+38
+00:02:03,732 --> 00:02:06,444
+And autorotate equals zero stops it
+spinning.
+
+39
+00:02:07,304 --> 00:02:11,517
+Here's the same model, same saved
+settings, with question mark b g equals
+
+40
+00:02:11,577 --> 00:02:15,556
+one-oh-one-oh-one-four appended — sitting
+comfortably on a dark page.
+
+41
+00:02:15,616 --> 00:02:20,180
+Re-saving the model would have changed
+every other placement; this changes only
+
+42
+00:02:20,240 --> 00:02:20,840
+this one.
+
+43
+00:02:21,567 --> 00:02:25,481
+One thing not to strip out: allow equals
+fullscreen on the iframe tag.
+
+44
+00:02:25,541 --> 00:02:29,851
+Without it, the browser refuses the
+fullscreen request and the button appears
+
+45
+00:02:29,911 --> 00:02:30,646
+to do nothing.
+
+46
+00:02:31,506 --> 00:02:35,782
+Finally, the Preview button in the header
+opens that public page in a tab.
+
+47
+00:02:35,842 --> 00:02:40,411
+It renders the saved settings, so if
+you've just changed something, save first.
+
+48
+00:02:41,271 --> 00:02:45,871
+Next, we look at the viewer from the other
+side — what your customer can actually do
+
+49
+00:02:45,931 --> 00:02:46,531
+with it.

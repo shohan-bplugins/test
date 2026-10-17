@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+  <link rel="stylesheet" href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css">
+  <link rel="stylesheet" href="base.css">
+</head>
+
+<body>
+  <div class="pane">
+    <div class="eyebrow"><span class="dot"><svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2.6l8.2 4.7v9.4L12 21.4 3.8 16.7V7.3z" stroke="#fff" stroke-width="1.7"
+            stroke-linejoin="round" />
+          <path d="M3.9 7.4L12 12l8.1-4.6M12 12v9.3" stroke="#fff" stroke-width="1.7" stroke-linejoin="round" />
+        </svg></span><span>bPlugins 3D Viewer</span></div>
+    <h1>Attach a model in <em>two clicks</em></h1>
+    <p class="sub">Your products, listed with the ones still missing a model marked. Pick a product, pick a model, done.
+    </p>
+    <ul>
+      <li><svg viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="10" fill="#146ef5" />
+          <path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <div>No theme code, no Liquid to edit</div>
+      </li>
+      <li><svg viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="10" fill="#146ef5" />
+          <path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <div>See at a glance what still needs a model</div>
+      </li>
+      <li><svg viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="10" fill="#146ef5" />
+          <path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <div>Preview on your storefront before publishing</div>
+      </li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="frame admin">
+      <div class="bar"><i></i><i></i><i></i><b>Shopify admin — bPlugins 3D Viewer</b></div>
+      <div class="body">
+        <div class="admin-inner">
+          <s-page heading="Product 3D models">
+            <s-button slot="primary-action">Open model library</s-button>
+            <s-section>
+              <s-stack direction="block" gap="base">
+                <s-paragraph color="subdued">3 of 12 products have a 3D model assigned.</s-paragraph>
+                <s-stack direction="inline" gap="small" alignitems="center">
+                  <s-badge icon="wand">Growth plan</s-badge>
+                  <s-badge tone="neutral">3 / 15 products</s-badge>
+                </s-stack>
+              </s-stack>
+            </s-section>
+            <s-section heading="Products">
+              <s-paragraph color="subdued">Click a product to upload, replace, or configure its 3D model.</s-paragraph>
+              <s-stack direction="block" gap="base">
+                <s-search-field label="Search products" labelaccessibilityvisibility="exclusive"
+                  placeholder="Search products by title"></s-search-field>
+                <s-table variant="auto">
+                  <s-table-header-row>
+                    <s-table-header listslot="primary">Product</s-table-header>
+                    <s-table-header>Status</s-table-header>
+                    <s-table-header>3D model</s-table-header>
+                    <s-table-header>Actions</s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>
+                    <s-table-row>
+                      <s-table-cell>
+                        <div class="cellp">
+                          <div class="th"><img src="astro-sq.png"></div><a href="#">Astronaut Figure</a>
+                        </div>
+                      </s-table-cell>
+                      <s-table-cell><s-badge tone="success">Active</s-badge></s-table-cell>
+                      <s-table-cell><s-badge tone="success" icon="check">Assigned</s-badge></s-table-cell>
+                      <s-table-cell><s-grid gridtemplatecolumns="88px auto" gap="small-500"
+                          alignitems="center"><s-button variant="secondary">Update</s-button><s-button
+                            variant="tertiary" icon="external"></s-button></s-grid></s-table-cell>
+                    </s-table-row>
+                    <s-table-row>
+                      <s-table-cell>
+                        <div class="cellp">
+                          <div class="th"><svg viewBox="0 0 24 24" fill="none">
+                              <path d="M3 15.5h11.5l4-2.4c1.6-1 3.5.2 3.5 2v2.4H3z" fill="#c9d2e0" />
+                              <path d="M3 12.4c1.9 0 3-.6 3.6-1.6l1.2-2 2.4 1.6-.6 1.4 2.6 1.5 1.3-1.2" stroke="#8794aa"
+                                stroke-width="1.2" />
+                            </svg></div><a href="#">Runner Sneaker</a>
+                        </div>
+                      </s-table-cell>
+                      <s-table-cell><s-badge tone="success">Active</s-badge></s-table-cell>
+                      <s-table-cell><s-badge tone="success" icon="check">Assigned</s-badge></s-table-cell>
+                      <s-table-cell><s-grid gridtemplatecolumns="88px auto" gap="small-500"
+                          alignitems="center"><s-button variant="secondary">Update</s-button><s-button
+                            variant="tertiary" icon="external"></s-button></s-grid></s-table-cell>
+                    </s-table-row>
+                    <s-table-row>
+                      <s-table-cell>
+                        <div class="cellp">
+                          <div class="th"><svg viewBox="0 0 24 24" fill="none">
+                              <rect x="6" y="4" width="12" height="9" rx="2" fill="#c9d2e0" />
+                              <rect x="5" y="12.6" width="14" height="3.4" rx="1.4" fill="#8794aa" />
+                              <path d="M7 16v4M17 16v4" stroke="#8794aa" stroke-width="1.6" stroke-linecap="round" />
+                            </svg></div><a href="#">Oak Lounge Chair</a>
+                        </div>
+                      </s-table-cell>
+                      <s-table-cell><s-badge tone="success">Active</s-badge></s-table-cell>
+                      <s-table-cell><s-badge tone="success" icon="check">Assigned</s-badge></s-table-cell>
+                      <s-table-cell><s-grid gridtemplatecolumns="88px auto" gap="small-500"
+                          alignitems="center"><s-button variant="secondary">Update</s-button><s-button
+                            variant="tertiary" icon="external"></s-button></s-grid></s-table-cell>
+                    </s-table-row>
+                    <s-table-row>
+                      <s-table-cell>
+                        <div class="cellp">
+                          <div class="th"><svg viewBox="0 0 24 24" fill="none">
+                              <path d="M5 7h11v8a4 4 0 01-4 4H9a4 4 0 01-4-4z" fill="#c9d2e0" />
+                              <path d="M16 9.5h2.2a2.3 2.3 0 010 4.6H16" stroke="#8794aa" stroke-width="1.5" />
+                            </svg></div><a href="#">Ceramic Coffee Mug</a>
+                        </div>
+                      </s-table-cell>
+                      <s-table-cell><s-badge tone="success">Active</s-badge></s-table-cell>
+                      <s-table-cell><s-text color="subdued">No model</s-text></s-table-cell>
+                      <s-table-cell><s-grid gridtemplatecolumns="88px auto" gap="small-500"
+                          alignitems="center"><s-button variant="primary">Add</s-button><s-button variant="tertiary"
+                            icon="external"></s-button></s-grid></s-table-cell>
+                    </s-table-row>
+                    <s-table-row>
+                      <s-table-cell>
+                        <div class="cellp">
+                          <div class="th"><svg viewBox="0 0 24 24" fill="none">
+                              <path d="M7.5 10l4.5-6 4.5 6z" fill="#c9d2e0" />
+                              <path d="M12 10v8M8.5 19.5h7" stroke="#8794aa" stroke-width="1.6"
+                                stroke-linecap="round" />
+                            </svg></div><a href="#">Desk Lamp</a>
+                        </div>
+                      </s-table-cell>
+                      <s-table-cell><s-badge tone="warning">Draft</s-badge></s-table-cell>
+                      <s-table-cell><s-text color="subdued">No model</s-text></s-table-cell>
+                      <s-table-cell><s-grid gridtemplatecolumns="88px auto" gap="small-500"
+                          alignitems="center"><s-button variant="primary">Add</s-button><s-button variant="tertiary"
+                            icon="external"></s-button></s-grid></s-table-cell>
+                    </s-table-row>
+                  </s-table-body>
+                </s-table>
+              </s-stack>
+            </s-section>
+          </s-page>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

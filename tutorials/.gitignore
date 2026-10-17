@@ -1,0 +1,3 @@
+# Scratch: per-scene PNGs, narration WAVs and segment MP4s. Fully regenerable
+# with `node build/render.mjs`.
+.work/

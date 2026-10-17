@@ -1,0 +1,232 @@
+1
+00:00:00,250 --> 00:00:03,052
+Your models are stored, but nothing draws
+them yet.
+
+2
+00:00:03,112 --> 00:00:07,429
+That's the job of the theme blocks — and
+you add them once, in Shopify's theme
+
+3
+00:00:07,489 --> 00:00:08,089
+editor.
+
+4
+00:00:09,032 --> 00:00:09,817
+There are two.
+
+5
+00:00:09,877 --> 00:00:14,708
+3D Viewer — Product goes on your product
+template and picks the model up from the
+
+6
+00:00:14,768 --> 00:00:16,037
+product automatically.
+
+7
+00:00:16,097 --> 00:00:21,109
+3D Viewer — Any Model takes a Model ID and
+works on any page at all: your home page,
+
+8
+00:00:21,169 --> 00:00:22,740
+a custom page, a blog post.
+
+9
+00:00:23,600 --> 00:00:28,220
+Start in your Shopify admin under Online
+Store, then Themes, then Customize.
+
+10
+00:00:28,280 --> 00:00:31,669
+Make sure the template dropdown at the top
+says Product.
+
+11
+00:00:32,529 --> 00:00:34,880
+In the left sidebar, click Add section.
+
+12
+00:00:35,490 --> 00:00:38,106
+Scroll to the bottom of the list and open
+Apps.
+
+13
+00:00:38,166 --> 00:00:41,748
+This is where every app-provided block
+lives, not just this one.
+
+14
+00:00:42,608 --> 00:00:44,381
+Choose 3D Viewer — Product.
+
+15
+00:00:45,091 --> 00:00:45,818
+And there it is.
+
+16
+00:00:45,878 --> 00:00:49,705
+The block is in your template and the
+viewer is already rendering the model you
+
+17
+00:00:49,765 --> 00:00:53,247
+assigned to this product — you didn't have
+to tell it which file to use.
+
+18
+00:00:54,107 --> 00:00:56,032
+Its settings are deliberately thin.
+
+19
+00:00:56,092 --> 00:01:00,170
+Manual model URL is an override for
+testing only — leave it blank for the
+
+20
+00:01:00,230 --> 00:01:00,851
+normal flow.
+
+21
+00:01:00,911 --> 00:01:05,500
+Height and background colour are defaults,
+and any per-product setting you save in
+
+22
+00:01:05,560 --> 00:01:06,804
+the app wins over them.
+
+23
+00:01:07,664 --> 00:01:12,111
+You can drag the block anywhere in the
+template — above the product media, below
+
+24
+00:01:12,171 --> 00:01:14,702
+the description, wherever it fits your
+layout.
+
+25
+00:01:14,762 --> 00:01:15,491
+Then hit Save.
+
+26
+00:01:16,351 --> 00:01:20,113
+That's the product page done — for every
+product in your store at once.
+
+27
+00:01:20,173 --> 00:01:24,311
+Assign a model to any product and it shows
+up here with no further theme work.
+
+28
+00:01:25,171 --> 00:01:26,314
+Now the other block.
+
+29
+00:01:26,374 --> 00:01:31,063
+Pick a different template from the same
+dropdown — here I've switched to Page —
+
+30
+00:01:31,123 --> 00:01:35,091
+then Add section, Apps, and this time
+choose 3D Viewer — Any Model.
+
+31
+00:01:35,951 --> 00:01:39,968
+This one needs to be told what to show,
+and you have two ways.
+
+32
+00:01:40,028 --> 00:01:45,097
+Paste a Model ID from the app's 3D Models
+library, or paste a direct file URL.
+
+33
+00:01:45,157 --> 00:01:47,069
+If you fill both, the ID wins.
+
+34
+00:01:47,929 --> 00:01:49,172
+Always prefer the ID.
+
+35
+00:01:49,232 --> 00:01:53,763
+It carries the model's saved viewer
+settings with it — height, background,
+
+36
+00:01:53,823 --> 00:01:55,562
+camera, controls, everything.
+
+37
+00:01:55,622 --> 00:02:00,588
+A raw URL brings only the file, so the
+block's own height and background get used
+
+38
+00:02:00,648 --> 00:02:01,248
+instead.
+
+39
+00:02:01,944 --> 00:02:03,903
+This block has two extra switches.
+
+40
+00:02:03,963 --> 00:02:08,652
+Auto rotate spins the model on load, and
+Show on-screen controls covers the zoom
+
+41
+00:02:08,712 --> 00:02:10,018
+and fullscreen buttons.
+
+42
+00:02:10,078 --> 00:02:14,827
+Note that these only apply when you've
+used a raw URL — a Model ID brings its own
+
+43
+00:02:14,887 --> 00:02:15,487
+settings.
+
+44
+00:02:16,222 --> 00:02:20,733
+Save, and the model is live on that page —
+with its caption underneath if you set
+
+45
+00:02:20,793 --> 00:02:21,393
+one.
+
+46
+00:02:21,819 --> 00:02:25,815
+One caveat. App blocks only exist in
+Online Store 2. 0 themes.
+
+47
+00:02:25,875 --> 00:02:31,180
+If Apps isn't in your Add section list,
+your template is a legacy liquid one — use
+
+48
+00:02:31,240 --> 00:02:35,368
+the iframe embed code instead, which we
+cover in tutorial eight.
+
+49
+00:02:36,228 --> 00:02:37,035
+Blocks placed.
+
+50
+00:02:37,095 --> 00:02:42,240
+Next, the part you'll actually repeat for
+every product: uploading and assigning the
+
+51
+00:02:42,300 --> 00:02:43,045
+model itself.

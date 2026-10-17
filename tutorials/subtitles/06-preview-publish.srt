@@ -1,0 +1,187 @@
+1
+00:00:00,250 --> 00:00:01,506
+You've tuned the viewer.
+
+2
+00:00:01,566 --> 00:00:06,058
+Now, how do you know it looks right where
+it actually matters — on your storefront?
+
+3
+00:00:06,118 --> 00:00:09,459
+There are three tools, and they do
+genuinely different things.
+
+4
+00:00:10,669 --> 00:00:15,100
+Three buttons in the header. Preview, Save
+settings, and Save And View.
+
+5
+00:00:15,160 --> 00:00:18,389
+People mix these up constantly, so let's
+be precise.
+
+6
+00:00:19,249 --> 00:00:21,309
+First, the live preview on the right.
+
+7
+00:00:21,369 --> 00:00:24,404
+It updates as you drag, and it needs no
+button at all.
+
+8
+00:00:24,464 --> 00:00:27,211
+This is where you do ninety percent of
+your work.
+
+9
+00:00:27,271 --> 00:00:31,738
+It's the same viewer code the storefront
+runs, loading the same file — so if it
+
+10
+00:00:31,798 --> 00:00:34,202
+looks right here, it will look right
+there.
+
+11
+00:00:35,062 --> 00:00:36,524
+Second, the Preview button.
+
+12
+00:00:36,584 --> 00:00:40,976
+This opens your actual storefront product
+page and applies your unsaved changes
+
+13
+00:00:41,036 --> 00:00:41,878
+through the URL.
+
+14
+00:00:41,938 --> 00:00:46,499
+Nothing is written to your store — close
+the tab and it's as if it never happened.
+
+15
+00:00:47,359 --> 00:00:51,822
+So you see your dark background, your
+camera angle, your control bar — inside
+
+16
+00:00:51,882 --> 00:00:55,757
+your real theme, with your real header,
+fonts and layout around it.
+
+17
+00:00:55,817 --> 00:01:00,398
+That context is the whole point. Nothing
+about your saved settings has changed.
+
+18
+00:01:01,258 --> 00:01:05,870
+Use Preview while you're still deciding —
+try five backgrounds against your real
+
+19
+00:01:05,930 --> 00:01:07,739
+page without writing five times.
+
+20
+00:01:07,799 --> 00:01:09,549
+When you've decided, then save.
+
+21
+00:01:10,409 --> 00:01:13,539
+Save settings writes the config to the
+product's metafield.
+
+22
+00:01:13,599 --> 00:01:16,134
+That's the moment it becomes real for
+customers.
+
+23
+00:01:16,994 --> 00:01:20,549
+You get a confirmation, and the button
+goes back to reading Saved.
+
+24
+00:01:21,259 --> 00:01:25,273
+Save And View is the convenience button,
+and it does something subtle.
+
+25
+00:01:25,333 --> 00:01:28,766
+It saves, then it waits, and only then
+opens the storefront.
+
+26
+00:01:28,826 --> 00:01:30,745
+The waiting is the important part.
+
+27
+00:01:31,605 --> 00:01:35,864
+Shopify takes a few seconds to propagate a
+metafield write to the storefront.
+
+28
+00:01:35,924 --> 00:01:40,294
+If you opened the page immediately you'd
+see your old settings and conclude the
+
+29
+00:01:40,354 --> 00:01:41,192
+save had failed.
+
+30
+00:01:41,252 --> 00:01:45,679
+So the app opens a placeholder tab with
+this spinner, holds it for a moment, and
+
+31
+00:01:45,739 --> 00:01:46,520
+then navigates.
+
+32
+00:01:47,380 --> 00:01:49,283
+And there's the published result.
+
+33
+00:01:49,343 --> 00:01:53,209
+This is what a customer will load — saved
+settings, no URL tricks.
+
+34
+00:01:53,269 --> 00:01:55,351
+If it looks right here, you're done.
+
+35
+00:01:56,211 --> 00:02:00,688
+Occasionally a hard reload is still needed
+— caching happens at several layers.
+
+36
+00:02:00,748 --> 00:02:05,226
+If the storefront keeps ignoring your
+changes, check the Setup page: storefront
+
+37
+00:02:05,286 --> 00:02:09,362
+read access has to be on, or your theme
+literally can't read the config.
+
+38
+00:02:09,422 --> 00:02:14,072
+And if no tab opens at all, your browser
+blocked the pop-up — both buttons need to
+
+39
+00:02:14,132 --> 00:02:15,106
+be a direct click.
+
+40
+00:02:15,966 --> 00:02:20,998
+Next up, the 3D Model Library — for models
+that don't belong to a single product.

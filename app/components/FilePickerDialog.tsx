@@ -1,27 +1,36 @@
 import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
-import { Box, Search } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
-import { Input } from "~/components/ui/input";
-import { cn } from "~/lib/utils";
+  fieldValue,
+  flag,
+  useOverlay,
+  type OverlayElement,
+} from "~/components/polaris/helpers";
 
 import type { FileItem } from "~/routes/api.files";
+import { ModalAction } from "~/components/polaris/ModalAction";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentUrl: string | null;
   onSelect: (file: FileItem) => void;
+  /**
+   * Product this picker assigns to. Its own file stays selectable; every file
+   * already on another product is offered as unavailable, since a 3D model
+   * belongs to a single product.
+   */
+  productId?: string;
+  /** Set for a product picker — blocks files another product already uses. */
+  blockAssigned?: boolean;
 };
+
+function filesUrl(query: string, productId?: string) {
+  const params = new URLSearchParams({ q: query });
+  if (productId) params.set("productId", productId);
+  return `/api/files?${params}`;
+}
 
 function formatBytes(n: number | null) {
   if (n == null) return "";
@@ -30,19 +39,31 @@ function formatBytes(n: number | null) {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
+/**
+ * Picks an existing .glb/.gltf out of Shopify Files.
+ *
+ * Deliberately not App Bridge's `resourcePicker`: that picker only knows about
+ * products, variants and collections, so it cannot list Files at all. This is
+ * the one selection flow in the app that has to stay app-owned, so it is built
+ * from `s-modal` and `s-table` to match the admin's own picker as closely as
+ * the component set allows.
+ */
 export function FilePickerDialog({
   open,
   onOpenChange,
   currentUrl,
   onSelect,
+  productId,
+  blockAssigned = false,
 }: Props) {
   const fetcher = useFetcher<{ files: FileItem[] }>();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const modalRef = useOverlay<OverlayElement>(open, () => onOpenChange(false));
 
   useEffect(() => {
     if (!open) return;
-    fetcher.load(`/api/files?q=${encodeURIComponent(query)}`);
+    fetcher.load(filesUrl(query, productId));
     setSelectedId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -50,7 +71,7 @@ export function FilePickerDialog({
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
-      fetcher.load(`/api/files?q=${encodeURIComponent(query)}`);
+      fetcher.load(filesUrl(query, productId));
     }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,99 +80,109 @@ export function FilePickerDialog({
   const loading = fetcher.state !== "idle";
   const files = fetcher.data?.files ?? [];
   const selected = files.find((f) => f.id === selectedId);
+  const isBlocked = (file: FileItem) =>
+    blockAssigned && Boolean(file.assignedTo);
 
   function handleConfirm() {
-    if (selected) {
+    if (selected && !isBlocked(selected)) {
       onSelect(selected);
       onOpenChange(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Choose a 3D model from Files</DialogTitle>
-          <DialogDescription>
-            Showing .glb / .gltf files from Shopify Files. Upload more via the
-            Upload button if you don&apos;t see what you need.
-          </DialogDescription>
-        </DialogHeader>
+    <s-modal
+      ref={modalRef as never}
+      id="file-picker"
+      heading="Choose a 3D model from Files"
+      size="large"
+      accessibilityLabel="Choose a 3D model from Files"
+    >
+      <s-stack direction="block" gap="base">
+        <s-paragraph color="subdued">
+          Showing .glb / .gltf files from Shopify Files.
+          {blockAssigned
+            ? " Files already used on another product can't be reused — each 3D model belongs to one product."
+            : ""}
+        </s-paragraph>
 
-        <div className="relative">
-          <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            placeholder="Search by filename"
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-9"
-            autoFocus
-          />
-        </div>
+        <s-search-field
+          label="Search files"
+          labelAccessibilityVisibility="exclusive"
+          placeholder="Search by filename"
+          value={query}
+          onInput={(e) => setQuery(fieldValue(e))}
+        />
 
-        <div className="max-h-[400px] overflow-y-auto border rounded-md">
-          {loading && files.length === 0 && (
-            <div className="p-6 text-sm text-muted-foreground text-center">
-              Loading files…
-            </div>
-          )}
-          {!loading && files.length === 0 && (
-            <div className="p-6 text-sm text-muted-foreground text-center">
-              No .glb or .gltf files found in this store.
-            </div>
-          )}
-          {files.length > 0 && (
-            <ul className="divide-y">
+        {loading && files.length === 0 ? (
+          <s-stack direction="block" gap="small" alignItems="center">
+            <s-spinner accessibilityLabel="Loading files" />
+            <s-text color="subdued">Loading files…</s-text>
+          </s-stack>
+        ) : files.length === 0 ? (
+          <s-text color="subdued">
+            No .glb or .gltf files found in this store.
+          </s-text>
+        ) : (
+          <s-table variant="auto">
+            <s-table-header-row>
+              <s-table-header />
+              <s-table-header listSlot="primary">File</s-table-header>
+              <s-table-header format="numeric">Size</s-table-header>
+              <s-table-header>Status</s-table-header>
+            </s-table-header-row>
+            <s-table-body>
               {files.map((file) => {
                 const isCurrent = currentUrl === file.url;
-                const isSelected = file.id === selectedId;
+                const blocked = isBlocked(file);
                 return (
-                  <li key={file.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(file.id)}
-                      onDoubleClick={() => {
-                        onSelect(file);
-                        onOpenChange(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-accent transition-colors",
-                        isSelected && "bg-primary/10 hover:bg-primary/15",
-                      )}
-                    >
-                      <div className="shrink-0 size-9 rounded bg-muted flex items-center justify-center">
-                        <Box className="size-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">
-                          {file.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatBytes(file.size)}
-                          {isCurrent && (
-                            <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  </li>
+                  <s-table-row key={file.id}>
+                    <s-table-cell>
+                      {/*
+                        A radio-style single choice expressed as a checkbox: the
+                        component set has no standalone radio, and s-choice-list
+                        cannot be spread across table cells. Selecting one row
+                        replaces the selection rather than adding to it.
+                      */}
+                      <s-checkbox
+                        accessibilityLabel={`Select ${file.name}`}
+                        checked={flag(file.id === selectedId)}
+                        disabled={flag(blocked)}
+                        onInput={() =>
+                          setSelectedId(file.id === selectedId ? null : file.id)
+                        }
+                      />
+                    </s-table-cell>
+                    <s-table-cell>{file.name}</s-table-cell>
+                    <s-table-cell>{formatBytes(file.size)}</s-table-cell>
+                    <s-table-cell>
+                      {isCurrent ? (
+                        <s-badge tone="info">Current</s-badge>
+                      ) : file.assignedTo ? (
+                        <s-badge tone="warning">
+                          {`In use on ${file.assignedTo.title}`}
+                        </s-badge>
+                      ) : null}
+                    </s-table-cell>
+                  </s-table-row>
                 );
               })}
-            </ul>
-          )}
-        </div>
+            </s-table-body>
+          </s-table>
+        )}
+      </s-stack>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirm} disabled={!selected}>
-            Assign selected
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <ModalAction
+        slot="primary-action"
+        variant="primary"
+        disabled={!selected || isBlocked(selected)}
+        onClick={handleConfirm}
+      >
+        Assign selected
+      </ModalAction>
+      <ModalAction slot="secondary-actions" onClick={() => onOpenChange(false)}>
+        Cancel
+      </ModalAction>
+    </s-modal>
   );
 }

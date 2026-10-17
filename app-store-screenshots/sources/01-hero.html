@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css">
+<link rel="stylesheet" href="base.css">
+<style>
+/*
+  Self-contained layout, overriding base.css rather than appending yet another
+  patch to it.
+
+  The text column is narrower than on the other four screenshots so the capture
+  can be shown at ~0.9 scale instead of ~0.63. At the smaller scale either the
+  product photo or the viewer had to be cropped away, and both belong in the
+  shot: the photo is what the shopper sees today, the viewer is what the app
+  adds beside it.
+
+  The crop trims only dead margin — page whitespace left of the product photo,
+  empty gutter right of the viewer, and the clipped announcement strip along
+  the top. Everything the page actually renders is still in frame.
+*/
+body{grid-template-columns:452px 1fr}
+.pane{padding:0 0 0 60px}
+h1{font-size:44px;margin-bottom:17px}
+p.sub{font-size:18px;max-width:360px}
+li{font-size:16px}
+ul{gap:11px;margin-top:26px}
+.stage{justify-items:center}
+/*
+  Sized directly rather than with a transform. `transform: scale()` shrinks what
+  is painted but leaves the layout box at its original 1260x950, so the card
+  still overflowed the stage and the browser clipped its right and bottom edges
+  — taking the Add to cart row with them. Applying the same 0.87 factor to the
+  real dimensions (and to the image inside) makes the box match what is drawn.
+*/
+.shotcard{
+  width:1096px;height:826px;overflow:hidden;position:relative;
+  border-radius:14px;background:#fff;
+  box-shadow:0 30px 68px -22px rgba(15,23,41,.36),0 0 0 1px rgba(15,23,41,.08);
+}
+/* 1751 x 0.87. left = -300 x 0.87: the crop drops page whitespace on the left
+   and empty gutter on the right, nothing the page renders. */
+.shotcard img{position:absolute;width:1523px;max-width:none;left:-261px;top:0;display:block}
+</style>
+</head><body>
+<div class="pane">
+  <div class="eyebrow"><span class="dot"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.6l8.2 4.7v9.4L12 21.4 3.8 16.7V7.3z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M3.9 7.4L12 12l8.1-4.6M12 12v9.3" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span>bPlugins 3D Viewer</span></div>
+  <h1>Your product, <em>in real 3D</em></h1>
+  <p class="sub">The viewer sits beside your product photos. Shoppers drag to rotate, zoom in, and open it fullscreen.</p>
+  <ul>
+    <li><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#146ef5"/><path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Drops into any theme as an app block</div></li>
+    <li><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#146ef5"/><path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Zoom, fullscreen and animation controls</div></li>
+    <li><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#146ef5"/><path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><div>No Liquid to edit, no code to paste</div></li>
+  </ul>
+</div>
+<div class="stage"><div class="shotcard"><img src="real-desktop-shot.png"></div></div>
+</body></html>

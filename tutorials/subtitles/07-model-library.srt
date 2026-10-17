@@ -1,0 +1,225 @@
+1
+00:00:00,250 --> 00:00:02,478
+Not every model belongs to a product.
+
+2
+00:00:02,538 --> 00:00:06,870
+A showroom piece on your home page, a
+material sample in a blog post, a
+
+3
+00:00:06,930 --> 00:00:11,261
+packaging render on an About page — those
+live in the 3D Model Library.
+
+4
+00:00:12,471 --> 00:00:14,582
+Open 3D Model Library from the nav.
+
+5
+00:00:14,642 --> 00:00:19,545
+Each entry is a model file plus a name,
+its own viewer settings, and a permanent
+
+6
+00:00:19,605 --> 00:00:21,530
+Model ID you can paste anywhere.
+
+7
+00:00:22,390 --> 00:00:24,475
+Worth being clear on the difference.
+
+8
+00:00:24,535 --> 00:00:28,705
+A product model is attached to a product
+and drawn by the product block
+
+9
+00:00:28,765 --> 00:00:29,539
+automatically.
+
+10
+00:00:29,599 --> 00:00:34,424
+A library model is standalone — you place
+it deliberately, by ID or by embed code.
+
+11
+00:00:34,484 --> 00:00:35,974
+The same file can be both.
+
+12
+00:00:36,834 --> 00:00:39,134
+Uploading is a drop zone. Drag a .
+
+13
+00:00:39,194 --> 00:00:44,340
+glb straight from your desktop onto it, or
+click it to open a file chooser.
+
+14
+00:00:44,400 --> 00:00:50,102
+Same twenty megabyte ceiling, same glb and
+gltf formats, same Shopify Files storage
+
+15
+00:00:50,162 --> 00:00:51,629
+as the product screen.
+
+16
+00:00:52,489 --> 00:00:55,552
+The zone highlights as you drag over it
+and tells you to release.
+
+17
+00:00:56,162 --> 00:00:57,313
+Drop, and it uploads.
+
+18
+00:00:57,373 --> 00:01:01,695
+Note it also syncs your shop library
+metafield straight afterwards, which is
+
+19
+00:01:01,755 --> 00:01:06,539
+what makes the new Model ID resolvable on
+the storefront without you touching Setup.
+
+20
+00:01:07,399 --> 00:01:11,107
+And it appears in the list, newest first,
+with its size and date.
+
+21
+00:01:11,817 --> 00:01:16,478
+Choose from Files works here too — import
+a model already in your Shopify Files into
+
+22
+00:01:16,538 --> 00:01:18,501
+the library without re-uploading it.
+
+23
+00:01:19,361 --> 00:01:21,415
+Search filters by name as you type.
+
+24
+00:01:21,475 --> 00:01:26,428
+Sort gives you newest, oldest, name A to
+Z, or largest first — largest first is the
+
+25
+00:01:26,488 --> 00:01:30,716
+useful one when you're hunting for the
+file that's slowing a page down.
+
+26
+00:01:31,576 --> 00:01:35,179
+There's a grid view as well as the list,
+toggled top right.
+
+27
+00:01:35,239 --> 00:01:37,041
+Same actions, more per screen.
+
+28
+00:01:37,901 --> 00:01:42,117
+Every row has three copy buttons and
+they're for three different jobs.
+
+29
+00:01:42,177 --> 00:01:46,332
+ID copies the Model ID — that's what the
+Any Model theme block wants.
+
+30
+00:01:46,392 --> 00:01:50,730
+Embed copies a ready-made iframe snippet
+for anywhere that accepts HTML.
+
+31
+00:01:50,790 --> 00:01:55,067
+URL copies the raw glb file address, for
+when you need the file itself.
+
+32
+00:01:55,927 --> 00:01:59,005
+Click ID, and it's on your clipboard with
+a confirmation.
+
+33
+00:01:59,065 --> 00:02:03,299
+Paste that into the theme block and the
+model appears, complete with its saved
+
+34
+00:02:03,359 --> 00:02:03,959
+settings.
+
+35
+00:02:04,504 --> 00:02:09,001
+For tidying up, tick the checkboxes — they
+appear on hover — or use Select all.
+
+36
+00:02:09,061 --> 00:02:13,211
+A blue bar tells you how many are selected
+and gives you Delete selected.
+
+37
+00:02:14,071 --> 00:02:16,079
+Deleting is safer than it sounds.
+
+38
+00:02:16,139 --> 00:02:21,093
+It removes the library entry — the name,
+the settings, the ID — but the glb file
+
+39
+00:02:21,153 --> 00:02:23,286
+itself stays in your Shopify Files.
+
+40
+00:02:23,346 --> 00:02:26,858
+You're not destroying an asset, and you
+can re-import it.
+
+41
+00:02:27,718 --> 00:02:32,469
+If you hit your plan limit, the drop zone
+dims and a banner explains the arithmetic:
+
+42
+00:02:32,529 --> 00:02:37,223
+how many models in the library, how many
+product assignments, and the reminder that
+
+43
+00:02:37,283 --> 00:02:39,056
+a file used in both counts once.
+
+44
+00:02:39,916 --> 00:02:41,590
+Click any row to open the model.
+
+45
+00:02:41,650 --> 00:02:45,927
+This screen gets its own tutorial next,
+because it's where sharing and embedding
+
+46
+00:02:45,987 --> 00:02:50,101
+happens — but note it has the same viewer
+settings you learned on the product
+
+47
+00:02:50,161 --> 00:02:52,323
+screen, saved against this library entry.
+
+48
+00:02:53,183 --> 00:02:57,968
+Next, the part that lets you put a model
+literally anywhere — including outside
+
+49
+00:02:58,028 --> 00:02:58,628
+Shopify.

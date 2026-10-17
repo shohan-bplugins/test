@@ -1,0 +1,233 @@
+1
+00:00:00,250 --> 00:00:04,640
+Let's deal with plans, because the one
+thing worth understanding properly is how
+
+2
+00:00:04,700 --> 00:00:05,697
+models get counted.
+
+3
+00:00:06,907 --> 00:00:09,258
+Open Pricing from the nav. Three plans.
+
+4
+00:00:09,318 --> 00:00:14,388
+Free, Pro, and Pro Plus, with your current
+one marked at the top and highlighted in
+
+5
+00:00:14,448 --> 00:00:15,048
+the grid.
+
+6
+00:00:15,804 --> 00:00:18,329
+Free is a real plan, not a crippled trial.
+
+7
+00:00:18,389 --> 00:00:23,190
+Five models, both theme blocks, every
+viewer customisation option, and the live
+
+8
+00:00:23,250 --> 00:00:24,482
+preview in the admin.
+
+9
+00:00:24,542 --> 00:00:29,097
+For a store with a handful of hero
+products, that may be all you ever need.
+
+10
+00:00:29,957 --> 00:00:31,852
+Pro is nine ninety-nine a month.
+
+11
+00:00:31,912 --> 00:00:36,618
+It raises the limit to fifty models and
+adds the two settings that make a real
+
+12
+00:00:36,678 --> 00:00:41,139
+difference to presentation — HDR skybox
+and environment maps, and material
+
+13
+00:00:41,199 --> 00:00:43,522
+variants — plus priority email support.
+
+14
+00:00:43,582 --> 00:00:48,471
+There's a seven-day free trial, so you can
+test the limit before paying anything.
+
+15
+00:00:49,331 --> 00:00:53,847
+Pro Plus is twenty-nine ninety-nine, and
+the model limit comes off entirely —
+
+16
+00:00:53,907 --> 00:00:54,507
+unlimited.
+
+17
+00:00:54,501 --> 00:00:59,314
+It's the plan for a full catalogue in 3D
+rather than a few showpieces, and it also
+
+18
+00:00:59,374 --> 00:01:00,740
+has the seven-day trial.
+
+19
+00:01:01,600 --> 00:01:03,044
+Now the important part.
+
+20
+00:01:03,104 --> 00:01:07,362
+The limit counts distinct model files, not
+places a model is used.
+
+21
+00:01:07,422 --> 00:01:12,792
+If the same glb is attached to a product
+and also sits in your library, that is one
+
+22
+00:01:12,852 --> 00:01:13,708
+slot, not two.
+
+23
+00:01:13,768 --> 00:01:15,409
+It's the file that counts.
+
+24
+00:01:16,269 --> 00:01:20,653
+You can see the count on the dashboard, on
+the products screen, and here in the
+
+25
+00:01:20,713 --> 00:01:25,042
+library — always as models in use over
+your limit, so there's no arithmetic to
+
+26
+00:01:25,102 --> 00:01:25,702
+do.
+
+27
+00:01:26,070 --> 00:01:29,916
+When you hit it, uploads are blocked
+rather than silently failing.
+
+28
+00:01:29,976 --> 00:01:34,473
+The banner shows the breakdown — library
+models, product assignments, and the
+
+29
+00:01:34,533 --> 00:01:38,319
+reminder that overlap counts once — plus a
+direct upgrade button.
+
+30
+00:01:39,179 --> 00:01:43,031
+You'll see the same message if you try to
+assign a model to a new product.
+
+31
+00:01:43,091 --> 00:01:47,419
+Note that replacing the model on a product
+that already has one is always allowed —
+
+32
+00:01:47,479 --> 00:01:49,851
+you're not adding a file, you're swapping
+one.
+
+33
+00:01:50,711 --> 00:01:53,403
+To upgrade, click Upgrade on the plan you
+want.
+
+34
+00:01:53,463 --> 00:01:55,921
+The app hands you to Shopify's own
+billing.
+
+35
+00:01:56,781 --> 00:01:58,746
+This screen is Shopify's, not ours.
+
+36
+00:01:58,806 --> 00:02:03,199
+It shows the price, the trial length and
+the billing interval, and the charge
+
+37
+00:02:03,259 --> 00:02:05,454
+appears on your normal Shopify invoice.
+
+38
+00:02:05,514 --> 00:02:09,560
+We never see your card. Approve, and you
+come straight back to the app.
+
+39
+00:02:10,420 --> 00:02:14,650
+Back in the app, the new plan is marked
+Active, the Most Popular badge steps
+
+40
+00:02:14,710 --> 00:02:17,133
+aside, and your limit is raised
+immediately.
+
+41
+00:02:17,993 --> 00:02:22,533
+The dashboard plan tile now shows Pro,
+your monthly price, the subscription
+
+42
+00:02:22,593 --> 00:02:26,397
+status and any remaining trial days, with
+a Manage plan button.
+
+43
+00:02:27,257 --> 00:02:31,585
+Cancelling is one button at the top, and
+here's the part worth knowing: it drops
+
+44
+00:02:31,645 --> 00:02:34,053
+you to Free, but it does not remove
+anything.
+
+45
+00:02:34,113 --> 00:02:37,508
+Your existing model assignments keep
+working on the storefront.
+
+46
+00:02:37,568 --> 00:02:40,305
+Only new uploads beyond the Free limit are
+blocked.
+
+47
+00:02:41,165 --> 00:02:43,015
+That's a deliberate design choice.
+
+48
+00:02:43,075 --> 00:02:47,396
+A downgrade can never break a live product
+page, so you can move between plans
+
+49
+00:02:47,456 --> 00:02:50,542
+seasonally without any risk to what's
+already published.
+
+50
+00:02:51,402 --> 00:02:54,711
+One video left: where to go when something
+isn't behaving.

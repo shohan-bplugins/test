@@ -1,191 +1,85 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  LinksFunction,
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
 import {
-  Form,
-  Link,
   useActionData,
   useLoaderData,
+  useNavigate,
   useNavigation,
   useSubmit,
 } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  ArrowLeft,
-  Box,
-  Camera,
-  ChevronDown,
-  Cog,
-  Eye,
-  ExternalLink,
-  Film,
-  FolderOpen,
-  Palette,
-  PlaySquare,
-  Smartphone,
-  Sun,
-  Trash2,
-  Upload,
-} from "lucide-react";
 
 import { authenticate } from "../shopify.server";
 import {
-  countAssignedModels,
+  invalidateAssignedModels,
+  countDistinctModels,
+  findConflictingOwner,
+  getAssignedModelGids,
   getPlanLimitForShop,
 } from "~/lib/billing.server";
+import { hotspotsAllowed } from "~/lib/hotspots.server";
+import { HotspotsEditor, createHotspot } from "~/components/HotspotsEditor";
+import { formatLimit } from "~/lib/billing-constants";
+import prisma from "../db.server";
+import {
+  describeSaving,
+  finalSizeError,
+  MAX_MODEL_FILE_SIZE_MB,
+  MAX_RAW_UPLOAD_MB,
+  validateModelFile,
+} from "~/lib/files";
+import { optimizeModelFile } from "~/lib/optimize-model.server";
+import {
+  OPTIMIZE_DETAILS,
+  useOptimizePreference,
+} from "~/components/useOptimizePreference";
 
 import { FilePickerDialog } from "~/components/FilePickerDialog";
 import { ViewerPreview, type ViewerConfig } from "~/components/ViewerPreview";
+import view3dStylesUrl from "@egjs/view3d/css/view3d-bundle.min.css?url";
+import appStylesUrl from "~/app.css?url";
+import { parseConfig } from "~/lib/viewer-config";
 import type { FileItem } from "~/routes/api.files";
-import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { Separator } from "~/components/ui/separator";
-import { Slider } from "~/components/ui/slider";
-import { Switch } from "~/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
+import { ViewerSettings } from "~/components/ViewerSettings";
+import { BackButton } from "~/components/BackButton";
+import { SupportAction } from "~/components/SupportAction";
+import { ConfirmModal } from "~/components/polaris/ConfirmModal";
+import { useReviewPrompt } from "~/components/ReviewPrompt";
+import { evaluateReviewPrompt } from "~/lib/review-prompt.server";
+import { flag, fieldChecked } from "~/components/polaris/helpers";
+
+// Moved off root's global links: only the routes that mount ViewerPreview need
+// view3d's stylesheet, and it still loads with the route so the canvas is never
+// briefly unstyled.
+export const links: LinksFunction = () => [
+  // app.css is Tailwind plus the viewer's own styling. ViewerPreview is the
+  // only thing left in the app that uses either, so it loads here rather than
+  // globally — which also keeps Tailwind's preflight away from the Polaris
+  // components every other admin page is built from.
+  { rel: "stylesheet", href: appStylesUrl },
+  { rel: "stylesheet", href: view3dStylesUrl },
+];
 
 const NS = "custom";
 const KEY_MODEL = "model_3d";
 const KEY_CONFIG = "viewer_3d_config";
-
-const TONE_MAPPINGS = [
-  "None",
-  "Linear",
-  "Reinhard",
-  "Cineon",
-  "ACESFilmic",
-] as const;
-const REPEAT_MODES = ["one", "all", "none"] as const;
-
-const DEFAULT_CONFIG: ViewerConfig = {
-  height: 500,
-  background: "#f4f4f4",
-  exposure: 1,
-  toneMapping: "Linear",
-  useDefaultEnv: true,
-  skyboxBlur: false,
-  skybox: "",
-  envmap: "",
-  fovMode: "auto",
-  fov: 45,
-  yaw: 0,
-  pitch: 0,
-  initialZoom: 0,
-  rotate: true,
-  translate: true,
-  zoom: true,
-  autoRotate: true,
-  scrollable: true,
-  wheelScrollable: false,
-  useGrabCursor: true,
-  showControls: true,
-  defaultAnimationIndex: 0,
-  animationRepeatMode: "one",
-  webAR: true,
-  sceneViewer: true,
-  quickLook: true,
-  iosSrc: "",
-  variant: "",
-  fixSkinnedBbox: false,
-  shadow: true,
-  maintainSize: false,
-};
-
-function clamp(n: number, min: number, max: number) {
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, n));
-}
-
-function parseConfig(raw: string | undefined | null): ViewerConfig {
-  if (!raw) return { ...DEFAULT_CONFIG };
-  let parsed: any;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { ...DEFAULT_CONFIG };
-  }
-  if (!parsed || typeof parsed !== "object") return { ...DEFAULT_CONFIG };
-
-  const out: ViewerConfig = { ...DEFAULT_CONFIG };
-  if (typeof parsed.height === "number")
-    out.height = clamp(parsed.height, 200, 1200);
-  if (typeof parsed.background === "string") out.background = parsed.background;
-  if (typeof parsed.exposure === "number")
-    out.exposure = clamp(parsed.exposure, 0, 5);
-  if ((TONE_MAPPINGS as readonly string[]).includes(parsed.toneMapping))
-    out.toneMapping = parsed.toneMapping;
-  if (typeof parsed.useDefaultEnv === "boolean")
-    out.useDefaultEnv = parsed.useDefaultEnv;
-  if (typeof parsed.skyboxBlur === "boolean") out.skyboxBlur = parsed.skyboxBlur;
-  if (typeof parsed.skybox === "string") out.skybox = parsed.skybox;
-  if (typeof parsed.envmap === "string") out.envmap = parsed.envmap;
-  if (parsed.fovMode === "auto" || parsed.fovMode === "custom")
-    out.fovMode = parsed.fovMode;
-  if (typeof parsed.fov === "number") out.fov = clamp(parsed.fov, 1, 179);
-  if (typeof parsed.yaw === "number") out.yaw = clamp(parsed.yaw, -360, 360);
-  if (typeof parsed.pitch === "number")
-    out.pitch = clamp(parsed.pitch, -90, 90);
-  if (typeof parsed.initialZoom === "number")
-    out.initialZoom = clamp(parsed.initialZoom, -100, 100);
-  if (typeof parsed.rotate === "boolean") out.rotate = parsed.rotate;
-  if (typeof parsed.translate === "boolean") out.translate = parsed.translate;
-  if (typeof parsed.zoom === "boolean") out.zoom = parsed.zoom;
-  if (typeof parsed.autoRotate === "boolean") out.autoRotate = parsed.autoRotate;
-  if (typeof parsed.scrollable === "boolean") out.scrollable = parsed.scrollable;
-  if (typeof parsed.wheelScrollable === "boolean")
-    out.wheelScrollable = parsed.wheelScrollable;
-  if (typeof parsed.useGrabCursor === "boolean")
-    out.useGrabCursor = parsed.useGrabCursor;
-  if (typeof parsed.showControls === "boolean")
-    out.showControls = parsed.showControls;
-  if (typeof parsed.defaultAnimationIndex === "number")
-    out.defaultAnimationIndex = clamp(parsed.defaultAnimationIndex, 0, 99);
-  if ((REPEAT_MODES as readonly string[]).includes(parsed.animationRepeatMode))
-    out.animationRepeatMode = parsed.animationRepeatMode;
-  if (typeof parsed.webAR === "boolean") out.webAR = parsed.webAR;
-  if (typeof parsed.sceneViewer === "boolean")
-    out.sceneViewer = parsed.sceneViewer;
-  if (typeof parsed.quickLook === "boolean") out.quickLook = parsed.quickLook;
-  if (typeof parsed.iosSrc === "string") out.iosSrc = parsed.iosSrc;
-  if (typeof parsed.variant === "string") out.variant = parsed.variant;
-  if (typeof parsed.fixSkinnedBbox === "boolean")
-    out.fixSkinnedBbox = parsed.fixSkinnedBbox;
-  if (typeof parsed.shadow === "boolean") out.shadow = parsed.shadow;
-  if (typeof parsed.maintainSize === "boolean")
-    out.maintainSize = parsed.maintainSize;
-  return out;
-}
 
 type LoaderData = {
   product: {
     id: string;
     title: string;
     handle: string;
-    featuredImage: { url: string; altText: string | null } | null;
+    featuredImage: {
+      url: string;
+      altText: string | null;
+      thumbnailUrl: string | null;
+    } | null;
     modelField: {
       id: string;
       value: string;
@@ -196,27 +90,39 @@ type LoaderData = {
   } | null;
   config: ViewerConfig;
   shopDomain: string | null;
+  /** Free plan: the Hotspots panel shows a PRO lock. */
+  hotspotsLocked: boolean;
 };
 
 export const loader = async ({
   params,
   request,
 }: LoaderFunctionArgs): Promise<LoaderData> => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const productGid = `gid://shopify/Product/${params.id}`;
 
+  // Alongside the product read, never after it: cached, and independent.
+  const allowedP = hotspotsAllowed(admin, session?.shop ?? "");
   const res = await admin.graphql(
     `#graphql
       query ProductDetail($id: ID!) {
         product(id: $id) {
           id title handle
           onlineStoreUrl
-          featuredImage { url altText }
+          featuredImage {
+            url
+            altText
+            thumbnailUrl: url(transform: { maxWidth: 96, maxHeight: 96 })
+          }
           modelField: metafield(namespace: "${NS}", key: "${KEY_MODEL}") {
             id value
             reference {
               ... on GenericFile { url }
               ... on MediaImage { image { url } }
+              ... on Model3d {
+                originalSource { url }
+                sources { url format }
+              }
             }
           }
           configField: metafield(namespace: "${NS}", key: "${KEY_CONFIG}") {
@@ -237,6 +143,7 @@ export const loader = async ({
     product,
     config: parseConfig(product?.configField?.value),
     shopDomain,
+    hotspotsLocked: !(await allowedP),
   };
 };
 
@@ -294,6 +201,26 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   if (intent === "save_config") {
     const rawConfig = String(formData.get("config") ?? "");
     const config = parseConfig(rawConfig);
+    /*
+     * Hotspots are paid-only. On Free, whatever hotspots the product already
+     * has are kept exactly as saved — never the posted ones — so a store that
+     * downgraded keeps its work, and nothing new can be added by hand.
+     */
+    if (!(await hotspotsAllowed(admin, session?.shop ?? ""))) {
+      const prev = await admin.graphql(
+        `#graphql
+          query SavedConfig($id: ID!) {
+            product(id: $id) {
+              metafield(namespace: "${NS}", key: "${KEY_CONFIG}") { value }
+            }
+          }`,
+        { variables: { id: productGid } },
+      );
+      const prevJson = await prev.json();
+      config.hotspots = parseConfig(
+        prevJson?.data?.product?.metafield?.value,
+      ).hotspots;
+    }
     const setRes = await admin.graphql(
       `#graphql
         mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -320,7 +247,17 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     const errs = setJson?.data?.metafieldsSet?.userErrors ?? [];
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
-    return { ok: true, message: "Viewer settings saved" };
+    return {
+      ok: true,
+      message: "Viewer settings saved",
+      reviewPrompt: await evaluateReviewPrompt(
+        admin,
+        session?.shop ?? "",
+        "settings-saved",
+        // This product has a model, or there would be nothing to configure.
+        { assignedCount: 1 },
+      ),
+    };
   }
 
   if (intent === "reset_config") {
@@ -345,46 +282,90 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     return { ok: true, message: "Settings reset to defaults" };
   }
 
-  async function checkLimitOrError(): Promise<{
-    ok: false;
-    error: string;
-  } | null> {
+  /**
+   * Guards every path that puts a model on this product: a file may only ever
+   * be the model of a single product, and new assignments have to fit the
+   * plan's product and model caps. Pass the file gid when assigning an existing
+   * file; a fresh upload is a brand-new file and can't collide.
+   */
+  async function checkAssignOrError(
+    fileGid: string | null,
+  ): Promise<{ ok: false; error: string } | null> {
     const shop = session?.shop ?? "";
-    const productHasModelRes = await admin.graphql(
-      `#graphql
-        query ProductHasModel($id: ID!) {
-          product(id: $id) {
-            metafield(namespace: "${NS}", key: "${KEY_MODEL}") { id }
-          }
-        }`,
-      { variables: { id: productGid } },
-    );
-    const phmJson = await productHasModelRes.json();
-    const alreadyAssigned = Boolean(
-      phmJson?.data?.product?.metafield?.id,
-    );
+    const [phmJson, planLimits, libraryGids, assignedModels] =
+      await Promise.all([
+        admin
+          .graphql(
+            `#graphql
+              query ProductHasModel($id: ID!) {
+                product(id: $id) {
+                  metafield(namespace: "${NS}", key: "${KEY_MODEL}") { id }
+                }
+              }`,
+            { variables: { id: productGid } },
+          )
+          .then((r: any) => r.json()),
+        getPlanLimitForShop(shop),
+        prisma.model3D.findMany({
+          where: { shop },
+          select: { fileGid: true },
+        }),
+        getAssignedModelGids(admin, shop),
+      ]);
+
+    if (fileGid) {
+      const owner = findConflictingOwner(assignedModels, fileGid, productGid);
+      if (owner) {
+        return {
+          ok: false,
+          error: `That 3D model is already assigned to "${owner.title}". Each model can only be used on one product — remove it from that product first, or upload a separate copy of the file.`,
+        };
+      }
+    }
+
+    // Swapping the model on a product that already has one takes no new slot.
+    const alreadyAssigned = Boolean(phmJson?.data?.product?.metafield?.id);
     if (alreadyAssigned) return null;
 
-    const [{ limit, planName }, used] = await Promise.all([
-      getPlanLimitForShop(shop),
-      countAssignedModels(admin, shop),
-    ]);
-    if (used >= limit) {
+    const { modelLimit, productLimit, planName } = planLimits;
+    // One model per product, so the assignment count is also the number of
+    // products currently using 3D.
+    if (assignedModels.count >= productLimit) {
       return {
         ok: false,
-        error: `You've reached your ${planName} plan limit of ${limit} 3D models. Upgrade your plan to add more.`,
+        error: `You've reached your ${planName} plan limit of ${formatLimit(productLimit)} products with a 3D model. Upgrade your plan to add more.`,
+      };
+    }
+    const used = countDistinctModels(
+      libraryGids.map((m) => m.fileGid),
+      assignedModels.gids,
+    );
+    if (used >= modelLimit) {
+      return {
+        ok: false,
+        error: `You've reached your ${planName} plan limit of ${formatLimit(modelLimit)} 3D models. Upgrade your plan to add more.`,
       };
     }
     return null;
   }
+
+  /*
+   * A model just landed on this product: a review moment (see
+   * review-prompt.server.ts). Evaluated only once the save has succeeded, and
+   * never able to fail it — a lookup error just means no ask.
+   */
+  const reviewCheck = () =>
+    evaluateReviewPrompt(admin, session?.shop ?? "", "model-assigned", {
+      assignedCount: 1,
+    });
 
   if (intent === "assign_existing") {
     const fileGid = String(formData.get("fileGid") ?? "");
     if (!fileGid.startsWith("gid://shopify/")) {
       return { ok: false, error: "Invalid file id" };
     }
-    const limitErr = await checkLimitOrError();
-    if (limitErr) return limitErr;
+    const guardErr = await checkAssignOrError(fileGid);
+    if (guardErr) return guardErr;
     const metaRes = await admin.graphql(
       `#graphql
         mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -415,7 +396,12 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
         error: metaErrs.map((e: any) => e.message).join("; "),
       };
     }
-    return { ok: true, message: "3D model assigned from Files" };
+    invalidateAssignedModels(session?.shop ?? "");
+    return {
+      ok: true,
+      message: "3D model assigned from Files",
+      reviewPrompt: await reviewCheck(),
+    };
   }
 
   if (intent === "remove") {
@@ -437,20 +423,29 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     const errs = delJson?.data?.metafieldsDelete?.userErrors ?? [];
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
+    invalidateAssignedModels(session?.shop ?? "");
     return { ok: true, message: "3D model removed" };
   }
 
   const file = formData.get("file") as File | null;
   if (!file || file.size === 0)
     return { ok: false, error: "Please choose a .glb or .gltf file" };
-  const lower = file.name.toLowerCase();
-  if (!lower.endsWith(".glb") && !lower.endsWith(".gltf"))
-    return { ok: false, error: "Only .glb or .gltf files are supported" };
+  const optimizeUpload = formData.get("optimize") !== "0";
+  const fileError = validateModelFile(file, optimizeUpload);
+  if (fileError) return { ok: false, error: fileError };
 
-  const limitErr = await checkLimitOrError();
-  if (limitErr) return limitErr;
+  const guardErr = await checkAssignOrError(null);
+  if (guardErr) return guardErr;
 
-  const staged = await stagedUpload(admin, file);
+  // Smaller and faster to load before it goes anywhere; falls back to the
+  // original on any failure. See optimize-model.server.ts.
+  const optimized = optimizeUpload
+    ? await optimizeModelFile(file)
+    : { file, originalSize: file.size, optimized: false };
+  // The size limit is on what gets stored, so it is judged after compression.
+  const sizeError = finalSizeError(optimized.file.size, file.size);
+  if (sizeError) return { ok: false, error: sizeError };
+  const staged = await stagedUpload(admin, optimized.file);
   if (!staged) return { ok: false, error: "Failed to upload file to Shopify" };
 
   const fileCreateRes = await admin.graphql(
@@ -507,88 +502,84 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   if (metaErrs.length)
     return { ok: false, error: metaErrs.map((e: any) => e.message).join("; ") };
 
-  return { ok: true, message: "3D model uploaded and assigned" };
+  invalidateAssignedModels(session?.shop ?? "");
+  const saving = describeSaving(optimized.originalSize, optimized.file.size);
+  return {
+    ok: true,
+    message: saving
+      ? `3D model uploaded and assigned · ${saving}`
+      : "3D model uploaded and assigned",
+    reviewPrompt: await reviewCheck(),
+  };
 };
 
-function CollapsibleSection({
-  title,
-  icon: Icon,
-  description,
-  children,
-}: {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <details
-      open
-      className="group border bg-card shadow-sm overflow-hidden"
-    >
-      <summary className="flex items-center justify-between gap-2 px-3 py-2 cursor-pointer select-none list-none hover:bg-accent/40 transition-colors [&::-webkit-details-marker]:hidden">
-        <div className="flex items-center gap-2 min-w-0">
-          <Icon className="size-3.5 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <div className="text-sm font-semibold leading-tight">{title}</div>
-            {description && (
-              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                {description}
-              </div>
-            )}
-          </div>
-        </div>
-        <ChevronDown className="size-3.5 text-muted-foreground shrink-0 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="border-t px-3 py-2 space-y-0.5">{children}</div>
-    </details>
-  );
+/**
+ * Fill a just-opened tab with a holding message while a save propagates.
+ *
+ * The tab has to be opened synchronously inside the click to survive popup
+ * blocking, which means it exists several seconds before there is anywhere to
+ * send it. Written with document.write rather than by pointing it at a route of
+ * this app: the tab's final destination is the merchant's storefront, and
+ * loading an admin page into it first would leave the wrong origin in history.
+ */
+/**
+ * A short, stable token for a string — djb2.
+ *
+ * Used as the preview link's cache-buster. It has to be deterministic so the
+ * server and the browser render the same href; anything derived from the clock
+ * or from Math.random would differ between the two and break hydration.
+ */
+function hashToken(value: string): string {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) + hash + value.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
 }
 
-function FieldRow({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 sm:gap-4 items-center py-1.5">
-      <div>
-        <div className="text-xs font-medium">{label}</div>
-        {description && (
-          <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-            {description}
-          </div>
-        )}
-      </div>
-      <div className="min-w-[160px] flex justify-start sm:justify-end">
-        {children}
-      </div>
-    </div>
-  );
+function writeInterstitial(w: Window, message: string) {
+  try {
+    w.document.write(
+      `<!DOCTYPE html><html><head><title>${message}</title><style>html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f7f7;color:#555}body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}.spinner{width:32px;height:32px;border:3px solid #ddd;border-top-color:#000;border-radius:50%;animation:spin 0.8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div><p>${message}</p></body></html>`,
+    );
+    w.document.close();
+  } catch {
+    // A blocked or already-closed window; the redirect below still tries.
+  }
 }
 
 export default function ProductDetail() {
-  const { product, config: savedConfig, shopDomain } =
-    useLoaderData<typeof loader>();
+  const {
+    product,
+    config: savedConfig,
+    shopDomain,
+    hotspotsLocked,
+  } = useLoaderData<typeof loader>();
+  // Hotspots: placement mode, and "preview this one" in the live preview.
+  const [placingHotspot, setPlacingHotspot] = useState(false);
+  const [hotspotFocus, setHotspotFocus] = useState<{
+    id: string;
+    n: number;
+  } | null>(null);
+
   const actionData = useActionData<typeof action>();
+  useReviewPrompt(
+    actionData && "reviewPrompt" in actionData ? actionData.reviewPrompt : null,
+  );
   const navigation = useNavigation();
   const submit = useSubmit();
   const shopify = useAppBridge();
+  const navigate = useNavigate();
   const submitting = navigation.state === "submitting";
 
   const [config, setConfig] = useState<ViewerConfig>(savedConfig);
   const [showProductImage, setShowProductImage] = useState(false);
-  const [leftPct, setLeftPct] = useState(33);
-  const splitContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadFormRef = useRef<HTMLFormElement>(null);
   const lastSaveTimeRef = useRef(0);
   const pendingSaveViewWindowRef = useRef<Window | null>(null);
   const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [optimize, setOptimize] = useOptimizePreference();
+  // Which destructive action is awaiting confirmation, if any.
+  const [pending, setPending] = useState<"remove" | "reset" | null>(null);
 
   function handleFilePicked(file: FileItem) {
     const fd = new FormData();
@@ -597,38 +588,42 @@ export default function ProductDetail() {
     submit(fd, { method: "post" });
   }
 
-  function handleFileChosen() {
-    uploadFormRef.current?.requestSubmit();
+  /** Upload whatever the drop zone received, whether dropped or chosen. */
+  function handleFileChosen(event: Event) {
+    const input = event.currentTarget as HTMLElement & {
+      files?: FileList | null;
+    };
+    const file = input.files?.[0];
+    if (!file) return;
+    const fileError = validateModelFile(file, optimize);
+    if (fileError) {
+      shopify.toast.show(fileError, { isError: true });
+      return;
+    }
+    const fd = new FormData();
+    fd.set("intent", "upload");
+    fd.set("file", file);
+    fd.set("optimize", optimize ? "1" : "0");
+    submit(fd, { method: "post", encType: "multipart/form-data" });
   }
 
-  function startDragSplitter(e: React.MouseEvent) {
-    e.preventDefault();
-    const container = splitContainerRef.current;
-    if (!container) return;
-    const onMove = (ev: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
-      setLeftPct(Math.min(70, Math.max(20, pct)));
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-  }
   const dirty = useMemo(
     () => JSON.stringify(config) !== JSON.stringify(savedConfig),
     [config, savedConfig],
   );
 
+  /*
+   * Keyed on the serialised config, not the object — see the same effect in
+   * app.models.$id.tsx for what depending on the object identity does. Short
+   * version: useLoaderData returns a fresh object each render in the production
+   * build, so this effect re-ran forever and rebuilt the page header faster
+   * than anything in it could be clicked.
+   */
+  const savedConfigKey = JSON.stringify(savedConfig);
   useEffect(() => {
     setConfig(savedConfig);
-  }, [savedConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedConfigKey]);
 
   useEffect(() => {
     if (actionData?.ok) {
@@ -678,31 +673,57 @@ export default function ProductDetail() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Product not found</CardTitle>
-            <CardDescription>
+      <s-page heading="Product not found">
+        <BackButton to="/app/products" label="Product 3D models" />
+        <SupportAction />
+
+        <s-section>
+          <s-banner tone="critical">
+            <s-paragraph>
               The requested product could not be loaded.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link to="/app/products">Back to products</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+            </s-paragraph>
+          </s-banner>
+          <s-button
+            slot="primary-action"
+            variant="primary"
+            href="/app/products"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate("/app/products");
+            }}
+          >
+            Back to products
+          </s-button>
+        </s-section>
+      </s-page>
     );
   }
 
   const has = Boolean(product.modelField?.value);
-  const modelUrl = product.modelField?.reference?.url ?? null;
+  const ref = product.modelField?.reference as any;
+  // Resolution order mirrors product_viewer.liquid's exactly, so the preview
+  // loads the same file the storefront will. It matters for Model3d
+  // references: Shopify transcodes uploaded 3D media, and `sources` (what
+  // Liquid can reach) is the transcoded GLB while `originalSource` is the raw
+  // upload — preferring originalSource here meant the merchant was tuning
+  // exposure/camera against a different asset than their customers see, and
+  // for a non-glTF upload (.obj, .fbx) it isn't even loadable. Matched on the
+  // `format` field rather than sniffing the URL for ".glb" for the same
+  // reason: that's what Liquid keys off.
+  const glbSource = Array.isArray(ref?.sources)
+    ? ref.sources.find((s: any) => {
+        const format = String(s?.format ?? "").toLowerCase();
+        return format === "glb" || format === "gltf";
+      })
+    : null;
+  const modelUrl: string | null =
+    ref?.url ??
+    glbSource?.url ??
+    ref?.originalSource?.url ??
+    (Array.isArray(ref?.sources) ? (ref.sources[0]?.url ?? null) : null) ??
+    ref?.image?.url ??
+    null;
   const configCustomized = Boolean(product.configField?.value);
-
-  function update<K extends keyof ViewerConfig>(key: K, value: ViewerConfig[K]) {
-    setConfig((c) => ({ ...c, [key]: value }));
-  }
 
   function handleSaveConfig() {
     const fd = new FormData();
@@ -711,738 +732,344 @@ export default function ProductDetail() {
     submit(fd, { method: "post" });
   }
 
-  function handleResetConfig() {
+  function confirmPending() {
     const fd = new FormData();
-    fd.set("intent", "reset_config");
+    fd.set("intent", pending === "remove" ? "remove" : "reset_config");
     submit(fd, { method: "post" });
+    setPending(null);
+  }
+
+  const storefrontBase =
+    product.onlineStoreUrl ??
+    (shopDomain && product.handle
+      ? `${shopDomain}/products/${product.handle}`
+      : null);
+
+  /*
+   * The storefront with the *unsaved* config applied via URL fragment, built
+   * during render so the button can be a real link.
+   *
+   * It used to be a window.open() in a click handler, and that is what made
+   * Preview fail intermittently: this page runs inside the admin's iframe, so a
+   * scripted popup needs the frame to have been granted popups *and* the
+   * browser to credit the call to the user's gesture. When either fails,
+   * window.open returns null and the click does nothing at all — no tab, no
+   * error, nothing to report. An anchor with target="_blank" is attributed to
+   * the user directly and is never blocked; it is also what App Bridge handles
+   * on the app's behalf, and what the model page's Preview already uses.
+   *
+   * The cache-buster is derived from the config rather than from Date.now().
+   * Two reasons: this page is server-rendered, and a clock read during render
+   * disagrees between server and client, which React reports as a hydration
+   * mismatch. And a token that changes only when the settings change is the
+   * more correct cache key anyway — the storefront should be refetched when
+   * there is something new to show, not on every render.
+   */
+  const previewConfigJson = JSON.stringify(config);
+  const previewUrl = storefrontBase
+    ? `${storefrontBase}${storefrontBase.includes("?") ? "&" : "?"}` +
+      `_v=${hashToken(previewConfigJson)}` +
+      `#preview_config=${encodeURIComponent(previewConfigJson)}`
+    : null;
+
+  /*
+   * Save, wait for the storefront cache to catch up, then show it.
+   *
+   * The window is opened synchronously inside the click, never after the
+   * action resolves: a popup opened from an async continuation is not tied to
+   * a user gesture and browsers block it silently. It holds an interstitial
+   * until the save lands, which is why it is opened on about:blank first.
+   */
+  function handleSaveAndView() {
+    if (!storefrontBase) return;
+    const name = `viewer-3d-storefront-${product!.id}`;
+    const sep = storefrontBase.includes("?") ? "&" : "?";
+
+    if (!dirty) {
+      const elapsed = Date.now() - lastSaveTimeRef.current;
+      const url = `${storefrontBase}${sep}_v=${Date.now()}`;
+      if (elapsed >= 4000) {
+        window.open(url, name)?.focus();
+        return;
+      }
+      const w = window.open("about:blank", name);
+      if (!w) return;
+      w.focus();
+      writeInterstitial(w, "Publishing changes to the storefront…");
+      window.setTimeout(
+        () => {
+          try {
+            w.location.href = url;
+          } catch {
+            // The tab may have been closed; nothing to recover.
+          }
+        },
+        Math.max(0, 4000 - elapsed),
+      );
+      return;
+    }
+
+    const w = window.open("about:blank", name);
+    if (!w) return;
+    w.focus();
+    writeInterstitial(w, "Saving and publishing changes…");
+    pendingSaveViewWindowRef.current = w;
+    handleSaveConfig();
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <s-page heading={product.title}>
+      <BackButton to="/app/products" label="Product 3D models" />
+
+      {/*
+        The admin's contextual save bar owns saving, so the page header carries
+        only actions that are not "save". It also guards navigation away from
+        unsaved settings, which the old header button could not do.
+      */}
+      <SaveBar id="product-save-bar" open={dirty}>
+        <button
+          variant="primary"
+          onClick={handleSaveConfig}
+          loading={submitting ? "" : undefined}
+        />
+        <button onClick={() => setConfig(savedConfig)} />
+      </SaveBar>
+
+      {previewUrl ? (
+        <s-button
+          slot="primary-action"
+          variant="primary"
+          icon="view"
+          href={previewUrl}
+          target="_blank"
+        >
+          Preview
+        </s-button>
+      ) : null}
+      {storefrontBase ? (
+        <s-button
+          slot="secondary-actions"
+          icon="external"
+          disabled={flag(submitting)}
+          onClick={handleSaveAndView}
+        >
+          Save and view
+        </s-button>
+      ) : null}
+      {configCustomized ? (
+        <s-button
+          slot="secondary-actions"
+          icon="reset"
+          disabled={flag(submitting)}
+          onClick={() => setPending("reset")}
+        >
+          Reset to defaults
+        </s-button>
+      ) : null}
+      <SupportAction />
+
       <FilePickerDialog
         open={filePickerOpen}
         onOpenChange={setFilePickerOpen}
         currentUrl={modelUrl}
         onSelect={handleFilePicked}
+        productId={product.id}
+        blockAssigned
       />
-      <div className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/app/products" aria-label="Back to products">
-                  <ArrowLeft />
-                </Link>
-              </Button>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight truncate">
-                  {product.title}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  {has ? "3D model assigned" : "No model assigned"}
-                  {configCustomized && (
-                    <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      Customized
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {configCustomized && (
-                <Button
-                  variant="outline"
-                  onClick={handleResetConfig}
-                  disabled={submitting}
-                >
-                  <Trash2 /> Reset to defaults
-                </Button>
-              )}
-              {(product.onlineStoreUrl || shopDomain) && (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          const base =
-                            product.onlineStoreUrl ??
-                            `${shopDomain}/products/${product.handle}`;
-                          const sep = base.includes("?") ? "&" : "?";
-                          const hash = encodeURIComponent(
-                            JSON.stringify(config),
-                          );
-                          const url = `${base}${sep}_v=${Date.now()}#preview_config=${hash}`;
-                          const name = `viewer-3d-preview-${product.id}`;
-                          const w = window.open(url, name);
-                          w?.focus();
-                        }}
-                      >
-                        <Eye /> Preview
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Open the storefront with your unsaved changes applied
-                      via URL fragment. Nothing is persisted.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              <Button
-                onClick={handleSaveConfig}
-                disabled={submitting || !dirty}
+
+      <ConfirmModal
+        id="product-confirm"
+        open={pending !== null}
+        heading={
+          pending === "remove" ? "Remove 3D model?" : "Reset viewer settings?"
+        }
+        confirmLabel={pending === "remove" ? "Remove model" : "Reset settings"}
+        loading={submitting}
+        onConfirm={confirmPending}
+        onCancel={() => setPending(null)}
+      >
+        <s-paragraph>
+          {pending === "remove"
+            ? "The product stops showing a 3D model on your storefront. The .glb file itself stays in Shopify Files and can be reassigned later."
+            : "Every viewer setting for this product goes back to its default. The assigned model file is untouched."}
+        </s-paragraph>
+      </ConfirmModal>
+
+      <s-section>
+        <s-stack direction="inline" gap="small" alignItems="center">
+          {product.featuredImage?.url ? (
+            <s-thumbnail
+              src={
+                product.featuredImage.thumbnailUrl ?? product.featuredImage.url
+              }
+              alt=""
+              size="small"
+            />
+          ) : null}
+          <s-text color="subdued">
+            {has ? "3D model assigned" : "No model assigned"}
+          </s-text>
+          {configCustomized ? <s-badge tone="info">Customized</s-badge> : null}
+        </s-stack>
+      </s-section>
+
+      <s-section slot="aside" heading="Model file">
+        <s-paragraph color="subdued">
+          Upload a .glb or .gltf model. The stored file can be up to{" "}
+          {MAX_MODEL_FILE_SIZE_MB} MB; with optimization on, you can upload up
+          to {MAX_RAW_UPLOAD_MB} MB and it must compress to{" "}
+          {MAX_MODEL_FILE_SIZE_MB} MB or less. Stored in Shopify Files, linked
+          via <code>custom.model_3d</code>.
+        </s-paragraph>
+
+        <s-stack direction="block" gap="base">
+          {has && modelUrl ? (
+            <s-box background="subdued" padding="small" borderRadius="base">
+              <s-text color="subdued">
+                <code>
+                  <div style={{ wordBreak: "break-all" }}>{modelUrl}</div>
+                </code>
+              </s-text>
+            </s-box>
+          ) : null}
+
+          {/*
+            The drop zone doubles as the upload button — clicking it opens the
+            file dialog — so there is no separate hidden <input> and <Form> to
+            keep in sync, and the file posts straight through useSubmit.
+          */}
+          <s-drop-zone
+            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+            label={
+              has
+                ? "Drop a replacement .glb or .gltf here, or click to choose"
+                : "Drop a .glb or .gltf file here, or click to choose"
+            }
+            disabled={flag(submitting)}
+            onInput={handleFileChosen}
+          />
+          <s-checkbox
+            label="Optimize for faster loading"
+            details={OPTIMIZE_DETAILS}
+            checked={flag(optimize)}
+            onInput={(e) => setOptimize(fieldChecked(e))}
+          />
+
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-button
+              icon="folder"
+              disabled={flag(submitting)}
+              onClick={() => setFilePickerOpen(true)}
+              accessibilityLabel="Choose a 3D model from Shopify Files"
+            >
+              Choose from Files
+            </s-button>
+            {has ? (
+              <s-button
+                tone="critical"
+                icon="delete"
+                disabled={flag(submitting)}
+                onClick={() => setPending("remove")}
               >
-                {submitting ? "Saving…" : dirty ? "Save settings" : "Saved"}
-              </Button>
-              {(product.onlineStoreUrl || shopDomain) && (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        disabled={submitting}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          const base =
-                            product.onlineStoreUrl ??
-                            `${shopDomain}/products/${product.handle}`;
-                          const sep = base.includes("?") ? "&" : "?";
-                          const name = `viewer-3d-storefront-${product.id}`;
+                Remove
+              </s-button>
+            ) : null}
+          </s-stack>
+        </s-stack>
+      </s-section>
 
-                          if (!dirty) {
-                            const elapsed =
-                              Date.now() - lastSaveTimeRef.current;
-                            const url = `${base}${sep}_v=${Date.now()}`;
-                            if (elapsed >= 4000) {
-                              const w = window.open(url, name);
-                              w?.focus();
-                              return;
-                            }
-                            const w = window.open("about:blank", name);
-                            if (!w) return;
-                            w.focus();
-                            try {
-                              w.document.write(
-                                `<!DOCTYPE html><html><head><title>Publishing…</title><style>html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f7f7;color:#555}body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}.spinner{width:32px;height:32px;border:3px solid #ddd;border-top-color:#000;border-radius:50%;animation:spin 0.8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div><p>Publishing changes to the storefront…</p></body></html>`,
-                              );
-                              w.document.close();
-                            } catch {}
-                            window.setTimeout(() => {
-                              try {
-                                w.location.href = url;
-                              } catch {}
-                            }, Math.max(0, 4000 - elapsed));
-                            return;
-                          }
+      <s-section slot="aside" heading="Viewer settings">
+        <s-paragraph color="subdued">
+          Saved to <code>custom.viewer_3d_config</code>. The storefront viewer
+          uses these instead of the theme block defaults.
+        </s-paragraph>
+        {/*
+          The shared panel, not a second copy. This screen used to inline all
+          eight setting groups verbatim from ViewerSettings — roughly 500 lines
+          that had to be edited twice for every change, and had already drifted
+          (its colour fallback and default-open states differed).
+        */}
+        <ViewerSettings config={config} onChange={setConfig} />
+      </s-section>
 
-                          const w = window.open("about:blank", name);
-                          if (!w) return;
-                          w.focus();
-                          try {
-                            w.document.write(
-                              `<!DOCTYPE html><html><head><title>Saving and publishing…</title><style>html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f7f7;color:#555}body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}.spinner{width:32px;height:32px;border:3px solid #ddd;border-top-color:#000;border-radius:50%;animation:spin 0.8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div><p>Saving and publishing changes…</p></body></html>`,
-                            );
-                            w.document.close();
-                          } catch {}
-                          pendingSaveViewWindowRef.current = w;
-                          handleSaveConfig();
-                        }}
-                      >
-                        <ExternalLink />{" "}
-                        {submitting && pendingSaveViewWindowRef.current
-                          ? "Saving…"
-                          : "Save And View"}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Saves any unsaved changes, waits for the storefront to
-                      catch up, then opens it in a tab. Sometimes a hard
-                      reload is still required.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <div
-          ref={splitContainerRef}
-          className="space-y-6 lg:flex lg:space-y-0"
-          style={
-            { ["--settings-w" as any]: `${leftPct}%` } as React.CSSProperties
+      <s-section slot="aside" heading="Hotspots">
+        <HotspotsEditor
+          config={config}
+          onChange={setConfig}
+          placing={placingHotspot}
+          onPlacingChange={setPlacingHotspot}
+          onPreview={(id) =>
+            setHotspotFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
           }
-        >
-          <div className="space-y-6 min-w-0 lg:flex-shrink-0 lg:[width:var(--settings-w)] lg:min-w-[300px] lg:max-w-[70%]">
-            <Card>
-              <CardHeader>
-                <CardTitle>Model file</CardTitle>
-                <CardDescription>
-                  Upload a .glb or .gltf model. Stored in Shopify Files,
-                  linked via <code>custom.model_3d</code>.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {has && modelUrl && (
-                  <div className="rounded-md border bg-muted/30 p-3 text-xs font-mono break-all">
-                    {modelUrl}
-                  </div>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setFilePickerOpen(true)}
-                    disabled={submitting}
-                  >
-                    <FolderOpen /> Choose from Files
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={submitting}
-                  >
-                    <Upload /> {has ? "Upload (Replace)" : "Upload"}
-                  </Button>
-                  {has && (
-                    <Form method="post" className="inline-flex">
-                      <input type="hidden" name="intent" value="remove" />
-                      <Button
-                        type="submit"
-                        variant="destructive"
-                        disabled={submitting}
-                      >
-                        <Trash2 /> Remove
-                      </Button>
-                    </Form>
-                  )}
-                </div>
-                <Form
-                  ref={uploadFormRef}
-                  method="post"
-                  encType="multipart/form-data"
-                  className="hidden"
-                >
-                  <input type="hidden" name="intent" value="upload" />
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    name="file"
-                    accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-                    onChange={handleFileChosen}
-                  />
-                </Form>
-              </CardContent>
-            </Card>
+          locked={hotspotsLocked}
+        />
+      </s-section>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Viewer settings</CardTitle>
-                <CardDescription>
-                  Saved to <code>custom.viewer_3d_config</code>. The
-                  storefront viewer uses these instead of the theme block
-                  defaults.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <CollapsibleSection
-                  title="Display"
-                  icon={Palette}
-                  description="Size, background, exposure, tone mapping"
-                >
-                    <FieldRow
-                      label="Viewer height"
-                      description={`${config.height}px`}
-                    >
-                      <div className="w-[240px]">
-                        <Slider
-                          min={200}
-                          max={1200}
-                          step={10}
-                          value={[config.height]}
-                          onValueChange={([v]) => update("height", v)}
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Background color">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={
-                            config.background.startsWith("#")
-                              ? config.background
-                              : "#f4f4f4"
-                          }
-                          onChange={(e) =>
-                            update("background", e.target.value)
-                          }
-                          className="h-9 w-12 rounded border cursor-pointer"
-                        />
-                        <Input
-                          value={config.background}
-                          onChange={(e) =>
-                            update("background", e.target.value)
-                          }
-                          className="w-40 font-mono text-xs"
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Exposure"
-                      description={`${config.exposure.toFixed(2)} (HDR brightness)`}
-                    >
-                      <div className="w-[240px]">
-                        <Slider
-                          min={0}
-                          max={5}
-                          step={0.05}
-                          value={[config.exposure]}
-                          onValueChange={([v]) => update("exposure", v)}
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Tone mapping">
-                      <Select
-                        value={config.toneMapping}
-                        onValueChange={(v) => update("toneMapping", v)}
-                      >
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TONE_MAPPINGS.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {t}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Default environment map"
-                      description="Generated env map for material reflections"
-                    >
-                      <Switch
-                        checked={config.useDefaultEnv}
-                        onCheckedChange={(v) => update("useDefaultEnv", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Blur skybox">
-                      <Switch
-                        checked={config.skyboxBlur}
-                        onCheckedChange={(v) => update("skyboxBlur", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Cast shadow under model">
-                      <Switch
-                        checked={config.shadow}
-                        onCheckedChange={(v) => update("shadow", v)}
-                      />
-                    </FieldRow>
-                </CollapsibleSection>
+      {/*
+        The preview owns the wide main column and the controls sit in the aside.
+        s-page's aside is the admin's narrow (~1/3) column, so hosting the
+        viewer there squeezed the canvas into a third of the page while the
+        settings form took two thirds — the inverse of the 33/67 split this
+        screen was designed around, and of what the merchant is actually looking
+        at while they tune it.
+      */}
+      {/*
+        Sticky, so the canvas stays in view while the merchant works down the
+        settings column beside it — the whole point of a live preview is seeing
+        a change land, which is no use if tweaking a control near the bottom of
+        the form has scrolled the viewer off screen.
 
-                <CollapsibleSection
-                  title="Environment"
-                  icon={Sun}
-                  description="HDR skybox and environment map URLs"
-                >
-                  <div className="space-y-4 py-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="skybox">Skybox HDR URL</Label>
-                      <Input
-                        id="skybox"
-                        value={config.skybox}
-                        placeholder="https://...hdr"
-                        onChange={(e) => update("skybox", e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        RGBE .hdr image rendered as the background and used
-                        for reflections.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="envmap">Environment map HDR URL</Label>
-                      <Input
-                        id="envmap"
-                        value={config.envmap}
-                        placeholder="https://...hdr"
-                        onChange={(e) => update("envmap", e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Optional separate HDR for material reflections only.
-                      </p>
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="Camera"
-                  icon={Camera}
-                  description="FOV, yaw, pitch, zoom"
-                >
-                    <FieldRow
-                      label="FOV mode"
-                      description="Auto fits the model. Custom uses the FOV value below."
-                    >
-                      <Select
-                        value={config.fovMode}
-                        onValueChange={(v) =>
-                          update("fovMode", v as "auto" | "custom")
-                        }
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">Auto</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="FOV (degrees)"
-                      description={
-                        config.fovMode === "auto"
-                          ? "Disabled in auto mode"
-                          : `${config.fov}°`
-                      }
-                    >
-                      <div className="w-[240px]">
-                        <Slider
-                          min={1}
-                          max={179}
-                          step={1}
-                          value={[config.fov]}
-                          onValueChange={([v]) => update("fov", v)}
-                          disabled={config.fovMode === "auto"}
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Initial yaw"
-                      description={`${config.yaw}°`}
-                    >
-                      <div className="w-[240px]">
-                        <Slider
-                          min={-180}
-                          max={180}
-                          step={1}
-                          value={[config.yaw]}
-                          onValueChange={([v]) => update("yaw", v)}
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Initial pitch"
-                      description={`${config.pitch}°`}
-                    >
-                      <div className="w-[240px]">
-                        <Slider
-                          min={-90}
-                          max={90}
-                          step={1}
-                          value={[config.pitch]}
-                          onValueChange={([v]) => update("pitch", v)}
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Initial zoom"
-                      description={`${config.initialZoom} (positive = in)`}
-                    >
-                      <div className="w-[240px]">
-                        <Slider
-                          min={-50}
-                          max={50}
-                          step={0.5}
-                          value={[config.initialZoom]}
-                          onValueChange={([v]) => update("initialZoom", v)}
-                        />
-                      </div>
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Maintain model size on resize">
-                      <Switch
-                        checked={config.maintainSize}
-                        onCheckedChange={(v) => update("maintainSize", v)}
-                      />
-                    </FieldRow>
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="Controls"
-                  icon={Cog}
-                  description="Rotate, pan, zoom, autoplay, scroll, control bar"
-                >
-                    <FieldRow label="Allow rotate">
-                      <Switch
-                        checked={config.rotate}
-                        onCheckedChange={(v) => update("rotate", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Allow translate (pan)">
-                      <Switch
-                        checked={config.translate}
-                        onCheckedChange={(v) => update("translate", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Allow zoom">
-                      <Switch
-                        checked={config.zoom}
-                        onCheckedChange={(v) => update("zoom", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Auto rotate">
-                      <Switch
-                        checked={config.autoRotate}
-                        onCheckedChange={(v) => update("autoRotate", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Page scroll on touch"
-                      description="Allow vertical scroll when dragging on canvas"
-                    >
-                      <Switch
-                        checked={config.scrollable}
-                        onCheckedChange={(v) => update("scrollable", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Page scroll on mouse wheel">
-                      <Switch
-                        checked={config.wheelScrollable}
-                        onCheckedChange={(v) =>
-                          update("wheelScrollable", v)
-                        }
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Grab cursor on canvas">
-                      <Switch
-                        checked={config.useGrabCursor}
-                        onCheckedChange={(v) => update("useGrabCursor", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="On-screen control bar"
-                      description="Play / fullscreen / reset / progress"
-                    >
-                      <Switch
-                        checked={config.showControls}
-                        onCheckedChange={(v) => update("showControls", v)}
-                      />
-                    </FieldRow>
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="Animation"
-                  icon={Film}
-                  description="Default animation clip and repeat mode"
-                >
-                    <FieldRow
-                      label="Default animation index"
-                      description="Index of the clip to autoplay (0 = first)"
-                    >
-                      <Input
-                        type="number"
-                        min={0}
-                        max={99}
-                        value={config.defaultAnimationIndex}
-                        onChange={(e) =>
-                          update(
-                            "defaultAnimationIndex",
-                            Number(e.target.value) || 0,
-                          )
-                        }
-                        className="w-24"
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Repeat mode">
-                      <Select
-                        value={config.animationRepeatMode}
-                        onValueChange={(v) =>
-                          update("animationRepeatMode", v)
-                        }
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REPEAT_MODES.map((r) => (
-                            <SelectItem key={r} value={r}>
-                              {r}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FieldRow>
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="AR"
-                  icon={Smartphone}
-                  description="WebXR, Scene Viewer, Quick Look, iOS source"
-                >
-                    <FieldRow label="WebXR AR (modern Android Chrome)">
-                      <Switch
-                        checked={config.webAR}
-                        onCheckedChange={(v) => update("webAR", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow label="Google Scene Viewer (Android)">
-                      <Switch
-                        checked={config.sceneViewer}
-                        onCheckedChange={(v) => update("sceneViewer", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <FieldRow
-                      label="Apple Quick Look (iOS)"
-                      description="Requires a .usdz model"
-                    >
-                      <Switch
-                        checked={config.quickLook}
-                        onCheckedChange={(v) => update("quickLook", v)}
-                      />
-                    </FieldRow>
-                    <Separator />
-                    <div className="space-y-2 pt-3">
-                      <Label htmlFor="iosSrc">iOS source URL (.usdz)</Label>
-                      <Input
-                        id="iosSrc"
-                        value={config.iosSrc}
-                        placeholder="https://...usdz"
-                        onChange={(e) => update("iosSrc", e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Used by Quick Look on iOS Safari. Upload separately to
-                        Shopify Files.
-                      </p>
-                    </div>
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="Advanced"
-                  icon={Box}
-                  description="Material variants, bounding box"
-                >
-                  <div className="space-y-4 py-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="variant">Material variant</Label>
-                      <Input
-                        id="variant"
-                        value={config.variant}
-                        placeholder="leave empty for default"
-                        onChange={(e) => update("variant", e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Name of a KHR_materials_variants variant in the
-                        model.
-                      </p>
-                    </div>
-                    <FieldRow
-                      label="Fix skinned bounding box"
-                      description="Recalculate bbox using skeleton weights (rigged models)"
-                    >
-                      <Switch
-                        checked={config.fixSkinnedBbox}
-                        onCheckedChange={(v) => update("fixSkinnedBbox", v)}
-                      />
-                    </FieldRow>
-                  </div>
-                </CollapsibleSection>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize columns"
-            onMouseDown={startDragSplitter}
-            onDoubleClick={() => setLeftPct(33)}
-            className="hidden lg:flex lg:items-center lg:justify-center lg:w-3 lg:mx-1 lg:cursor-col-resize lg:group lg:select-none"
-            title="Drag to resize · double-click to reset"
-          >
-            <div className="h-full w-px bg-border group-hover:w-0.5 group-hover:bg-primary transition-all" />
-          </div>
-
-          <div className="space-y-4 lg:flex-1 lg:min-w-0 lg:pl-2">
-            <div className="sticky top-24 space-y-4">
-              <Card>
-                <CardHeader className="flex-row items-center justify-between space-y-0 py-4">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <PlaySquare className="size-4" /> Live preview
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      Updates instantly. Save to persist.
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ViewerPreview modelUrl={modelUrl} config={config} />
-                  {!modelUrl && (
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Upload a model above to see the preview.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {product.featuredImage?.url && (
-                <Card>
-                  <CardHeader className="flex-row items-center justify-between space-y-0 py-4">
-                    <CardTitle className="text-base">Product image</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Label
-                        htmlFor="show-product-image"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Show Product Image
-                      </Label>
-                      <Switch
-                        id="show-product-image"
-                        checked={showProductImage}
-                        onCheckedChange={setShowProductImage}
-                      />
-                    </div>
-                  </CardHeader>
-                  {showProductImage && (
-                    <CardContent>
-                      <img
-                        src={product.featuredImage.url}
-                        alt={product.featuredImage.altText ?? product.title}
-                        className="w-full rounded-md border"
-                      />
-                    </CardContent>
-                  )}
-                </Card>
-              )}
-            </div>
-          </div>
-        </div>
+        A plain div, and wrapping the section rather than sitting inside it:
+        Polaris's Box exposes no position or inset props, and the sticky element
+        has to be the column's own child so its containing block is the full
+        column — the two columns share a grid row, so this one is as tall as the
+        settings beside it and there is room to stick. Nested inside the section
+        it could only stick within that card's own height, which is to say not
+        at all.
+      */}
+      <div style={{ position: "sticky", top: 16 }}>
+        <s-section heading="Live preview">
+          <s-paragraph color="subdued">
+            Updates instantly. Save to persist.
+          </s-paragraph>
+          <ViewerPreview
+            modelUrl={modelUrl}
+            config={config}
+            arShareUrl={storefrontBase}
+            onLayoutChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
+            placingHotspot={placingHotspot}
+            onPlaceHotspot={(anchor) => {
+              setConfig((c) => ({
+                ...c,
+                hotspots: [
+                  ...c.hotspots,
+                  createHotspot(anchor, c.hotspots.length),
+                ],
+              }));
+              setPlacingHotspot(false);
+            }}
+            focusHotspotId={hotspotFocus?.id ?? null}
+            focusNonce={hotspotFocus?.n ?? 0}
+          />
+        </s-section>
       </div>
-    </div>
+
+      {/* {product.featuredImage?.url ? (
+        <s-section slot="aside" heading="Product image">
+          <s-switch
+            label="Show product image"
+            checked={flag(showProductImage)}
+            onInput={(e) => setShowProductImage(fieldChecked(e))}
+          />
+          {showProductImage ? (
+            <s-image
+              src={product.featuredImage.url}
+              alt={product.featuredImage.altText ?? product.title}
+            />
+          ) : null}
+        </s-section>
+      ) : null} */}
+    </s-page>
   );
 }
 

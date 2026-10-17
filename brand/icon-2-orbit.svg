@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="3D Viewer">
+  <title>3D Viewer</title>
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5449e4"/>
+      <stop offset="1" stop-color="#3277f4"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(256 236) scale(0.8) translate(-256 -256)">
+    <polygon points="256,106 386,181 256,256 126,181" fill="url(#brand)"/>
+    <polygon points="126,181 256,256 256,406 126,331" fill="url(#brand)" opacity=".72"/>
+    <polygon points="386,181 386,331 256,406 256,256" fill="url(#brand)" opacity=".45"/>
+  </g>
+  <g fill="none" stroke="url(#brand)" stroke-width="20" stroke-linecap="round">
+    <path d="M104.4 403 A175 46 0 0 0 407.6 403"/>
+  </g>
+  <g fill="url(#brand)">
+    <path d="M0,-15 L26,0 L0,15 Z" transform="translate(407.6 403) rotate(-24.5)"/>
+    <path d="M0,-15 L26,0 L0,15 Z" transform="translate(104.4 403) rotate(-155.5)"/>
+  </g>
+</svg>

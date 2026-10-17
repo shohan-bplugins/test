@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="3D Viewer">
+  <title>3D Viewer</title>
+  <g fill="currentColor">
+    <polygon points="256,106 386,181 256,256 126,181"/>
+    <polygon points="126,181 256,256 256,406 126,331" opacity=".72"/>
+    <polygon points="386,181 386,331 256,406 256,256" opacity=".45"/>
+  </g>
+</svg>

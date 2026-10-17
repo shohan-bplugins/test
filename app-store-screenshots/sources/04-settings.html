@@ -1,0 +1,57 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css">
+<link rel="stylesheet" href="base.css">
+<style>
+/*
+  A real capture of the admin settings page, replacing the Polaris
+  reconstruction that stood here. The reconstruction guessed at the controls and
+  guessed wrong — it showed Auto-rotate and Allow zoom toggles, where the actual
+  page offers viewer height, background colour, exposure, tone mapping,
+  environment map, blur skybox and cast shadow.
+
+  Same sizing approach as screenshot 1: real dimensions, not transform:scale, so
+  the layout box matches what is painted and the card cannot clip.
+  1676 x 0.905 = 1517.  Card 1517 wide would overflow the 1148px stage, so the
+  text column is narrower here too and the crop trims the empty right margin
+  beyond the settings panel.
+*/
+body{grid-template-columns:452px 1fr}
+.pane{padding:0 0 0 60px}
+h1{font-size:44px;margin-bottom:17px}
+p.sub{font-size:18px;max-width:366px}
+li{font-size:16px}
+ul{gap:11px;margin-top:26px}
+.stage{justify-items:center}
+/*
+  Scale 0.72, crop x 100..1622 of the 1676px capture.
+
+  At 0.80 the card was one crop away from right on both ends: cropping from the
+  left sliced the product name out of the breadcrumb, and cropping from the
+  right cut the header actions mid-word ("Save a..."). Pulling the scale back to
+  0.72 makes the whole window fit between those two landmarks — the breadcrumb
+  naming the product on the left, Save and view / Support / Preview on the
+  right — while still trimming the page's dead outer margin.
+
+  Real dimensions rather than transform:scale, so the layout box matches what is
+  painted and nothing clips.  1676 x 0.72 = 1207.  left = -100 x 0.72 = -72.
+*/
+.shotcard{
+  width:1096px;height:652px;overflow:hidden;position:relative;
+  border-radius:14px;background:#fff;
+  box-shadow:0 30px 68px -22px rgba(15,23,41,.36),0 0 0 1px rgba(15,23,41,.08);
+}
+.shotcard img{position:absolute;width:1207px;max-width:none;left:-72px;top:0;display:block}
+</style>
+</head><body>
+<div class="pane">
+  <div class="eyebrow"><span class="dot"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.6l8.2 4.7v9.4L12 21.4 3.8 16.7V7.3z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M3.9 7.4L12 12l8.1-4.6M12 12v9.3" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg></span><span>bPlugins 3D Viewer</span></div>
+  <h1>Tune it live, <em>publish when it looks right</em></h1>
+  <p class="sub">Height, background, exposure, tone mapping, shadows — every change redraws in the preview beside it.</p>
+  <ul>
+    <li><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#146ef5"/><path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Live preview, not a save-and-refresh loop</div></li>
+    <li><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#146ef5"/><path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Exposure, tone mapping and environment lighting</div></li>
+    <li><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#146ef5"/><path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Settings saved per product, not per store</div></li>
+  </ul>
+</div>
+<div class="stage"><div class="shotcard"><img src="real-settings-shot.png"></div></div>
+</body></html>

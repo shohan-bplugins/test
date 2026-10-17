@@ -4,4 +4,8 @@ webhooks_path = "/webhooks/app/uninstalled"
 
 [commands]
 predev = "npm exec prisma generate"
-dev = "npm exec prisma migrate deploy && npm exec react-router dev"
+# No `prisma migrate deploy` here: the datasource is MongoDB, whose connector
+# has no migrations — the command hard-fails and takes the whole dev session
+# with it. Schema changes (and the indexes) are applied with `npm run setup`
+# (`prisma db push`) instead.
+dev = "npm exec react-router dev"

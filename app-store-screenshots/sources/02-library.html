@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+  <link rel="stylesheet" href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css">
+  <link rel="stylesheet" href="base.css">
+</head>
+
+<body>
+  <div class="pane">
+    <div class="eyebrow"><span class="dot"><svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2.6l8.2 4.7v9.4L12 21.4 3.8 16.7V7.3z" stroke="#fff" stroke-width="1.7"
+            stroke-linejoin="round" />
+          <path d="M3.9 7.4L12 12l8.1-4.6M12 12v9.3" stroke="#fff" stroke-width="1.7" stroke-linejoin="round" />
+        </svg></span><span>bPlugins 3D Viewer</span></div>
+    <h1>Upload once.<br><em>Reuse everywhere.</em></h1>
+    <p class="sub">One library for every model you own. Drop in a .glb, and use it on as many products as you like.</p>
+    <ul>
+      <li><svg viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="10" fill="#146ef5" />
+          <path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <div>Drag and drop, or pick from Shopify Files</div>
+      </li>
+      <li><svg viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="10" fill="#146ef5" />
+          <path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <div>Search, sort and bulk-delete</div>
+      </li>
+      <li><svg viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="10" fill="#146ef5" />
+          <path d="M5.8 10.3l2.7 2.7 5.7-5.9" stroke="#fff" stroke-width="1.9" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        <div>Files stay in your own Shopify account</div>
+      </li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="frame admin">
+      <div class="bar"><i></i><i></i><i></i><b>Shopify admin — bPlugins 3D Viewer</b></div>
+      <div class="body">
+        <div class="admin-inner">
+          <s-page heading="3D model library">
+            <s-button slot="primary-action" icon="folder">Choose from Files</s-button>
+            <s-section heading="Add a model">
+              <s-drop-zone label="Drop a .glb or .gltf file here, or click to choose"></s-drop-zone>
+              <s-paragraph color="subdued">Stored in Shopify Files, up to 20 MB.</s-paragraph>
+            </s-section>
+            <s-section>
+              <s-stack direction="block" gap="base">
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end">
+                  <s-search-field label="Search models" labelaccessibilityvisibility="exclusive"
+                    placeholder="Search models by name"></s-search-field>
+                  <s-grid gridtemplatecolumns="170px auto auto" gap="small" alignitems="end">
+                    <s-select label="Sort" labelaccessibilityvisibility="exclusive">
+                      <s-option value="newest" selected>Newest first</s-option>
+                    </s-select>
+                    <s-button variant="secondary" icon="list-bulleted"></s-button>
+                    <s-button variant="tertiary" icon="grid"></s-button>
+                  </s-grid>
+                </div>
+                <s-table>
+                  <s-table-header-row>
+                    <s-table-header listslot="primary">Model</s-table-header>
+                    <s-table-header format="numeric">Size</s-table-header>
+                    <s-table-header>Added</s-table-header>
+                    <s-table-header>Actions</s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>
+                    <s-table-row><s-table-cell><s-link href="#">Astronaut.glb</s-link></s-table-cell><s-table-cell>2.7
+                        MB</s-table-cell><s-table-cell>Aug 31, 2026</s-table-cell><s-table-cell><s-button
+                          variant="tertiary" icon="external"></s-button></s-table-cell></s-table-row>
+                    <s-table-row><s-table-cell><s-link href="#">Animated dog0</s-link></s-table-cell><s-table-cell>1.4
+                        MB</s-table-cell><s-table-cell>Aug 30, 2026</s-table-cell><s-table-cell><s-button
+                          variant="tertiary" icon="external"></s-button></s-table-cell></s-table-row>
+                    <s-table-row><s-table-cell><s-link href="#">Sneaker.glb</s-link></s-table-cell><s-table-cell>4.1
+                        MB</s-table-cell><s-table-cell>Aug 28, 2026</s-table-cell><s-table-cell><s-button
+                          variant="tertiary" icon="external"></s-button></s-table-cell></s-table-row>
+                    <s-table-row><s-table-cell><s-link href="#">Lounge
+                          Chair.glb</s-link></s-table-cell><s-table-cell>6.3 MB</s-table-cell><s-table-cell>Aug 26,
+                        2026</s-table-cell><s-table-cell><s-button variant="tertiary"
+                          icon="external"></s-button></s-table-cell></s-table-row>
+                    <s-table-row><s-table-cell><s-link href="#">Coffee Mug.glb</s-link></s-table-cell><s-table-cell>0.9
+                        MB</s-table-cell><s-table-cell>Aug 24, 2026</s-table-cell><s-table-cell><s-button
+                          variant="tertiary" icon="external"></s-button></s-table-cell></s-table-row>
+                  </s-table-body>
+                </s-table>
+              </s-stack>
+            </s-section>
+          </s-page>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

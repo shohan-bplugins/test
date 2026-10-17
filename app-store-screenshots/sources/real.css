@@ -1,0 +1,30 @@
+/* Frames for the two genuine storefront captures. No invented browser chrome
+   and no URL bar: the captures speak for themselves, and a fabricated address
+   would be the one untrue pixel on an otherwise real screenshot. */
+body.real{grid-template-columns:548px 1fr}
+.shotcard{border-radius:14px;overflow:hidden;background:#fff;
+  box-shadow:0 30px 68px -22px rgba(15,23,41,.36),0 0 0 1px rgba(15,23,41,.08)}
+.shotcard img{display:block;width:100%}
+.dwrap{width:1004px}
+.mwrap{width:404px;border-radius:38px;background:#0d0d0f;padding:10px;
+  box-shadow:0 34px 72px -22px rgba(15,23,41,.48),0 0 0 1px rgba(15,23,41,.1)}
+.mwrap .in{border-radius:29px;overflow:hidden;background:#fff}
+.mwrap img{display:block;width:100%}
+.cap{margin-top:15px;text-align:center;font-size:13px;color:#6b7691;font-weight:500}
+.dwrap{width:1010px;transform:scale(.955);transform-origin:left center}
+.shotcard.crop{width:1044px;height:876px;overflow:hidden;position:relative}
+.shotcard.crop img{width:1644px;max-width:none;position:absolute;left:-600px;top:0}
+/* trim the clipped announcement strip off the top of the capture */
+.shotcard.crop{height:844px}
+.shotcard.crop img{top:-32px}
+/* The capture is 598×891 — a narrow browser window, not a phone screen. It is
+   shown at its true aspect and simply made larger, rather than cropped to
+   390×844 to fake an iPhone: that crop would slice the edges off the viewer
+   box and the Add-to-cart row, which are the parts worth showing. */
+.mwrap{width:566px;border-radius:30px;padding:12px}
+.mwrap .in{border-radius:20px}
+
+/* Second round of captures: 601x950, taller than the first pair and closer to a
+   phone's proportions, so the device frame reads correctly at this size. */
+.mwrap{width:524px;border-radius:34px;padding:12px}
+.mwrap .in{border-radius:24px}

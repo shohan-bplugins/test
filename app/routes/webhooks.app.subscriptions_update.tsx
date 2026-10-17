@@ -2,7 +2,8 @@ import type { ActionFunctionArgs } from "react-router";
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { FREE_PLAN_NAME } from "~/lib/billing.server";
+import { FREE_PLAN_NAME, invalidateSubscription } from "~/lib/billing.server";
+import { FREE_MODEL_LIMIT, FREE_PRODUCT_LIMIT } from "~/lib/billing-constants";
 import { fetchShopInfo, notifySwipeone } from "~/lib/swipeone.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -13,6 +14,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!sub) return new Response("OK", { status: 200 });
 
     const status = String(sub.status ?? "").toLowerCase();
+    // The cached subscription is served stale for up to a day (see
+    // shop-cache.server.ts); a plan change made anywhere must not wait on that.
+    invalidateSubscription(shop);
     if (session?.accessToken) {
       const shopInfo = await fetchShopInfo(shop, session.accessToken);
       await notifySwipeone({
@@ -25,8 +29,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const adminGraphqlId = String(sub.admin_graphql_api_id ?? "");
-    const chargeId =
-      adminGraphqlId.split("/").pop() ?? String(sub.id ?? "");
+    const chargeId = adminGraphqlId.split("/").pop() ?? String(sub.id ?? "");
 
     if (!chargeId) return new Response("OK", { status: 200 });
 
@@ -52,7 +55,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data: {
           planId: freePlan?.id ?? null,
           chargeId: null,
-          modelLimit: freePlan?.modelLimit ?? 5,
+          modelLimit: freePlan?.modelLimit ?? FREE_MODEL_LIMIT,
+          productLimit: freePlan?.productLimit ?? FREE_PRODUCT_LIMIT,
         },
       });
     } else if (status === "active") {
@@ -70,6 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               planId: plan.id,
               chargeId,
               modelLimit: plan.modelLimit,
+              productLimit: plan.productLimit,
             },
           });
         }

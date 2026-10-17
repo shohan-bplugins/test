@@ -1,0 +1,232 @@
+1
+00:00:00,250 --> 00:00:00,850
+Last video.
+
+2
+00:00:00,855 --> 00:00:04,699
+Where to look when something isn't
+behaving, and the four problems that
+
+3
+00:00:04,759 --> 00:00:06,568
+account for most questions we get.
+
+4
+00:00:07,778 --> 00:00:11,831
+The app ships its own documentation — no
+tab-switching to a website.
+
+5
+00:00:11,891 --> 00:00:16,730
+Open Documentation from the nav and you
+get eight cards covering the quick start,
+
+6
+00:00:16,790 --> 00:00:21,629
+model files, every settings group, preview
+behaviour, block placement, embedding,
+
+7
+00:00:21,689 --> 00:00:23,564
+plan limits and troubleshooting.
+
+8
+00:00:24,424 --> 00:00:28,475
+The quick start card is the four-step
+version of this whole series, so it's the
+
+9
+00:00:28,535 --> 00:00:31,389
+one to send a colleague who just needs to
+add one model.
+
+10
+00:00:32,249 --> 00:00:37,531
+Model files spells out the rules in one
+place: glb recommended, gltf accepted,
+
+11
+00:00:37,591 --> 00:00:43,217
+twenty megabyte ceiling but aim under ten
+for page speed, and the reminder that iOS
+
+12
+00:00:43,277 --> 00:00:44,929
+AR needs a separate USDZ.
+
+13
+00:00:45,789 --> 00:00:48,515
+Problem one: the block renders nothing at
+all.
+
+14
+00:00:48,575 --> 00:00:52,088
+Almost always this means the product has
+no model assigned.
+
+15
+00:00:52,148 --> 00:00:57,054
+The block outputs nothing rather than an
+empty box, which is correct but does look
+
+16
+00:00:57,114 --> 00:00:57,720
+like a bug.
+
+17
+00:00:57,780 --> 00:01:02,686
+Assign a model, or paste a manual glb URL
+into the block to prove the block itself
+
+18
+00:01:02,746 --> 00:01:03,346
+works.
+
+19
+00:01:03,909 --> 00:01:08,178
+Problem two: you save, but the storefront
+keeps showing the old settings.
+
+20
+00:01:08,238 --> 00:01:10,846
+Go to Setup and check storefront read
+access.
+
+21
+00:01:10,906 --> 00:01:15,589
+Without it your theme genuinely cannot
+read the config, no matter how many times
+
+22
+00:01:15,649 --> 00:01:16,249
+you save.
+
+23
+00:01:16,183 --> 00:01:18,139
+Run the button, then hard-refresh.
+
+24
+00:01:18,999 --> 00:01:22,211
+That's this column, right here. Every row
+should read Ready.
+
+25
+00:01:22,821 --> 00:01:26,147
+Problem three: a page block says the Model
+ID isn't found.
+
+26
+00:01:26,207 --> 00:01:31,051
+That ID is resolved through the shop
+library metafield, and Setup is what
+
+27
+00:01:31,111 --> 00:01:35,779
+Run Setup, then compare your ID against
+the list in What the theme block can see.
+
+28
+00:01:35,839 --> 00:01:38,990
+If it isn't there, copy it again from the
+model's page.
+
+29
+00:01:39,850 --> 00:01:41,814
+Problem four: the model goes white.
+
+30
+00:01:41,874 --> 00:01:46,034
+That usually means the viewer is
+re-initialising because you just changed
+
+31
+00:01:46,094 --> 00:01:49,677
+something structural, like tone mapping or
+the environment map.
+
+32
+00:01:49,737 --> 00:01:51,990
+Wait a second, or revert that one field.
+
+33
+00:01:52,850 --> 00:01:56,895
+And one more that catches people: if
+Preview or Save And View seems to do
+
+34
+00:01:56,955 --> 00:01:59,201
+nothing, your browser blocked the pop-up.
+
+35
+00:01:59,261 --> 00:02:03,700
+Both need to be a direct click, so don't
+trigger them from a keyboard macro or a
+
+36
+00:02:03,760 --> 00:02:04,360
+script.
+
+37
+00:02:04,953 --> 00:02:09,020
+All four of those are written up in the
+Troubleshooting card at the bottom of the
+
+38
+00:02:09,080 --> 00:02:12,129
+documentation page, so you don't have to
+remember this video.
+
+39
+00:02:12,989 --> 00:02:17,013
+Back on the dashboard, Help and resources
+is the fastest route out.
+
+40
+00:02:17,073 --> 00:02:22,012
+The video tutorial, the documentation, a
+link to leave a review, and Get support —
+
+41
+00:02:22,072 --> 00:02:23,962
+which reaches our team directly.
+
+42
+00:02:24,822 --> 00:02:29,755
+If you do write in, three things make it
+fast: your store domain and the product or
+
+43
+00:02:29,815 --> 00:02:34,508
+Model ID involved, a screenshot of your
+Setup page, and the exact error text if
+
+44
+00:02:34,568 --> 00:02:35,290
+one appeared.
+
+45
+00:02:35,350 --> 00:02:38,599
+The Setup screenshot answers most
+questions on its own.
+
+46
+00:02:39,459 --> 00:02:40,897
+And that's the whole app.
+
+47
+00:02:40,957 --> 00:02:45,874
+Setup once, assign a model, add the block
+once, then tune the viewer as much as you
+
+48
+00:02:45,934 --> 00:02:46,534
+like.
+
+49
+00:02:46,234 --> 00:02:50,970
+Thanks for watching — and if the app is
+working well for you, a review genuinely
+
+50
+00:02:51,030 --> 00:02:51,630
+helps.

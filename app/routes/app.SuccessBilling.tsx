@@ -1,18 +1,20 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { CheckCircle2 } from "lucide-react";
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import {
-  ensurePlans,
   fetchActiveSubscription,
   getOrCreateUser,
+  getPlans,
+  invalidateSubscription,
+  rememberPlanChosen,
 } from "~/lib/billing.server";
 
-import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
+import { BackButton } from "~/components/BackButton";
+import { SupportAction } from "~/components/SupportAction";
+import { useRouteNav } from "~/components/polaris/helpers";
 
 type LoaderData = {
   ok: boolean;
@@ -23,66 +25,84 @@ type LoaderData = {
 export const loader = async ({
   request,
 }: LoaderFunctionArgs): Promise<LoaderData> => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop ?? "";
   const url = new URL(request.url);
   const chargeId = url.searchParams.get("charge_id");
-
-  await ensurePlans();
-  const user = await getOrCreateUser(shop);
 
   if (!chargeId) {
     return { ok: false, chargeName: null, chargeStatus: null };
   }
 
-  const subscription = await fetchActiveSubscription(
-    shop,
-    session.accessToken ?? "",
-    chargeId,
-  );
+  /*
+   * Everything this page needs, asked at once. It used to be seven round trips
+   * in a row — user, subscription, plan, charge, plan-chosen flag, user — on
+   * the page every paying merchant lands on straight after approving.
+   */
+  const [user, subscription, plans] = await Promise.all([
+    getOrCreateUser(shop),
+    fetchActiveSubscription(admin, chargeId),
+    getPlans(),
+  ]);
 
   if (!subscription) {
     return { ok: false, chargeName: null, chargeStatus: null };
   }
 
-  const matchingPlan = await prisma.plan.findFirst({
-    where: { OR: [{ title: subscription.name }, { name: subscription.name }] },
-  });
+  const matchingPlan =
+    plans.find(
+      (p) => p.title === subscription.name || p.name === subscription.name,
+    ) ?? null;
 
-  await prisma.charge.upsert({
-    where: { id: chargeId },
-    update: {
-      status: subscription.status,
-      price: subscription.price,
-      planId: matchingPlan?.id ?? null,
-    },
-    create: {
-      id: chargeId,
-      shop,
-      chargeId,
-      name: subscription.name,
-      price: subscription.price,
-      status: subscription.status,
-      activatedOn: subscription.createdAt ?? null,
-      trialDays: subscription.trialDays
-        ? String(subscription.trialDays)
-        : null,
-      cancelledOn: subscription.cancelledOn ?? null,
-      billingOn: subscription.createdAt ?? null,
-      planId: matchingPlan?.id ?? null,
-    },
-  });
-
-  if (subscription.status === "active") {
-    await prisma.appUser.update({
-      where: { id: user.id },
-      data: {
-        chargeId,
-        planId: matchingPlan?.id ?? user.planId,
-        modelLimit: matchingPlan?.modelLimit ?? user.modelLimit,
+  const active = subscription.status === "active";
+  await Promise.all([
+    prisma.charge.upsert({
+      where: { id: chargeId },
+      update: {
+        status: subscription.status,
+        price: subscription.price,
+        planId: matchingPlan?.id ?? null,
+        modelLimit: matchingPlan?.modelLimit ?? null,
+        productLimit: matchingPlan?.productLimit ?? null,
       },
-    });
-  }
+      create: {
+        id: chargeId,
+        shop,
+        chargeId,
+        name: subscription.name,
+        price: subscription.price,
+        status: subscription.status,
+        modelLimit: matchingPlan?.modelLimit ?? null,
+        productLimit: matchingPlan?.productLimit ?? null,
+        activatedOn: subscription.createdAt ?? null,
+        trialDays: subscription.trialDays
+          ? String(subscription.trialDays)
+          : null,
+        cancelledOn: subscription.cancelledOn ?? null,
+        billingOn: subscription.createdAt ?? null,
+        planId: matchingPlan?.id ?? null,
+      },
+    }),
+    active
+      ? prisma.appUser.update({
+          where: { id: user.id },
+          data: {
+            chargeId,
+            planId: matchingPlan?.id ?? user.planId,
+            modelLimit: matchingPlan?.modelLimit ?? user.modelLimit,
+            productLimit: matchingPlan?.productLimit ?? user.productLimit,
+            // The plan gate's flag, in the same write (see hasChosenPlan).
+            planSelectedAt: user.planSelectedAt ?? new Date(),
+          },
+        })
+      : null,
+  ]);
+  if (active) rememberPlanChosen(shop);
+
+  // This loader confirms the charge live (it passes a chargeId, so it never
+  // reads the cache). Every other page does read it, and would otherwise show
+  // the old plan for up to a minute after a successful upgrade.
+  invalidateSubscription(shop);
 
   return {
     ok: true,
@@ -93,36 +113,58 @@ export const loader = async ({
 
 export default function SuccessBilling() {
   const { ok, chargeName, chargeStatus } = useLoaderData<typeof loader>();
+  const routeTo = useRouteNav();
+
+  const activated = ok && chargeStatus === "active";
+  const heading = activated
+    ? "Subscription activated"
+    : ok
+      ? "Subscription updated"
+      : "Subscription pending";
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center p-6">
-      <Card className="max-w-md w-full">
-        <CardContent className="p-8 flex flex-col items-center text-center gap-4">
-          <CheckCircle2 className="size-12 text-green-600" />
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {ok && chargeStatus === "active"
-              ? "Subscription Activated"
-              : ok
-                ? "Subscription Updated"
-                : "Subscription Pending"}
-          </h2>
-          {chargeName && (
-            <p className="text-sm text-muted-foreground">
-              {chargeName} plan · status: {chargeStatus}
-            </p>
-          )}
-          {!ok && (
-            <p className="text-sm text-muted-foreground">
-              We couldn&rsquo;t confirm the charge. If you completed payment in
-              Shopify, refresh the pricing page or contact support.
-            </p>
-          )}
-          <Button asChild className="mt-2">
-            <Link to="/app">Go to Dashboard</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <s-page heading={heading}>
+      <BackButton to="/app" label="Dashboard" />
+      <SupportAction />
+
+      <s-section>
+        <s-stack direction="block" gap="base">
+          {/*
+            The outcome is carried by a banner rather than a large centred
+            success illustration: a charge that could not be confirmed is a real
+            failure state, and the same layout has to be able to say so. Tone
+            does that work here, so the two cases cannot drift apart visually.
+          */}
+          <s-banner
+            tone={ok ? "success" : "warning"}
+            heading={
+              ok ? "Your plan is up to date" : "We couldn’t confirm the charge"
+            }
+          >
+            {chargeName ? (
+              <s-paragraph>
+                {chargeName} plan · status: {chargeStatus}
+              </s-paragraph>
+            ) : null}
+            {!ok ? (
+              <s-paragraph>
+                If you completed payment in Shopify, refresh the pricing page or
+                contact support.
+              </s-paragraph>
+            ) : null}
+          </s-banner>
+
+          <s-stack direction="inline" gap="base">
+            <s-button variant="primary" href="/app" onClick={routeTo("/app")}>
+              Go to dashboard
+            </s-button>
+            <s-button href="/app/pricing" onClick={routeTo("/app/pricing")}>
+              Back to pricing
+            </s-button>
+          </s-stack>
+        </s-stack>
+      </s-section>
+    </s-page>
   );
 }
 

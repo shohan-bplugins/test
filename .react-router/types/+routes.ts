@@ -23,19 +23,55 @@ type Pages = {
   "/webhooks/app/uninstalled": {
     params: {};
   };
-  "/webhooks/app/installed": {
+  "/webhooks/compliance": {
+    params: {};
+  };
+  "/api/models/upload": {
+    params: {};
+  };
+  "/api/review-prompt": {
+    params: {};
+  };
+  "/api/viewer-event": {
+    params: {};
+  };
+  "/proxy/model/:id": {
+    params: {
+      "id": string;
+    };
+  };
+  "/api/model/:id": {
+    params: {
+      "id": string;
+    };
+  };
+  "/api/support": {
+    params: {};
+  };
+  "/proxy/track": {
     params: {};
   };
   "/auth/login": {
     params: {};
   };
+  "/viewer/:id": {
+    params: {
+      "id": string;
+    };
+  };
   "/api/files": {
+    params: {};
+  };
+  "/api/media": {
     params: {};
   };
   "/auth/*": {
     params: {
       "*": string;
     };
+  };
+  "/demo": {
+    params: {};
   };
   "/app": {
     params: {};
@@ -57,10 +93,19 @@ type Pages = {
       "id": string;
     };
   };
+  "/app/select-plan": {
+    params: {};
+  };
   "/app/models/:id": {
     params: {
       "id": string;
     };
+  };
+  "/app/onboarding": {
+    params: {};
+  };
+  "/app/analytics": {
+    params: {};
   };
   "/app/pricing": {
     params: {};
@@ -73,7 +118,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/webhooks/app/subscriptions_update" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/webhooks/app/installed" | "/auth/login" | "/api/files" | "/auth/*" | "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/models/:id" | "/app/pricing" | "/app/setup";
+    page: "/" | "/webhooks/app/subscriptions_update" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/webhooks/compliance" | "/api/models/upload" | "/api/review-prompt" | "/api/viewer-event" | "/proxy/model/:id" | "/api/model/:id" | "/api/support" | "/proxy/track" | "/auth/login" | "/viewer/:id" | "/api/files" | "/api/media" | "/auth/*" | "/demo" | "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/select-plan" | "/app/models/:id" | "/app/onboarding" | "/app/analytics" | "/app/pricing" | "/app/setup";
   };
   "routes/webhooks.app.subscriptions_update.tsx": {
     id: "routes/webhooks.app.subscriptions_update";
@@ -87,17 +132,53 @@ type RouteFiles = {
     id: "routes/webhooks.app.uninstalled";
     page: "/webhooks/app/uninstalled";
   };
-  "routes/webhooks.app.installed.tsx": {
-    id: "routes/webhooks.app.installed";
-    page: "/webhooks/app/installed";
+  "routes/webhooks.compliance.tsx": {
+    id: "routes/webhooks.compliance";
+    page: "/webhooks/compliance";
+  };
+  "routes/api.models.upload.tsx": {
+    id: "routes/api.models.upload";
+    page: "/api/models/upload";
+  };
+  "routes/api.review-prompt.tsx": {
+    id: "routes/api.review-prompt";
+    page: "/api/review-prompt";
+  };
+  "routes/api.viewer-event.tsx": {
+    id: "routes/api.viewer-event";
+    page: "/api/viewer-event";
+  };
+  "routes/proxy.model.$id.tsx": {
+    id: "routes/proxy.model.$id";
+    page: "/proxy/model/:id";
+  };
+  "routes/api.model.$id.tsx": {
+    id: "routes/api.model.$id";
+    page: "/api/model/:id";
+  };
+  "routes/api.support.tsx": {
+    id: "routes/api.support";
+    page: "/api/support";
+  };
+  "routes/proxy.track.tsx": {
+    id: "routes/proxy.track";
+    page: "/proxy/track";
   };
   "routes/auth.login/route.tsx": {
     id: "routes/auth.login";
     page: "/auth/login";
   };
+  "routes/viewer.$id.tsx": {
+    id: "routes/viewer.$id";
+    page: "/viewer/:id";
+  };
   "routes/api.files.tsx": {
     id: "routes/api.files";
     page: "/api/files";
+  };
+  "routes/api.media.tsx": {
+    id: "routes/api.media";
+    page: "/api/media";
   };
   "routes/_index/route.tsx": {
     id: "routes/_index";
@@ -107,9 +188,13 @@ type RouteFiles = {
     id: "routes/auth.$";
     page: "/auth/*";
   };
+  "routes/demo.tsx": {
+    id: "routes/demo";
+    page: "/demo";
+  };
   "routes/app.tsx": {
     id: "routes/app";
-    page: "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/models/:id" | "/app/pricing" | "/app/setup";
+    page: "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/select-plan" | "/app/models/:id" | "/app/onboarding" | "/app/analytics" | "/app/pricing" | "/app/setup";
   };
   "routes/app.products._index.tsx": {
     id: "routes/app.products._index";
@@ -131,9 +216,21 @@ type RouteFiles = {
     id: "routes/app.products.$id";
     page: "/app/products/:id";
   };
+  "routes/app.select-plan.tsx": {
+    id: "routes/app.select-plan";
+    page: "/app/select-plan";
+  };
   "routes/app.models.$id.tsx": {
     id: "routes/app.models.$id";
     page: "/app/models/:id";
+  };
+  "routes/app.onboarding.tsx": {
+    id: "routes/app.onboarding";
+    page: "/app/onboarding";
+  };
+  "routes/app.analytics.tsx": {
+    id: "routes/app.analytics";
+    page: "/app/analytics";
   };
   "routes/app.pricing.tsx": {
     id: "routes/app.pricing";
@@ -154,18 +251,31 @@ type RouteModules = {
   "routes/webhooks.app.subscriptions_update": typeof import("./app/routes/webhooks.app.subscriptions_update.tsx");
   "routes/webhooks.app.scopes_update": typeof import("./app/routes/webhooks.app.scopes_update.tsx");
   "routes/webhooks.app.uninstalled": typeof import("./app/routes/webhooks.app.uninstalled.tsx");
-  "routes/webhooks.app.installed": typeof import("./app/routes/webhooks.app.installed.tsx");
+  "routes/webhooks.compliance": typeof import("./app/routes/webhooks.compliance.tsx");
+  "routes/api.models.upload": typeof import("./app/routes/api.models.upload.tsx");
+  "routes/api.review-prompt": typeof import("./app/routes/api.review-prompt.tsx");
+  "routes/api.viewer-event": typeof import("./app/routes/api.viewer-event.tsx");
+  "routes/proxy.model.$id": typeof import("./app/routes/proxy.model.$id.tsx");
+  "routes/api.model.$id": typeof import("./app/routes/api.model.$id.tsx");
+  "routes/api.support": typeof import("./app/routes/api.support.tsx");
+  "routes/proxy.track": typeof import("./app/routes/proxy.track.tsx");
   "routes/auth.login": typeof import("./app/routes/auth.login/route.tsx");
+  "routes/viewer.$id": typeof import("./app/routes/viewer.$id.tsx");
   "routes/api.files": typeof import("./app/routes/api.files.tsx");
+  "routes/api.media": typeof import("./app/routes/api.media.tsx");
   "routes/_index": typeof import("./app/routes/_index/route.tsx");
   "routes/auth.$": typeof import("./app/routes/auth.$.tsx");
+  "routes/demo": typeof import("./app/routes/demo.tsx");
   "routes/app": typeof import("./app/routes/app.tsx");
   "routes/app.products._index": typeof import("./app/routes/app.products._index.tsx");
   "routes/app.SuccessBilling": typeof import("./app/routes/app.SuccessBilling.tsx");
   "routes/app.documentation": typeof import("./app/routes/app.documentation.tsx");
   "routes/app.models._index": typeof import("./app/routes/app.models._index.tsx");
   "routes/app.products.$id": typeof import("./app/routes/app.products.$id.tsx");
+  "routes/app.select-plan": typeof import("./app/routes/app.select-plan.tsx");
   "routes/app.models.$id": typeof import("./app/routes/app.models.$id.tsx");
+  "routes/app.onboarding": typeof import("./app/routes/app.onboarding.tsx");
+  "routes/app.analytics": typeof import("./app/routes/app.analytics.tsx");
   "routes/app.pricing": typeof import("./app/routes/app.pricing.tsx");
   "routes/app._index": typeof import("./app/routes/app._index.tsx");
   "routes/app.setup": typeof import("./app/routes/app.setup.tsx");

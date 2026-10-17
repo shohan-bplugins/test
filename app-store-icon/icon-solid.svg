@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a80ff"/>
+      <stop offset="1" stop-color="#0b57c4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="1200" fill="url(#bg)"/>
+  <!-- Three faces at stepped opacity rather than an outline: at 48px in a
+       search result an outline cube collapses into a grey blob, while shaded
+       faces still read as a solid object. -->
+  <g>
+    <path d="M600 244 L916 424 L600 604 L284 424 Z" fill="#ffffff"/>
+    <path d="M284 424 L600 604 L600 964 L284 784 Z" fill="#ffffff" fill-opacity=".74"/>
+    <path d="M916 424 L916 784 L600 964 L600 604 Z" fill="#ffffff" fill-opacity=".52"/>
+  </g>
+</svg>
