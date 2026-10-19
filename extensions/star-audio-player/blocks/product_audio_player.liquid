@@ -1,0 +1,147 @@
+{%- liquid
+  assign assigned_audio_ids = product.metafields.audio_player_by_bplugins.assigned_audio_ids.value
+  assign legacy_audio_id = product.metafields.audio_player_by_bplugins.assigned_audio_id | strip
+
+  # Fall back to the legacy single-value metafield for products assigned before
+  # multi-assignment was supported.
+  if assigned_audio_ids == blank and legacy_audio_id != blank
+    assign assigned_audio_ids = legacy_audio_id | split: ','
+  endif
+
+  assign show_in_editor_when_empty = block.settings.show_editor_hint
+-%}
+
+{%- if assigned_audio_ids != blank and assigned_audio_ids.size > 0 -%}
+  {%- for audio_id in assigned_audio_ids -%}
+    {%- assign audio_id = audio_id | strip -%}
+    {%- if audio_id == blank -%}{%- continue -%}{%- endif -%}
+    <div
+      class="product-audio-player-wrapper product-audio-player-{{ block.id }}"
+      style="width: 100%; margin: {{ block.settings.margin_top | default: 0 }}px 0 {{ block.settings.margin_bottom | default: 0 }}px 0;"
+    >
+      <div
+        class="html5-audio-plyr"
+        data-id="{{ audio_id | escape }}"
+        data-shop="{{ shop.permanent_domain }}"
+        data-product-id="{{ product.id }}"
+        data-source="product-metafield"
+      ></div>
+    </div>
+  {%- endfor -%}
+{%- elsif request.design_mode and show_in_editor_when_empty -%}
+  {%- assign shop_name = shop.domain | split: '.myshopify' | first -%}
+  <div class="product-audio-player-empty product-audio-player-{{ block.id }}">
+    <div class="pap-empty-card">
+      <div class="pap-empty-icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+      </div>
+      <h3 class="pap-empty-title">No audio player assigned</h3>
+      <p class="pap-empty-desc">
+        Open <strong>Audio Player by bPlugins</strong> → <strong>Products</strong> → choose
+        <strong>{{ product.title | escape }}</strong>, then pick a skin to create a player.
+      </p>
+      <a
+        class="pap-empty-cta"
+        href="https://admin.shopify.com/store/{{ shop_name }}/apps/audio-player-by-bplugins/app/products/{{ product.id }}"
+        target="_top"
+      >
+        Assign a player
+      </a>
+      <p class="pap-empty-footnote">This message is only visible in the theme editor.</p>
+    </div>
+  </div>
+
+  <style>
+    .product-audio-player-{{ block.id }} .pap-empty-card {
+      border: 2px dashed #d0d3d8;
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-align: center;
+      background: #fafbfc;
+      color: #4a5568;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .product-audio-player-{{ block.id }} .pap-empty-icon {
+      display: inline-flex;
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      background: #fff;
+      align-items: center;
+      justify-content: center;
+      color: #5b8def;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-bottom: 12px;
+    }
+    .product-audio-player-{{ block.id }} .pap-empty-icon svg { width: 22px; height: 22px; }
+    .product-audio-player-{{ block.id }} .pap-empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1f36;
+      margin: 0 0 6px 0;
+    }
+    .product-audio-player-{{ block.id }} .pap-empty-desc {
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0 0 14px 0;
+    }
+    .product-audio-player-{{ block.id }} .pap-empty-cta {
+      display: inline-block;
+      background: #1a1a1a;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      transition: background 0.15s ease;
+    }
+    .product-audio-player-{{ block.id }} .pap-empty-cta:hover { background: #000; }
+    .product-audio-player-{{ block.id }} .pap-empty-footnote {
+      font-size: 12px;
+      color: #8a94a6;
+      margin: 12px 0 0 0;
+    }
+  </style>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Product Audio Player",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_editor_hint",
+      "label": "Show editor hint when no player is assigned",
+      "default": true
+    },
+    {
+      "type": "number",
+      "id": "margin_top",
+      "label": "Margin top (px)",
+      "default": 12
+    },
+    {
+      "type": "number",
+      "id": "margin_bottom",
+      "label": "Margin bottom (px)",
+      "default": 12
+    }
+  ]
+}
+{% endschema %}

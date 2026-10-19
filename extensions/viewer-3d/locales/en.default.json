@@ -1,8 +1,0 @@
-{
-  "viewer_3d": {
-    "no_model_product": "No 3D model assigned to this product.",
-    "no_model_page": "Add a Model ID or a model URL in the block settings to display a 3D model.",
-    "metafield_hint": "Add one in Settings → Custom data → Products → custom.model_3d (file).",
-    "unknown_model_id": "That Model ID wasn't found in your 3D model library. Check the id, and run Setup in the app if you haven't since adding this feature."
-  }
-}
