@@ -332,7 +332,7 @@ export function HotspotsEditor({
       </s-select>
       <s-select
         label="Open hotspot on"
-        details="On touch screens hotspots always open with a tap."
+        details="On small container width or touch screens hotspots always open with a tap."
         value={config.hotspotTrigger}
         onInput={(e) =>
           onChange((c) => ({
