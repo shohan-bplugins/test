@@ -1,7 +1,0 @@
-api_version = "2026-01"
-
-[[extensions]]
-name = "3D Model Viewer"
-handle = "viewer-3d"
-uid = "25702ebf-552f-7614-5fd4-0c50b56fbe3992707d33"
-type = "theme"

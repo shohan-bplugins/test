@@ -54,7 +54,9 @@ import { fieldValue } from "~/components/polaris/helpers";
 // "1" is Today — the default, so opening Analytics shows what is happening now.
 const PRESETS = ["1", "7", "30", "90", "365"] as const;
 const DEFAULT_RANGE = "1";
-/** The one date range the Free plan gets. */
+/** Today: open in full on every plan — every section, every placement. */
+const TODAY_RANGE = "1";
+/** The one longer range the Free plan gets, with the PRO sections locked. */
 const FREE_RANGE = "7";
 
 const RANGE_OPTIONS: [string, string][] = [
@@ -278,9 +280,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const params = new URL(request.url).searchParams;
 
   /*
-   * Every metric is shown on every plan. The Free plan is limited in what it
-   * can look at, not in what it sees: the last 7 days only, and all
-   * placements together. Enforced here, so editing the URL changes nothing.
+   * Every metric is shown on every plan. Today is open in full on the Free
+   * plan too — every section and the placement filter. Beyond today, Free is
+   * limited in what it can look at, not in what it sees: the last 7 days only,
+   * all placements together, and the PRO sections locked. Enforced here, so
+   * editing the URL changes nothing.
    * The plan comes from Shopify's live subscription (cached, see
    * shop-cache.server.ts), the same source the Pricing page trusts.
    */
@@ -290,7 +294,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     evaluateReviewPrompt(admin, shop, "views-milestone"),
   ]);
   const freePlan = subscription?.status !== "active";
-  if (freePlan) {
+  const today = (params.get("range") ?? DEFAULT_RANGE) === TODAY_RANGE;
+  // Free outside of Today: what the PRO gating below applies to.
+  const limited = freePlan && !today;
+  if (limited) {
     params.set("range", FREE_RANGE);
     params.delete("from");
     params.delete("to");
@@ -375,6 +382,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     reviewPrompt,
     lifetime,
     freePlan,
+    limited,
     range,
     from,
     to,
@@ -384,23 +392,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     totals,
     previous,
     series: [...byDay].map(([day, v]) => ({ day, ...v })) as DayPoint[],
-    // The PRO sections below are sent empty on Free: their cards show sample
-    // previews, never the store's own numbers.
-    top: freePlan ? [] : top,
-    placements: freePlan
+    // The PRO sections below are sent empty on Free outside of Today: their
+    // cards show sample previews, never the store's own numbers.
+    top: limited ? [] : top,
+    placements: limited
       ? []
       : PLACEMENTS.map((p) => ({
           placement: p,
           ...(byPlacement.get(p) ?? emptyTotals()),
         })),
     // Not awaited: streamed in after first paint (see the note at the top).
-    details: freePlan
+    details: limited
       ? Promise.resolve({} as Record<string, TargetDetail>)
       : sideCached(
           JSON.stringify(["details", shop, top.map((t) => t.target).sort()]),
           () => loadTargetDetails(admin, shop, top),
         ),
-    cart: freePlan
+    cart: limited
       ? { after3d: 0, without3d: 0, productViews: 0, productInteract: 0 }
       : {
           after3d: cur.cart_3d ?? 0,
@@ -409,11 +417,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           productInteract: productPage.interact,
         },
     dwell: { avg: avg(cur), prevAvg: avg(prev), viewers: cur.dwell_n ?? 0 },
-    features: freePlan
+    features: limited
       ? []
       : FEATURES.map((f) => ({ key: f, count: cur[f] ?? 0 })),
-    devices: freePlan ? [] : devices,
-    library: freePlan
+    devices: limited ? [] : devices,
+    library: limited
       ? Promise.resolve(null)
       : sideCached(JSON.stringify(["library", shop, from, to]), () =>
           loadLibraryStats(admin, shop, from, to),
@@ -1040,7 +1048,10 @@ export default function Analytics() {
                     }}
                   >
                     {RANGE_OPTIONS.map(([value, label]) => {
-                      const locked = data.freePlan && value !== FREE_RANGE;
+                      const locked =
+                        data.freePlan &&
+                        value !== TODAY_RANGE &&
+                        value !== FREE_RANGE;
                       return (
                         <s-option
                           key={value}
@@ -1055,14 +1066,14 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Filtering by placement is paid; Free sees All only. */}
+              {/* Filtering by placement is paid, except on Today. */}
               <div
                 className="an-segmented"
                 role="group"
                 aria-label="Viewer placement"
               >
                 {(["all", ...PLACEMENTS] as const).map((p) => {
-                  const locked = data.freePlan && p !== "all";
+                  const locked = data.limited && p !== "all";
                   return (
                     <button
                       key={p}
@@ -1195,9 +1206,10 @@ export default function Analytics() {
       {data.freePlan ? (
         <s-banner tone="info" heading="You’re on the Free plan">
           <s-paragraph>
-            Free shows every metric for the last 7 days, across all placements.
-            Upgrade for longer date ranges and to filter by product page, page
-            section or embed.
+            Today is fully open on Free — every section, filtered by product
+            page, page section or embed. The last 7 days show the headline
+            numbers across all placements. Upgrade for longer date ranges and
+            the full breakdown beyond today.
           </s-paragraph>
           <s-button slot="secondary-actions" href="/app/pricing">
             View plans
@@ -1251,7 +1263,7 @@ export default function Analytics() {
         />
       </div>
 
-      {hasData && data.freePlan ? (
+      {hasData && data.limited ? (
         <FreeSections series={data.series} />
       ) : hasData ? (
         <>
