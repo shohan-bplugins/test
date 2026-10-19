@@ -1,0 +1,166 @@
+{%- liquid
+  assign override_url = block.settings.model_url | downcase
+  assign override_valid = false
+  if override_url contains '.glb' or override_url contains '.gltf'
+    assign override_valid = true
+  endif
+
+  assign model_url = ''
+  if override_valid
+    assign model_url = block.settings.model_url
+  endif
+
+  assign poster_url = ''
+
+  # iOS AR is Quick Look, and Quick Look renders a .usdz — nothing else. view3d's
+  # QuickLookSession.enter() reads iosSrc and returns immediately when it is
+  # empty, so without one the AR button does nothing at all on an iPhone while
+  # working normally on Android. Shopify generates a USDZ alongside the GLB for
+  # a 3D model, and this loop used to skip straight past it looking only for
+  # glb/gltf, so that file was always there and never used.
+  assign ios_src = ''
+
+  if model_url == blank
+    assign model_field = product.metafields.custom.model_3d
+    if model_field.value
+      assign model_url = model_field.value.url
+      # Nested rather than `if model_url == blank and a or b`: Liquid binds
+      # and/or right to left with no precedence between them, so that reads as
+      # `blank and (a or b)` — right here by luck, and silently wrong the next
+      # time a term is added.
+      for source in model_field.value.sources
+        assign source_format = source.format | downcase
+        if model_url == blank
+          if source_format == 'glb' or source_format == 'gltf'
+            assign model_url = source.url
+          endif
+        endif
+        if source_format == 'usdz'
+          assign ios_src = source.url
+        endif
+      endfor
+    endif
+  endif
+
+  if product.featured_image
+    assign poster_url = product.featured_image | image_url: width: 1200
+  endif
+
+  assign cfg = product.metafields.custom.viewer_3d_config.value
+
+  assign viewer_height = block.settings.height
+  if cfg.height
+    assign viewer_height = cfg.height
+  endif
+
+  assign viewer_bg = block.settings.background_color
+  if cfg.background
+    assign viewer_bg = cfg.background
+  endif
+
+  # Only a color literal can be a CSS background here. A background *image* URL
+  # is handed to view3d instead (it maps it onto the scene), and painting the
+  # raw URL into the `background` shorthand would just be an invalid
+  # declaration — so the element gets white behind the transparent canvas,
+  # matching what the admin preview paints in that case.
+  assign viewer_bg_css = '#ffffff'
+  assign viewer_bg_first_char = viewer_bg | slice: 0
+  if viewer_bg_first_char == '#'
+    assign viewer_bg_css = viewer_bg
+  endif
+-%}
+
+{%- if model_url != blank -%}
+  <div class="viewer-3d-block" {{ block.shopify_attributes }}>
+    <div
+      id="viewer-3d-{{ block.id }}"
+      class="viewer-3d"
+      style="--viewer-height: {{ viewer_height }}px; --viewer-bg: {{ viewer_bg_css }}; background: {{ viewer_bg_css }};"
+      data-view3d
+      data-model-url="{{ model_url }}"
+      data-poster-url="{{ poster_url }}"
+      data-viewer-height="{{ viewer_height }}"
+      data-viewer-bg="{{ viewer_bg }}"
+      data-ios-src="{{ ios_src | escape }}"
+      data-placement="product"
+      data-track-target="{{ product.id }}"
+      {%- comment -%}
+        Engagement counts for the Analytics page, through the app proxy. Left
+        off in the theme editor so a merchant designing their page does not
+        count as their own shopper.
+      {%- endcomment -%}
+      {%- unless request.design_mode %} data-track-url="/apps/viewer-3d/track"{% endunless %}
+      {%- comment -%}
+        Double-quoted, not single: Liquid's `escape` turns & < > " into entities
+        but leaves ' alone, so an apostrophe in a config value (variant and
+        iosSrc are free text) would terminate a single-quoted attribute early.
+      {%- endcomment %}
+      data-config="{{ cfg | json | escape }}"
+    >
+      <canvas class="view3d-canvas"></canvas>
+    </div>
+  </div>
+
+  {%- comment -%}
+    Only viewer-3d.css and viewer-3d.js load with the page. The vendor bundle
+    (egjs-view3d + three.js, ~725KB) and its stylesheet are handed over as URLs
+    instead of <script>/<link> tags, and viewer-3d.js fetches them the first time
+    a viewer actually scrolls into view.
+
+    They used to be eager tags right here, which made every product page carrying
+    this block download and compile three-quarters of a megabyte during load even
+    when the viewer sat far below the fold. That is the largest single hit this
+    extension takes on a storefront's Lighthouse score, and Shopify holds a
+    listed app to moving that score by no more than 10 points.
+  {%- endcomment -%}
+  {{ 'viewer-3d.css' | asset_url | stylesheet_tag }}
+  <script
+    src="{{ 'viewer-3d.js' | asset_url }}"
+    data-vendor-js="{{ 'view3d.pkgd.min.js' | asset_url }}"
+    data-vendor-css="{{ 'view3d-bundle.min.css' | asset_url }}"
+    defer
+  ></script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "3D Viewer — Product",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Model source"
+    },
+    {
+      "type": "paragraph",
+      "content": "By default the model comes from the product metafield custom.model_3d (managed via the 3D Viewer app). Leave the override blank for the normal flow. Only paste a direct .glb / .gltf URL below if you want to override the metafield for testing."
+    },
+    {
+      "type": "url",
+      "id": "model_url",
+      "label": "Manual model URL (must end in .glb or .gltf)",
+      "info": "Leave empty to use the product metafield. Non-model URLs are ignored."
+    },
+    {
+      "type": "header",
+      "content": "Default appearance"
+    },
+    {
+      "type": "range",
+      "id": "height",
+      "label": "Viewer height",
+      "min": 200,
+      "max": 800,
+      "step": 50,
+      "default": 500,
+      "unit": "px"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}
