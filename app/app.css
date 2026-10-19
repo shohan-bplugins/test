@@ -1,0 +1,817 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0 0);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.145 0 0);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.145 0 0);
+  /*
+   * Brand primary — #146EF5, i.e. oklch(0.573 0.218 259.8). Kept as the literal
+   * hex rather than converted, so it stays verifiably the exact brand value.
+   *
+   * This token does double duty: a *fill* under --color-primary-foreground
+   * (bg-primary buttons, badges, tooltips, the models sticky bar) and *ink on
+   * white* in text-primary (the underlined links in documentation/setup),
+   * border-primary and ring-primary (the selected model card, the drag-over drop
+   * zone), plus the bg-primary/5–15 tints. As ink on white it measures 4.59:1,
+   * which clears AA — hence the foreground note directly below.
+   */
+  --color-primary: #146ef5;
+  /*
+   * Pure white, NOT the oklch(0.985 0 0) used by the other *-foreground tokens.
+   * That near-white lands at 4.39:1 on #146EF5, just under the 4.5:1 floor for
+   * the 14px button label; #ffffff takes it to 4.59:1. The blue is exactly light
+   * enough for the difference to matter, so don't fold this back into the shared
+   * off-white without re-measuring.
+   */
+  --color-primary-foreground: #ffffff;
+  /*
+   * Brand secondary — #FF7A00, carried by the "create" role (the Add button on
+   * the products list), which is where a second brand color actually belongs in
+   * this UI: the one action that isn't a save.
+   *
+   * The white foreground is a deliberate brand choice, not an oversight: it
+   * measures 2.5:1 on this orange, under the 4.5:1 AA floor for the 14px button
+   * label. Both values are fixed brand colors, so the contrast can only be
+   * recovered by changing one of them — darkening the fill to ~#B35400 gets white
+   * to 4.8:1, or a dark oklch(0.205) ink on the orange as-is gives 6.86:1. Don't
+   * "fix" this by swapping the foreground without raising it as a brand decision.
+   */
+  --color-create: #ff7a00;
+  --color-create-foreground: #ffffff;
+  /*
+   * These three stay pure neutral, and --color-secondary in particular is NOT the
+   * brand secondary despite the name — it is a surface token. Besides the
+   * secondary Button and Badge variants it is the *slider track* (bg-secondary in
+   * ui/slider.tsx), the unfilled rail behind the primary-colored range, which is
+   * every slider in ViewerSettings. Putting #FF7A00 here would turn all of those
+   * rails bright orange; the brand secondary lives on --color-create above.
+   */
+  --color-secondary: oklch(0.97 0 0);
+  --color-secondary-foreground: oklch(0.205 0 0);
+  --color-muted: oklch(0.97 0 0);
+  --color-muted-foreground: oklch(0.556 0 0);
+  --color-accent: oklch(0.97 0 0);
+  --color-accent-foreground: oklch(0.205 0 0);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-border: oklch(0.922 0 0);
+  --color-input: oklch(0.922 0 0);
+  --color-ring: oklch(0.708 0 0);
+  --radius: 0.5rem;
+}
+
+/*
+ * The primary-fill surfaces (buttons, badges, switch, slider, tooltip) are all
+ * plain `bg-primary` now — there is no separate gradient utility. Keeping them
+ * on the token means text-primary, border-primary and the bg-primary/NN tints
+ * are the same color as the fills, which a gradient could never be.
+ */
+
+@layer base {
+
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border, currentColor);
+  }
+}
+
+@layer utilities {
+
+  /*
+   * Squared-off corners, scoped to the 3D viewer.
+   *
+   * This used to be an unscoped `*` rule enforcing a flat aesthetic across the
+   * app's own component library. That library is gone — the admin is built from
+   * Polaris web components now — and an unscoped rule reaches their *host*
+   * elements (s-button, s-badge, s-box), flattening the radii the admin gives
+   * them. Shadow DOM would not have saved it: page styles do not pierce a shadow
+   * boundary, but the host is an ordinary element in this document.
+   *
+   * Scoped to .view3d-wrapper, the class ViewerPreview puts on its root, so the
+   * viewer keeps the look it was built with on both the admin pages that embed
+   * it and the public /viewer/:id page — which has no Polaris at all.
+   */
+  /*
+   * Hotspots are exempt: their pins and cards are the merchant's storefront
+   * content, round on the storefront (viewer-3d.css), and the admin preview
+   * has to show them the way shoppers will see them.
+   */
+  .view3d-wrapper,
+  .view3d-wrapper :not(.e3d-hotspot, .e3d-hotspot *),
+  .view3d-wrapper :not(.e3d-hotspot, .e3d-hotspot *)::before,
+  .view3d-wrapper :not(.e3d-hotspot, .e3d-hotspot *)::after {
+    border-radius: 0 !important;
+  }
+}
+
+/*
+ * Restyle view3d's built-in control bar (play/progress/animation-selector)
+ * from its default full-width bottom strip into a compact centered pill, and
+ * its animation-clip dropdown into a dark list card with the current clip
+ * picked out in white. Scoped under .view3d-wrapper (the class
+ * ViewerPreview.tsx puts on its root) so it only touches our own viewer
+ * instances. The `border-radius: … !important` declarations below do nothing —
+ * see the note further down; they're left in place only because this bar is
+ * `display: none` anyway, so nothing about it is visible either way.
+ */
+.view3d-wrapper .view3d-control-bar {
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: 220px;
+  max-width: calc(100% - 24px);
+  padding: 6px 10px !important;
+  border-radius: 999px !important;
+  display: none;
+  opacity: 0 !important;
+}
+
+.view3d-wrapper .view3d-controls-background {
+  border-radius: 999px !important;
+}
+
+.view3d-wrapper .view3d-side-controls {
+  height: 34px;
+}
+
+.view3d-wrapper .view3d-control-item {
+  border-radius: 999px !important;
+}
+
+.view3d-wrapper .view3d-control-item:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.view3d-wrapper .view3d-animation-list {
+  background-color: rgba(20, 20, 20, 0.92);
+  border-radius: 10px !important;
+  padding: 6px;
+  min-width: 170px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/*
+ * The rows are dimmed white and the selected one is full white, rather than
+ * either taking --color-primary: this list is a near-black card, and a
+ * near-black accent on it would be invisible. The vendor already bolds the
+ * selected row and draws the dot, so white-against-dimmed-white is the whole
+ * distinction. Same literals as the storefront widget's
+ * (extensions/viewer-3d/assets/viewer-3d.css) so the two stay in step. (Both
+ * are moot while the bar is display:none — see the note above.)
+ */
+.view3d-wrapper .view3d-animation-item {
+  padding: 7px 10px 7px 20px;
+  font-size: 13px;
+  border-radius: 6px !important;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.view3d-wrapper .view3d-animation-item:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.view3d-wrapper .view3d-animation-item.selected {
+  color: #ffffff;
+}
+
+.view3d-wrapper .view3d-animation-item.selected::before {
+  background-color: #ffffff;
+  left: 8px;
+}
+
+.view3d-wrapper .view3d-animation-name {
+  font-weight: 500;
+}
+
+/*
+ * Control glyphs are stroked at 2.5 rather than lucide's default 2 — a heavier
+ * stroke reads better against a 3D scene than a hairline does. A plain CSS rule
+ * is enough: presentation attributes (lucide renders stroke-width="2" on the
+ * <svg>) lose to any author stylesheet rule, so no !important is needed.
+ *
+ * Scoped to .preview-toolbar-btn, which covers the icon buttons and the
+ * animation selector's chevron. Matches stroke-width in the storefront widget's
+ * viewer-3d.css; the loading spinner and error glyph are deliberately left at
+ * lucide's default on both sides, since they're status indicators, not controls.
+ */
+.view3d-wrapper .preview-toolbar-btn svg {
+  stroke-width: 2.5;
+}
+
+/*
+ * Native fullscreen. The wrapper carries an inline `height` from
+ * ViewerPreview.tsx, and an author !important declaration outranks an inline
+ * style, so this is what stops the viewer sitting at its configured height in the
+ * middle of a black screen.
+ *
+ * :fullscreen and :-webkit-full-screen are deliberately separate rules rather
+ * than one comma-separated selector: a selector list containing a pseudo-class
+ * the browser doesn't recognise invalidates the whole rule, so combining them
+ * would mean neither engine applied it.
+ */
+.view3d-wrapper:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+}
+
+.view3d-wrapper:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+}
+
+/*
+ * view3d's axis gizmo is anchored `top: 10px; right: 10px` at 120x120 — exactly
+ * where the fullscreen close button goes. The toolbar's z-10 keeps the button
+ * clickable on top, but it would sit over the axes; nudging the gizmo below it
+ * keeps both readable. Fullscreen only, so the normal layout is untouched.
+ * :fullscreen and :-webkit-full-screen are separate rules, since an unrecognised
+ * pseudo-class would invalidate a combined selector list.
+ */
+.view3d-wrapper:fullscreen .view3d-gizmo {
+  top: 52px !important;
+}
+
+.view3d-wrapper:-webkit-full-screen .view3d-gizmo {
+  top: 52px !important;
+}
+
+/*
+ * Animation-selector motion, kept here rather than as Tailwind utilities so it
+ * is literally the same declarations as the storefront widget's
+ * (extensions/viewer-3d/assets/viewer-3d.css) — the popup transition and the
+ * clip-name wipe have to match, and hand-written CSS makes that checkable.
+ *
+ * The popup stays mounted and is hidden with visibility + opacity so it can
+ * transition *closed* as well as open; `display` can't be transitioned, and
+ * conditionally rendering it gave no exit animation at all. visibility is in the
+ * transition list so it flips to hidden only after the fade completes.
+ *
+ * Scoped to .preview-animation-popup / .preview-animation-label only — none of
+ * this touches the zoom, reset, fullscreen or capture buttons.
+ */
+/* The offset and origin match the popup's anchor (top-left, opening downward),
+   so it grows out of the button it belongs to rather than arriving from the
+   wrong direction. Update both if ANIMATION_POPUP_ANCHOR_CLASSES changes. */
+.view3d-wrapper .preview-animation-popup {
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 -4px;
+  scale: 0.98;
+  transform-origin: top left;
+  transition: opacity 150ms ease-out, translate 150ms ease-out,
+    scale 150ms ease-out, visibility 150ms;
+}
+
+.view3d-wrapper .preview-animation-popup.is-open {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  scale: 1;
+}
+
+/*
+ * Scrolls at 224px (Tailwind's max-h-56, which this replaces) but never taller
+ * than the room left inside the viewer — .view3d-wrapper clips its overflow, so
+ * on a short viewer an unconstrained list would be cut off at the edge. 72px
+ * covers the toolbar's 8px inset, the 36px button, the 8px gap, and the popup's
+ * own padding and borders. Same rule as the storefront widget's.
+ */
+.view3d-wrapper .preview-animation-popup-items {
+  max-height: min(224px, calc(var(--viewer-height, 500px) - 72px));
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  overscroll-behavior: contain;
+}
+
+.view3d-wrapper .preview-animation-popup-items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.view3d-wrapper .preview-animation-popup-items::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.view3d-wrapper .preview-animation-popup-items::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Re-triggered by React remounting the span (it's keyed on the active index),
+   so the new clip name wipes in instead of just blinking to different text. */
+.view3d-wrapper .preview-animation-label {
+  animation: viewer-3d-label-swap 260ms ease-out;
+}
+
+@keyframes viewer-3d-label-swap {
+  from {
+    opacity: 0;
+    translate: 0 -5px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/*
+ * Reduced-motion counterpart to the block in
+ * extensions/viewer-3d/assets/viewer-3d.css: the chrome stops sliding, scaling
+ * and pulsing and simply appears. The model's own clip crossfade is untouched —
+ * that's content, not decoration.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .view3d-wrapper .preview-animation-popup {
+    translate: 0 0;
+    scale: 1;
+    transition: opacity 1ms linear, visibility 1ms;
+  }
+
+  .view3d-wrapper .preview-animation-label,
+  .view3d-wrapper .preview-toolbar,
+  .view3d-wrapper .preview-toolbar-btn .animate-ping {
+    animation: none !important;
+  }
+}
+
+/*
+ * NOTE ON CORNER RADIUS — the viewer is square-cornered here, deliberately, and
+ * cannot be rounded from this file at all.
+ *
+ * The `@layer utilities { * { border-radius: 0 !important } }` reset above wins
+ * against every `border-radius` rule in this stylesheet, including !important
+ * ones with far higher specificity, because cascade-layer precedence *inverts*
+ * for important declarations: an !important declaration inside a layer beats an
+ * !important declaration outside one, and specificity never gets consulted.
+ * Every rule in this file is unlayered, so `rounded-lg` on the viewer card,
+ * `rounded` on the animation rows, and the 999px/10px/6px radii in the vendor
+ * overrides above are all inert — the preview renders fully square.
+ *
+ * That squareness is the app's look, and extensions/viewer-3d/assets/viewer-3d.css
+ * matches it explicitly so the storefront widget agrees. Don't add radius rules
+ * here expecting them to apply; to actually round the viewer, the reset itself
+ * has to change (or the rule has to move into a later layer).
+ *
+ * The reset is now scoped to .view3d-wrapper, so it no longer reaches the
+ * Polaris components the admin is built from — but within the viewer, which is
+ * all this file still styles, the note above holds exactly as before.
+ */
+
+
+/*
+ * Hotspots (app/lib/hotspots.ts builds the markup; the storefront copy of
+ * these rules is in extensions/viewer-3d/assets/viewer-3d.css — keep in step).
+ * view3d positions .view3d-annotation every frame and hides its children until
+ * it is "selected"; the pin overrides that so it is always visible, while the
+ * card keeps view3d's behaviour of showing only when the hotspot is open.
+ */
+.e3d-hotspot {
+  width: 28px;
+  height: 28px;
+}
+
+.e3d-hotspot>.e3d-hotspot-pin {
+  visibility: visible;
+}
+
+.e3d-hotspot-pin {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--e3d-hotspot, #2a78d6);
+  color: #fff;
+  font: 700 13px/28px system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.e3d-hotspot-pin:hover,
+.e3d-hotspot.selected .e3d-hotspot-pin {
+  transform: scale(1.12);
+}
+
+.e3d-hotspot-pin:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.view3d-annotation.e3d-hotspot .e3d-hotspot-card {
+  left: 38px;
+  top: -6px;
+  width: 240px;
+  max-width: min(240px, 60vw);
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff;
+  color: #1a1a1a;
+  text-align: left;
+  white-space: normal;
+  font: 400 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.view3d-annotation.e3d-hotspot.flip-x .e3d-hotspot-card {
+  left: auto;
+  right: 38px;
+}
+
+.view3d-annotation.e3d-hotspot.flip-y .e3d-hotspot-card {
+  top: auto;
+  bottom: -6px;
+}
+
+/*
+ * "Pin shows: Title": the pin is a pill with the hotspot's title instead of a
+ * numbered dot. Sized to its text (view3d centres the element on the point
+ * with translate(-50%, -50%), so it stays centred), so the card sits a fixed
+ * gap from the pill's edge rather than from a 28px dot.
+ */
+.e3d-hotspot.e3d-hotspot--title {
+  width: auto;
+}
+
+.e3d-hotspot--title .e3d-hotspot-pin {
+  width: auto;
+  max-width: 180px;
+  padding: 0 12px;
+  border-radius: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.view3d-annotation.e3d-hotspot--title .e3d-hotspot-card {
+  left: calc(100% + 10px);
+}
+
+.view3d-annotation.e3d-hotspot--title.flip-x .e3d-hotspot-card {
+  left: auto;
+  right: calc(100% + 10px);
+}
+
+.e3d-hotspot-title {
+  font-weight: 650;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.e3d-hotspot-text {
+  color: #4a4a4a;
+  overflow-wrap: anywhere;
+}
+
+.e3d-hotspot-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--e3d-hotspot, #2a78d6);
+  text-decoration: none;
+}
+
+.e3d-hotspot-link:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .e3d-hotspot-pin {
+    transition: none;
+  }
+}
+
+/* Hotspot placement mode in the admin preview. */
+.view3d-wrapper[data-placing] canvas {
+  cursor: crosshair !important;
+}
+
+/* Hotspot cards with media or a product (same rules in viewer-3d.css and app.css). */
+.view3d-annotation.e3d-hotspot .e3d-hotspot-card--rich {
+  width: 280px;
+  max-width: min(280px, 72vw);
+  max-height: min(440px, 80vh);
+  overflow-y: auto;
+}
+
+.e3d-hotspot-media {
+  display: block;
+  width: 100%;
+  max-height: 170px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin: 0 0 10px;
+}
+
+.e3d-hotspot-text+.e3d-hotspot-media {
+  margin: 10px 0 0;
+}
+
+.e3d-hotspot-video {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #111 center / cover no-repeat;
+}
+
+.e3d-hotspot-video iframe,
+.e3d-hotspot-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+}
+
+/* The first-frame stand-in for a poster sits under the play button. */
+.e3d-hotspot-video video.e3d-hotspot-frame {
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.e3d-hotspot-play {
+  all: unset;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.e3d-hotspot-play:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.e3d-hotspot-play:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.e3d-hotspot-product {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ececec;
+}
+
+/*
+ * The card's blocks can come in any order (Hotspot.order), so the space
+ * between them belongs to whichever block follows another, not to a fixed
+ * position. Looks the same as before in the default order.
+ */
+.e3d-hotspot-card > .e3d-hotspot-media,
+.e3d-hotspot-card > .e3d-hotspot-video {
+  margin: 0;
+}
+.e3d-hotspot-card > * + * {
+  margin-top: 10px;
+}
+.e3d-hotspot-card > * + .e3d-hotspot-product {
+  margin-top: 12px;
+}
+/* A product leading the card needs no divider above it. */
+.e3d-hotspot-card > .e3d-hotspot-product:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.e3d-hotspot-product-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.e3d-hotspot-product-row img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex: none;
+  background: #f4f4f4;
+}
+
+.e3d-hotspot-product-title {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.e3d-hotspot-product-price {
+  color: #4a4a4a;
+  margin-top: 2px;
+}
+
+.e3d-hotspot-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.e3d-hotspot-btn {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.e3d-hotspot-btn--primary {
+  background: var(--e3d-hotspot, #2a78d6);
+  color: #fff;
+}
+
+.e3d-hotspot-btn--secondary {
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: inset 0 0 0 1px #c9c9c9;
+}
+
+.e3d-hotspot-btn:hover {
+  filter: brightness(0.95);
+}
+
+.e3d-hotspot-btn:focus-visible {
+  outline: 2px solid var(--e3d-hotspot, #2a78d6);
+  outline-offset: 2px;
+}
+
+.e3d-hotspot-btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
+}
+
+.e3d-hotspot-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #2f7d4f;
+}
+
+.e3d-hotspot-status a {
+  color: inherit;
+  font-weight: 600;
+}
+
+.e3d-hotspot-status[data-error] {
+  color: #b42318;
+}
+
+/* Variant options, product link, and the small-viewer bottom sheet. */
+.e3d-hotspot-options {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+}
+
+.e3d-hotspot-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #4a4a4a;
+}
+
+.e3d-hotspot-option select {
+  font: inherit;
+  font-size: 13px;
+  color: #1a1a1a;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid #c9c9c9;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.e3d-hotspot-option select:focus-visible {
+  outline: 2px solid var(--e3d-hotspot, #2a78d6);
+  outline-offset: 1px;
+}
+
+.e3d-hotspot-product-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--e3d-hotspot, #2a78d6);
+  text-decoration: none;
+}
+
+.e3d-hotspot-product-link:hover {
+  text-decoration: underline;
+}
+
+.e3d-hotspot-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.e3d-hotspot-sheet-backdrop[data-open] {
+  display: flex;
+}
+
+.e3d-hotspot-sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: min(520px, 100%);
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: 22px 16px calc(16px + env(safe-area-inset-bottom));
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.2);
+  font: 400 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  animation: e3d-sheet-in 0.2s ease-out;
+}
+
+@keyframes e3d-sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+.e3d-hotspot-sheet-close {
+  all: unset;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+  z-index: 1;
+  cursor: pointer;
+  color: #4a4a4a;
+  background: #f1f1f1;
+}
+
+.e3d-hotspot-sheet-close:focus-visible {
+  outline: 2px solid var(--e3d-hotspot, #2a78d6);
+  outline-offset: 2px;
+}
+
+.e3d-hotspot-sheet .e3d-hotspot-card {
+  position: static !important;
+  visibility: visible !important;
+  width: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.e3d-hotspot-sheet .e3d-hotspot-title {
+  font-size: 16px;
+  padding-right: 40px;
+}
+
+.e3d-hotspot-sheet .e3d-hotspot-media {
+  max-height: 40vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .e3d-hotspot-sheet {
+    animation: none;
+  }
+}
