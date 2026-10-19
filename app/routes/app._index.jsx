@@ -1,585 +1,486 @@
-import { Page } from "@shopify/polaris";
-import { useLoaderData, useNavigate } from "@remix-run/react";
-
-import Dashboard from "../components/Dashboard/Dashboard";
-import { defer } from "@remix-run/node";
-import prisma from "../db.server";
+import { json, redirect } from "@remix-run/node";
+import {
+  useActionData,
+  useLoaderData,
+  useNavigation,
+  useSubmit,
+  Link,
+  useNavigate,
+} from "@remix-run/react";
 import { authenticate } from "../shopify.server";
-import { rankVideosByScore } from "../utils/topPlayerScore";
-import { verifyShopPlan } from "../utils/planSync.server";
-
-// How many recent play rows the top-player highlight ranks over. It is a
-// "best of" badge, not a reported figure, so bounding the scan keeps the cost
-// flat as a merchant's play volume grows.
-const TOP_PLAYER_SCAN_LIMIT = 5000;
-
-// The app-block check costs four serial Admin REST hops (themes -> asset keys
-// -> per-template fan-out -> settings_data.json) and it sits in the blocking
-// path of every dashboard load. A merchant only changes it in the theme editor,
-// so a short TTL keeps the banner accurate while taking it off most loads.
-const CONFIG_TTL_MS = 60 * 1000;
-const configCache = new Map(); // shop -> { config, at }
-
-// TEMPORARY LCP diagnostics. Prints how long each branch of this loader takes
-// to the server console, so a slow TTFB can be attributed to a specific query
-// instead of guessed at. Remove once the dashboard is fast.
-const TIMINGS = process.env.LOADER_TIMINGS !== "0";
-
-function timed(marks, label, thenable) {
-  if (!TIMINGS) return thenable;
-  const start = Date.now();
-  return Promise.resolve(thenable).then(
-    (v) => {
-      marks[label] = Date.now() - start;
-      return v;
-    },
-    (e) => {
-      marks[label] = `${Date.now() - start} (threw)`;
-      throw e;
-    },
-  );
-}
+import prisma from "../db.server";
+import "../styles/style.css";
+import Dashboard from "../components/Dashboard/Dashboard";
+import { getCachedAppBlockSupport } from "../lib/theme-support.server";
+import { useSupport } from "../components/SupportForm/SupportProvider";
 
 export const loader = async ({ request }) => {
-  const marks = {};
-  const loaderStart = Date.now();
+  try {
+    const { session } = await authenticate.admin(request);
 
-  const authStart = Date.now();
+    if (!session) {
+      return redirect("/auth");
+    }
+
+    const planDataPromise = prisma.plans.findMany();
+    // Fetch DB Data
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get("page")) || 1;
+    const pageSize = 10;
+    const skip = (page - 1) * pageSize;
+
+    let charge = [],
+      user = [],
+      audio = [],
+      totalAudio = 0;
+    try {
+      const results = await Promise.all([
+        prisma.Charges.findMany({ where: { shop: session.shop } }),
+        prisma.Users.findMany({ where: { shop: session.shop } }),
+        prisma.audio.findMany({
+          where: { shop: session.shop },
+          skip,
+          take: pageSize,
+          select: {
+            id: true,
+            title: true,
+            url: true,
+            audioPlayList: true,
+            shop: true,
+            playerType: true,
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.audio.count({ where: { shop: session.shop } }),
+      ]);
+      charge = results[0];
+      user = results[1];
+      audio = results[2];
+      totalAudio = results[3];
+    } catch (e) {
+      console.error("Error fetching database data:", e.message);
+    }
+
+    const planData = await planDataPromise;
+    const totalPages = Math.ceil(totalAudio / pageSize);
+
+    return json({
+      pageSize,
+      totalPages,
+      page,
+      totalAudio,
+      audio,
+      user: user[0] || { cardits: 5, plan: "Free" },
+      charges: charge,
+      shop: session.shop,
+      planData,
+      // Last known theme app-block support (null = not checked yet), so the
+      // Dashboard's top section renders on first paint.
+      supportsAppBlocks: getCachedAppBlockSupport(session.shop),
+      apiKey: process.env.SHOPIFY_API_KEY,
+    });
+  } catch (error) {
+    // Thrown so the app's error page (with Try again) shows, instead of an
+    // empty Dashboard. Never send error details / stack to the browser.
+    console.error("Critical loader error:", error);
+    throw error;
+  }
+};
+
+const ALLOWED_PLAYER_TYPES = [
+  "single-audio",
+  "playlist-audio",
+  "sticky-player",
+  "sticky-single-button",
+];
+
+export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  marks["authenticate.admin"] = Date.now() - authStart;
-  // Confirm the stored plan against Shopify billing before anything reads it.
-  await verifyShopPlan(admin, session.shop);
 
-  const shop = session.shop;
-  const accessToken = session?.accessToken;
+  const body = await request.formData();
 
-  // Run independent tasks perfectly in parallel
-  const userPromise = prisma.Users.findFirst({ where: { shop } });
-  const videosPromise = prisma.Video.findMany({
-    where: { shop },
-    select: { id: true, title: true, videoType: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
-  const plansPromise = prisma.Plans.findMany({ orderBy: { price: "asc" } });
+  const data = body.get("data");
+  const ob_title = body.get("ob_title");
+  const ob_url = body.get("ob_url");
+  const ob_mainColor = body.get("ob_mainColor");
+  const ob_loop = body.get("ob_loop");
+  const ob_tracks = body.get("ob_tracks");
+  const ob_stickyPosition = body.get("ob_stickyPosition");
+  const ob_btnLabel = body.get("ob_btnLabel");
+  const ob_btnColor = body.get("ob_btnColor");
+  const ob_btnPosition = body.get("ob_btnPosition");
+  const ob_imageUrl = body.get("ob_imageUrl");
+  try {
+    const screens = await prisma.screen.findMany({});
 
-  // Chained off userPromise (a single indexed lookup) rather than awaited after
-  // the Promise.all below — so this round trip to Shopify overlaps the rest of
-  // the loader instead of adding its latency on top of the slowest branch.
-  const subscriptionPromise = userPromise.then(async (u) => {
-    if (!u?.chargeId) return null;
-    try {
-      const subResponse = await fetch(
-        `https://${shop}/admin/api/2026-07/recurring_application_charges/${u.chargeId}.json`,
-        {
-          headers: {
-            "X-Shopify-Access-Token": accessToken,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (!subResponse.ok) return null;
-      const subData = await subResponse.json();
-      return subData.recurring_application_charge ?? null;
-    } catch (e) {
-      console.error("Error fetching subscription in dashboard:", e);
-      return null;
+    if (!session?.shop) {
+      throw new Error("Shop not found");
     }
-  });
 
-  // Total play counts for the dashboard overview: all time, today, last 7 and
-  // last 30 days (each window starts at midnight local time).
-  const startToday = new Date();
-  startToday.setHours(0, 0, 0, 0);
-  const start7 = new Date();
-  start7.setDate(start7.getDate() - 7);
-  start7.setHours(0, 0, 0, 0);
-  const start30 = new Date();
-  start30.setDate(start30.getDate() - 30);
-  start30.setHours(0, 0, 0, 0);
-  // A play counts as a "product page" play when the played video is assigned
-  // to a product (works for existing rows), OR the page it played on contains
-  // "/products/" (pageUrl for new rows, referrer as a fallback). Everything
-  // else is a single video player play. Player subset = total − product.
-  //
-  // Everything below runs INSIDE analyticsPromise, which is streamed to the
-  // client via defer() rather than awaited here. The catalog walk and the
-  // videoPlay scans are the slowest work in this loader and none of it is
-  // needed to paint the page, so keeping it off the critical path is what
-  // decouples TTFB (and therefore LCP) from play volume and product count.
-  // Deliberately separate from analyticsPromise. The KPI numbers are the
-  // dashboard's LCP element (.vp-wc-kpi-value is 1.6rem/700, the largest text on the
-  // page), so anything bundled with them delays LCP. The eight counts are
-  // indexed and resolve in milliseconds; ranking the top player has to touch
-  // every play row for the shop and never will. Streaming them separately lets
-  // the tiles paint as soon as the counts land.
-  const topPlayerPromise = (async () => {
-    try {
-      const sel = {
-        videoId: true,
-        videoTitle: true,
-        visitorId: true,
-        watchedSeconds: true,
-      };
-      // Capped: ranking is a "best of" highlight, not an exact figure, so a
-      // bounded scan is the right trade. Without a cap this grows with a
-      // merchant's traffic forever.
-      let rows;
-      const rowsStart = Date.now();
-      try {
-        rows = await prisma.videoPlay.findMany({
-          where: { shop },
-          select: { ...sel, ipHash: true },
-          orderBy: { createdAt: "desc" },
-          take: TOP_PLAYER_SCAN_LIMIT,
-        });
-      } catch {
-        rows = await prisma.videoPlay.findMany({
-          where: { shop },
-          select: sel,
-          orderBy: { createdAt: "desc" },
-          take: TOP_PLAYER_SCAN_LIMIT,
-        });
+    let createAudio;
+    if (request.method === "POST") {
+      const screen = {};
+
+      // Server-side checks: the UI hides these options, but a crafted request
+      // must not create unknown player types or go past the plan's limit.
+      const requestedType = data?.split(",")?.[0];
+      if (requestedType && !ALLOWED_PLAYER_TYPES.includes(requestedType)) {
+        return json({ result: "pleaseTryAgain" });
       }
-      marks["3. topPlayer scan (streamed separately)"] =
-        `${Date.now() - rowsStart} · ${rows.length} rows`;
-
-      const ranked = rankVideosByScore(rows);
-      if (!ranked.length) return null;
-      const t = ranked[0];
-      const v = await prisma.video.findUnique({
-        where: { id: t.videoId },
-        select: { title: true },
-      });
-      return {
-        videoId: t.videoId,
-        title: v?.title || t.title || "Untitled",
-        plays: t.plays,
-        unique: t.unique,
-        watchSeconds: t.watchSeconds,
-      };
-    } catch {
-      return null;
-    }
-  })();
-
-  const analyticsPromise = (async () => {
-    const [total, today, week, month, pTotal, pToday, pWeek, pMonth] =
-      await timed(
-        marks,
-        "2. videoPlay counts x8 (all indexed)",
-        Promise.all([
-          prisma.videoPlay.count({ where: { shop } }),
-          prisma.videoPlay.count({
-            where: { shop, createdAt: { gte: startToday } },
-          }),
-          prisma.videoPlay.count({
-            where: { shop, createdAt: { gte: start7 } },
-          }),
-          prisma.videoPlay.count({
-            where: { shop, createdAt: { gte: start30 } },
-          }),
-          prisma.videoPlay.count({ where: { shop, isProductPage: true } }),
-          prisma.videoPlay.count({
-            where: {
-              shop,
-              isProductPage: true,
-              createdAt: { gte: startToday },
-            },
-          }),
-          prisma.videoPlay.count({
-            where: { shop, isProductPage: true, createdAt: { gte: start7 } },
-          }),
-          prisma.videoPlay.count({
-            where: { shop, isProductPage: true, createdAt: { gte: start30 } },
-          }),
-        ]),
-      );
-    return {
-      total: { product: pTotal, player: total - pTotal },
-      today: { product: pToday, player: today - pToday },
-      week: { product: pWeek, player: week - pWeek },
-      month: { product: pMonth, player: month - pMonth },
-    };
-  })();
-
-  const checkAppBlockConfig = async () => {
-    try {
-      const response = await admin.graphql(
-        `#graphql
-        query getThemes {
-          themes(roles: [MAIN], first: 1) {
-            nodes {
-              id
-              name
-              files(first: 250) {
-                nodes {
-                  filename
-                }
-              }
-            }
-          }
-        }`,
-      );
-
-      const responseData = await response.json();
-      const mainTheme = responseData?.data?.themes?.nodes?.[0];
-      const themeId = mainTheme?.id;
-
-      if (!themeId) {
-        return {
-          themeId: null,
-          appEmbed: true,
-          themeName: null,
-          themeSupportsAppBlocks: true,
-          appBlockUsage: null,
-        };
-      }
-
-      const allFiles = mainTheme?.files?.nodes || [];
-      const templateKeys = allFiles
-        .map((f) => f.filename)
-        .filter(
-          (name) => name.startsWith("templates/") && name.endsWith(".json"),
-        );
-
-      let themeSupportsAppBlocks = templateKeys.length > 0;
-
-      let appBlockUsage = null;
-      let appEmbed = false;
-
-      if (themeSupportsAppBlocks) {
-        const filenamesToFetch = [...templateKeys, "config/settings_data.json"];
-
-        const chunks = [];
-        for (let i = 0; i < filenamesToFetch.length; i += 50) {
-          chunks.push(filenamesToFetch.slice(i, i + 50));
+      if (requestedType) {
+        const owner = await prisma.Users.findFirst({
+          where: { shop: session.shop },
+        });
+        const limit = Number(owner?.cardits) || 5; // same fallback the dashboard UI uses
+        const used = await prisma.audio.count({ where: { shop: session.shop } });
+        if (used >= limit) {
+          return json({
+            result: "pleaseTryAgain",
+            error: `You've reached your plan limit of ${limit} players. Upgrade to add more.`,
+          });
         }
+      }
 
-        let allFetchedFiles = [];
-        for (const chunk of chunks) {
-          const filesResponse = await admin.graphql(
-            `#graphql
-            query getFiles($id: ID!, $filenames: [String!]!) {
-              theme(id: $id) {
-                files(filenames: $filenames) {
-                  nodes {
-                    filename
-                    body {
-                      ... on OnlineStoreThemeFileBodyText {
-                        content
-                      }
-                    }
-                  }
-                }
-              }
-            }`,
-            {
-              variables: {
-                id: themeId,
-                filenames: chunk,
+      if (data?.split(",")?.[0]) {
+        let audio = {
+          shop: session?.shop,
+          title: "Single Audio Player",
+          url: "",
+          mainColor: "#00b3ff",
+          playerType: data?.split(",")?.[0],
+          screenOne: {
+            ...screens[0],
+            padding: "10px",
+            margin: "20px",
+            boxShadow: [
+              {
+                hOffset: "0px",
+                vOffset: "0px",
+                blur: 10,
+                spreed: 1,
+                color: "#ffbf75",
+                isInset: false,
               },
+            ],
+          },
+          screenTwo: {
+            ...screens[1],
+            padding: "10px",
+            margin: "20px",
+            image:
+              "https://cdn.shopify.com/s/files/1/0700/1758/1253/files/Screenshot_1.png?v=174652019000",
+            backgroundImage:
+              "https://cdn.shopify.com/s/files/1/0700/1758/1253/files/download_1.png?v=1745121132",
+          },
+          screenDefault: screens[2],
+          selectedScreen: "screenDefault",
+        };
+        if (data?.split(",")?.[0] === "playlist-audio") {
+          audio = {
+            ...audio,
+            title: "Playlist Audio Player",
+            audioPlayList: JSON.stringify([
+              {
+                id: 1,
+                title: "",
+                url: "",
+                poster:
+                  "https://placehold.co/500x500/15803d/fff/svg?text=Placeholder+Image\n+\nAudio+Player\nby+bPlugins&font=roboto",
+                artist: "Artist Name",
+                screen: "screenTwo",
+                content: "Feel this song",
+              },
+            ]),
+            screenOne: {
+              ...screens[0],
+              background: "#000000",
+              iconColor: "#ffffff",
+              width: "600px",
+              height: "100%",
+              padding: "20px",
+              iconSize: "24px",
             },
+            screenTwo: {
+              ...screens[1],
+              background: "#071739",
+              iconColor: "#0000000",
+              height: "100%",
+              boxShadow: [
+                {
+                  hOffset: "0px",
+                  vOffset: "0px",
+                  blur: 10,
+                  spreed: 1,
+                  color: "#071739",
+                  isInset: false,
+                },
+              ],
+            },
+            mainColor: "#00b3ff",
+            selectedScreen: "screenOne",
+          };
+        } else if (data?.split(",")?.[0] === "sticky-player") {
+          audio = {
+            ...audio,
+            selectedScreen: "screenOne",
+            title: "Sticky Audio Player",
+            screenOne: {
+              ...screens[0],
+              iconSize: "24px",
+              width: "100%",
+              image:
+                "http://apps.bplugins.com/wp-content/uploads/2026/01/download.png",
+              background: "#000000",
+              iconColor: "#ffffff",
+            },
+          };
+        } else if (data?.split(",")?.[0] === "sticky-single-button") {
+          audio = {
+            ...audio,
+            selectedScreen: "screenDefault",
+            title: "Single Button Audio Player",
+            screenDefault: {
+              ...screens[2],
+              iconSize: "24px",
+              boxShadow: [
+                {
+                  hOffset: "0px",
+                  vOffset: "0px",
+                  blur: 10,
+                  spreed: "0px",
+                  color: "#adadad",
+                  isInset: false,
+                },
+              ],
+              sbAlign: "bottom-left",
+              backgroundColor:
+                "linear-gradient(to bottom right, #B388FF, #FF8A80)",
+              textColor: "#FFFFFF",
+              selectedIconID: 6,
+              selectionType: "preset",
+              selectedPreset: 3,
+              messageShowDelay: "3px",
+              showMessage: true,
+            },
+          };
+        }
+        // Apply onboarding values if provided
+        if (ob_title) audio.title = ob_title;
+        if (ob_url) audio.url = ob_url;
+        if (ob_mainColor) audio.mainColor = ob_mainColor;
+        if (ob_loop !== null) {
+          audio.screenDefault = {
+            ...audio.screenDefault,
+            loop: ob_loop === "true",
+          };
+          if (audio.screenOne)
+            audio.screenOne = { ...audio.screenOne, loop: ob_loop === "true" };
+        }
+        if (ob_tracks && audio.playerType === "playlist-audio") {
+          const parsedTracks = JSON.parse(ob_tracks);
+          audio.audioPlayList = JSON.stringify(
+            parsedTracks.map((tr, i) => ({
+              id: i + 1,
+              title: tr.title || `Track ${i + 1}`,
+              url: tr.url || "",
+              poster:
+                "https://placehold.co/500x500/15803d/fff/svg?text=Placeholder+Image%0A%0AAudio+Player%0Aby+bPlugins&font=roboto",
+              artist: "Artist Name",
+              screen: "screenTwo",
+              content: "",
+            })),
           );
-
-          const filesData = await filesResponse.json();
-          const nodes = filesData?.data?.theme?.files?.nodes || [];
-          allFetchedFiles = [...allFetchedFiles, ...nodes];
+        }
+        if (ob_stickyPosition && audio.playerType === "sticky-player") {
+          audio.screenOne = { ...audio.screenOne, position: ob_stickyPosition };
+        }
+        if (ob_btnPosition && audio.playerType === "sticky-single-button") {
+          audio.screenDefault = {
+            ...audio.screenDefault,
+            sbAlign: ob_btnPosition,
+          };
+        }
+        if (ob_btnColor && audio.playerType === "sticky-single-button") {
+          audio.mainColor = ob_btnColor;
+        }
+        if (ob_imageUrl && audio.playerType === "sticky-player") {
+          audio.screenOne = { ...audio.screenOne, image: ob_imageUrl };
         }
 
-        const counts = {
-          product_video: 0,
-          video_player_block: 0,
-          video_player_by_bplugins: 0,
-        };
+        // Onboarding single-audio: use screenOne so the storefront renders
+        // the rich custom skin instead of the bare screenDefault Plyr player.
+        if (
+          audio.playerType === "single-audio" &&
+          body.get("preventRedirect") === "true"
+        ) {
+          audio.selectedScreen = "screenOne";
+        }
 
-        allFetchedFiles.forEach((file) => {
-          const content = file?.body?.content;
-          if (!content) return;
-
-          if (file.filename === "config/settings_data.json") {
-            try {
-              const settingsJson = JSON.parse(content);
-              const appEmbedBlock = Object.values(
-                settingsJson?.current?.blocks || {},
-              ).find(
-                (block) =>
-                  block.type ===
-                    "6b835701-24aa-464a-b23a-f9592b0522cc/app-embed" ||
-                  block.type ===
-                    "shopify://apps/video-player-by-bplugins/blocks/app-embed/6b835701-24aa-464a-b23a-f9592b0522cc",
-              );
-              appEmbed = appEmbedBlock && !appEmbedBlock.disabled;
-            } catch (e) {}
-            return;
-          }
-
-          try {
-            const parsed = JSON.parse(content);
-            const sections = parsed?.sections || {};
-            Object.values(sections).forEach((section) => {
-              const blocks = section?.blocks || {};
-              Object.values(blocks).forEach((block) => {
-                const type = block?.type || "";
-                if (type.includes("product_video")) counts.product_video++;
-                else if (type.includes("video_player_block"))
-                  counts.video_player_block++;
-                else if (
-                  type.includes("video_player_by_bplugins") &&
-                  !type.includes("_script")
-                )
-                  counts.video_player_by_bplugins++;
-              });
-            });
-          } catch (e) {}
+        createAudio = await prisma.audio.create({
+          data: audio,
         });
 
-        appBlockUsage = counts;
-      } else {
-        // Just fetch settings_data.json if no blocks supported
-        const filesResponse = await admin.graphql(
+        const audioCount = await prisma.audio.findMany({
+          where: { shop: session?.shop },
+        });
+
+        const shopResponse = await admin.graphql(
           `#graphql
-            query getFiles($id: ID!, $filenames: [String!]!) {
-              theme(id: $id) {
-                files(filenames: $filenames) {
-                  nodes {
-                    filename
-                    body {
-                      ... on OnlineStoreThemeFileBodyText {
-                        content
-                      }
-                    }
-                  }
-                }
+          query ShopDetails {
+            shop {
+              id
+              email
+              shopOwnerName
+              myshopifyDomain
+              primaryDomain { host }
+              billingAddress {
+                address1
+                address2
+                phone
+                country
               }
-            }`,
+              createdAt
+              plan { displayName }
+            }
+          }`,
+        );
+        const shopJson = await shopResponse.json();
+        const shopGql = shopJson?.data?.shop ?? {};
+
+        fetch(
+          "https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287",
           {
-            variables: {
-              id: themeId,
-              filenames: ["config/settings_data.json"],
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
             },
+            body: JSON.stringify([
+              {
+                type: `app.created_player_${Number(audioCount?.length) || 1}`,
+                app_name: "audio-player",
+                app_full_name: "Audio Player by bPlugins",
+                app_slug: "html5-audio-player",
+                success: true,
+                shop: session?.shop,
+                user_id: session?.id,
+                install_id: "",
+                data: {
+                  name: shopGql?.shopOwnerName || "",
+                  email: shopGql?.email || "",
+                  country_name: shopGql?.billingAddress?.country || "",
+                  address1: shopGql?.billingAddress?.address1 || "",
+                  address2: shopGql?.billingAddress?.address2 || "",
+                  phone: shopGql?.billingAddress?.phone || "",
+                  created_at: shopGql?.createdAt || "",
+                  domain: shopGql?.primaryDomain?.host || session?.shop,
+                  myshopify_domain: shopGql?.myshopifyDomain || "",
+                  plan_display_name: shopGql?.plan?.displayName || "",
+                },
+                id: session?.id,
+                created: new Date()
+                  .toISOString()
+                  .slice(0, 19)
+                  .replace("T", " "),
+                objects: {
+                  user: {
+                    email: shopGql?.email,
+                  },
+                },
+              },
+            ]),
           },
         );
-        const filesData = await filesResponse.json();
-        const file = filesData?.data?.theme?.files?.nodes?.[0];
-        if (file?.body?.content) {
-          try {
-            const settingsJson = JSON.parse(file.body.content);
-            const appEmbedBlock = Object.values(
-              settingsJson?.current?.blocks || {},
-            ).find(
-              (block) =>
-                block.type ===
-                  "6b835701-24aa-464a-b23a-f9592b0522cc/app-embed" ||
-                block.type ===
-                  "shopify://apps/video-player-by-bplugins/blocks/app-embed/6b835701-24aa-464a-b23a-f9592b0522cc",
-            );
-            appEmbed = appEmbedBlock && !appEmbedBlock.disabled;
-          } catch (e) {}
+
+        if (body.get("preventRedirect") === "true") {
+          return json({ success: true, id: createAudio?.id });
         }
+        return redirect(
+          `/app/customize/${createAudio?.id}/${data?.split(",")?.[0]}`,
+        );
       }
 
-      const tId = themeId.split("/").pop();
-      return {
-        themeId: tId,
-        appEmbed,
-        themeName: mainTheme.name,
-        themeSupportsAppBlocks,
-        appBlockUsage,
-      };
-    } catch (e) {
-      console.error("Error in checkAppBlockConfig:", e);
-      return {
-        themeId: null,
-        appEmbed: true,
-        themeName: null,
-        themeSupportsAppBlocks: true,
-        appBlockUsage: null,
-      };
-    }
-  };
+      return json({ result: "pleaseTryAgain" });
+    } else if (request.method === "DELETE") {
+      const audioIds = JSON.parse(body.get("audioList"));
+      const shop = session?.shop;
 
-  // Helper function to fetch files
-  async function fetchFilesByMediaType(mediaType) {
-    const query = `
-    #graphql
-    query FetchFiles {
-      files(reverse: true, first: 50, query:"${mediaType}") {
-        edges {
-          node {
-            id
-            alt
-            createdAt
-            preview {
-              image {
-                url(transform: {})
-                src
-              }
-            }
-            ... on GenericFile {
-              id
-              url
-              mimeType
-              alt
-              originalFileSize
-            }
-            ... on MediaImage {
-              id
-              preview {
-                image {
-                  src
-                }
-              }
-              mediaContentType
-            }
-            ... on ExternalVideo {
-              id
-              alt
-              createdAt
-              embedUrl
-              embeddedUrl
-              host
-              mediaContentType
-              originUrl
-            }
-            ... on Video {
-              id
-              mediaContentType
-              sources {
-                fileSize
-                url
-              }
-              preview {
-                image {
-                  src
-                }
-              }
-              sources {
-                fileSize
-                format
-                mimeType
-                url
-              }
-              filename
-              originalSource {
-                fileSize
-                mimeType
-              }
-            }
-          }
-        }
-        pageInfo {
-          hasPreviousPage
-          hasNextPage
-          endCursor
-          startCursor
-        }
+      if (audioIds?.length > 0) {
+        // Remove the players and any analytics collected for them.
+        const [result] = await prisma.$transaction([
+          prisma.audio.deleteMany({
+            where: { id: { in: audioIds }, shop },
+          }),
+          prisma.analytics.deleteMany({
+            where: { shop, audioId: { in: audioIds } },
+          }),
+        ]);
+        return json({ deleted: result.count });
+      } else {
+        const audioId = body.get("data");
+        // Scoped to the shop: a player id from another shop deletes nothing.
+        const [result] = await prisma.$transaction([
+          prisma.audio.deleteMany({
+            where: { id: audioId, shop },
+          }),
+          prisma.analytics.deleteMany({
+            where: { shop, audioId },
+          }),
+        ]);
+        return json({ deleted: result.count });
       }
     }
-  `;
-    const response = await admin.graphql(query);
-    const result = await response.json();
-    return {
-      files: result?.data?.files?.edges || [],
-      pageInfo: result?.data?.files?.pageInfo,
-    };
+  } catch (error) {
+    // Shown as the "Please try again" banner (or the onboarding error toast)
+    // instead of replacing the whole Dashboard with an error page.
+    console.error("Dashboard action failed:", error);
+    return json({ result: "pleaseTryAgain" }, { status: 500 });
   }
-
-  // Only Onboarding reads the Shopify file lists, and it only mounts when the
-  // store has no players yet (see Dashboard.jsx). So for every established
-  // store these two Admin API round trips can be skipped outright rather than
-  // waited on in the blocking path.
-  const filesPromise = videosPromise.then((vids) =>
-    (vids?.length || 0) > 0
-      ? [null, null]
-      : Promise.all([
-          fetchFilesByMediaType("media_type:Video OR media_type:ExternalVideo"),
-          fetchFilesByMediaType("media_type:Image"),
-        ]),
-  );
-
-  const configPromise = (async () => {
-    const hit = configCache.get(shop);
-    if (hit && Date.now() - hit.at < CONFIG_TTL_MS) return hit.config;
-    const cfg = await checkAppBlockConfig();
-    configCache.set(shop, { config: cfg, at: Date.now() });
-    return cfg;
-  })();
-
-  const [user, videos, config, allPlans, files, subscription] =
-    await Promise.all([
-      timed(marks, "user (mongo)", userPromise),
-      timed(marks, "videos (mongo)", videosPromise),
-      timed(
-        marks,
-        "4. app-block config (4 REST hops, cached 60s)",
-        configPromise,
-      ),
-      timed(marks, "plans (mongo)", plansPromise),
-      timed(
-        marks,
-        "5. shopify files (skipped if store has players)",
-        filesPromise,
-      ),
-      timed(marks, "6. subscription (REST)", subscriptionPromise),
-    ]);
-
-  const [videoFilesData, imageFilesData] = files;
-
-  if (TIMINGS) {
-    const total = Date.now() - loaderStart;
-    const rows = Object.entries(marks)
-      .sort((a, b) => (parseInt(b[1]) || 0) - (parseInt(a[1]) || 0))
-      .map(([step, ms]) => ({ step, ms }));
-    console.log(
-      `\n\u2500\u2500 /app loader: ${total}ms total \u2500\u2500 (slowest first)`,
-    );
-    console.table(rows);
-    console.log("This total is your TTFB. LCP cannot be faster than it.\n");
-  }
-
-  return defer({
-    shop,
-    apiKey: process.env.SHOPIFY_API_KEY,
-    user: user || {},
-    videos: videos || [],
-    themeId: config.themeId,
-    appEmbed: config.appEmbed,
-    themeName: config.themeName,
-    themeSupportsAppBlocks: config.themeSupportsAppBlocks,
-    appBlockUsage: config.appBlockUsage,
-    allPlans: allPlans || [],
-    subscription,
-    // Streamed: the dashboard renders without these and fills them in.
-    analytics: analyticsPromise,
-    topPlayer: topPlayerPromise,
-    allFiles: [
-      ...(videoFilesData?.files || []),
-      ...(imageFilesData?.files || []),
-    ],
-    videoFiles: videoFilesData?.files || [],
-    imageFiles: imageFilesData?.files || [],
-    pageInfoVideo: videoFilesData?.pageInfo,
-    pageInfoImage: imageFilesData?.pageInfo,
-  });
 };
 
 export default function Index() {
-  const loaderData = useLoaderData();
+  const openSupport = useSupport();
+  const nav = useNavigation();
   const navigate = useNavigate();
-  const apiKey = loaderData?.apiKey;
+  const actionData = useActionData();
+  const loaderData = useLoaderData();
+  const isLoading =
+    (["loading", "submitting"].includes(nav.state) &&
+      nav.formMethod === "POST") ||
+    nav.formMethod === "PUT" ||
+    nav.formMethod === "DELETE";
 
   return (
-    <Page>
-      <ui-title-bar title="Dashboard">
-        <button onClick={() => navigate("/app/videos")} variant="primary">
-          Manage Video
+    <s-page inlineSize="large">
+      <ui-title-bar title="Audio Player by bPlugins">
+        <button onClick={() => openSupport()}>Support</button>
+        <button onClick={() => navigate("/app/audios")} variant="primary">
+          Manage Players
         </button>
       </ui-title-bar>
-      {/* Server-rendered: the dashboard paints with the HTML instead of waiting
-          for the client bundle to download and hydrate. The one part that needs
-          App Bridge at render time (Onboarding) is wrapped in ClientOnly inside
-          Dashboard itself. */}
-      <Dashboard loaderData={loaderData} apiKey={apiKey} />
-    </Page>
+      <s-stack gap="base">
+        {/* A failed create/delete keeps the Dashboard on screen. */}
+        {actionData?.result === "pleaseTryAgain" ? (
+          <s-banner tone="critical" heading="That didn't work">
+            <s-stack gap="small">
+              <s-paragraph>
+                Your change wasn't saved. Please try again — if it keeps
+                happening, contact support.
+              </s-paragraph>
+              <s-stack direction="inline">
+                <s-button onClick={() => openSupport()}>
+                  Contact support
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-banner>
+        ) : null}
+        <Dashboard
+          loaderData={loaderData}
+          apiKey={loaderData.apiKey}
+          isLoading={isLoading}
+        />
+      </s-stack>
+    </s-page>
   );
 }

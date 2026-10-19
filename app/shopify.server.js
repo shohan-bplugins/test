@@ -4,13 +4,9 @@ import {
   DeliveryMethod,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
-import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
+import { ExpiringOfflineTokenStorage } from "./lib/expiring-token-storage.server";
 import prisma from "./db.server";
-import axios from "axios";
-
-// Literal rather than the ApiVersion enum: @shopify/shopify-api 11.6.0 only
-// enumerates up to 2024-10, so the latest versions have no enum member yet.
-const API_VERSION = "2026-07";
+import { API_VERSION } from "./lib/api-version";
 
 function getFormattedDateTime() {
   const now = new Date();
@@ -29,43 +25,70 @@ function getFormattedDateTime() {
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  // A plain version string, not the ApiVersion enum: an enum member is
+  // undefined on an install whose library predates that version, which
+  // crashes startup ("Missing values for: apiVersion").
   apiVersion: API_VERSION,
-  scopes: process.env.SCOPES?.split(","),
+  scopes: process.env.SCOPES?.split(",") || [],
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  // Also migrates shops still on a deprecated non-expiring offline token.
+  sessionStorage: new ExpiringOfflineTokenStorage(prisma, {
+    apiKey: process.env.SHOPIFY_API_KEY,
+    apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  }),
   distribution: AppDistribution.AppStore,
+  isEmbeddedApp: true,
   webhooks: {
     APP_UNINSTALLED: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/app/uninstalled",
-      callback: async (_topic, shop, _body) => {},
     },
     APP_SUBSCRIPTIONS_UPDATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/app/subscriptionsUpdate",
-      callback: async (_topic, shop, _body) => {console.log("Subscription Update")},
     },
-    APP_INSTALLED: {
-    deliveryMethod: DeliveryMethod.Http,
-    callbackUrl: "/webhooks/app/installed",
-    callback: async (_topic, shop, _body) => {},
+    CUSTOMERS_DATA_REQUEST: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/compliance",
+    },
+    CUSTOMERS_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/compliance",
+    },
+    SHOP_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/compliance",
+    },
   },
-  },
+
   hooks: {
     afterAuth: async ({ session, admin }) => {
       try {
-        const response = await axios.get(
-          `https://${session?.shop}/admin/api/2026-07/shop.json`,
-          {
-            headers: {
-              "X-Shopify-Access-Token": session?.accessToken,
-              "Content-Type": "application/json",
-            },
-          },
+        const response = await admin.graphql(
+          `#graphql
+          query ShopDetails {
+            shop {
+              id
+              name
+              email
+              shopOwnerName
+              myshopifyDomain
+              primaryDomain { host }
+              billingAddress {
+                address1
+                address2
+                phone
+                country
+              }
+              createdAt
+              plan { displayName }
+            }
+          }`,
         );
 
-        const shopData = response.data.shop;
+        const { data } = await response.json();
+        const shopData = data?.shop;
 
         await fetch(
           "https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287",
@@ -78,24 +101,24 @@ const shopify = shopifyApp({
             body: JSON.stringify([
               {
                 type: "app.installed",
-                app_name: "video-player",
-                app_full_name: "Video Player by bPlugins",
-                app_slug: "video-player-by-bplugins",
+                app_name: "audio-player",
+                app_full_name: "Audio Player by bPlugins",
+                app_slug: "html5-audio-player",
                 success: true,
                 shop: session?.shop,
                 user_id: session?.id,
                 install_id: shopData?.id,
                 data: {
-                  name: shopData?.shop_owner,
+                  name: shopData?.shopOwnerName,
                   email: shopData?.email,
-                  country_name: shopData?.country_name,
-                  address1: shopData?.address1,
-                  address2: shopData?.address2,
-                  phone: shopData?.phone,
-                  created_at: shopData?.created_at,
-                  domain: shopData?.domain,
-                  myshopify_domain: shopData?.myshopify_domain,
-                  plan_display_name: shopData?.plan_display_name,
+                  country_name: shopData?.billingAddress?.country,
+                  address1: shopData?.billingAddress?.address1,
+                  address2: shopData?.billingAddress?.address2,
+                  phone: shopData?.billingAddress?.phone,
+                  created_at: shopData?.createdAt,
+                  domain: shopData?.primaryDomain?.host,
+                  myshopify_domain: shopData?.myshopifyDomain,
+                  plan_display_name: shopData?.plan?.displayName,
                 },
                 id: session?.id,
                 created: getFormattedDateTime(),
@@ -116,21 +139,21 @@ const shopify = shopifyApp({
       }
     },
   },
+
   future: {
     unstable_newEmbeddedAuthStrategy: true,
-    // Offline tokens now expire after 1h and carry a refresh token. Required
-    // for public apps from 2027-01-01; needs shopify-app-remix >= 4.1.0 and
-    // session-storage-prisma >= 8.0.0 to persist the refresh token.
+    // New offline tokens expire and are refreshed automatically (non-expiring
+    // ones are deprecated; required by January 1, 2027).
     expiringOfflineAccessTokens: true,
   },
+
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
 });
 
-
-
 export default shopify;
+export { API_VERSION } from "./lib/api-version";
 export const apiVersion = API_VERSION;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;

@@ -1,115 +1,138 @@
-import { authenticate } from "../shopify.server";
-import { syncSubscriptionState } from "../utils/planSync.server";
+import { authenticate, unauthenticated } from "../shopify.server";
+import { syncPlanWithShopify } from "../lib/billing.server";
+
+const SWIPEONE_ENDPOINT =
+  "https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287";
+
+// Look up shop details and forward the subscription event to SwipeOne.
+// This runs AFTER the webhook has already been acknowledged: the shop lookup
+// needs an offline session that may be gone (a subscription event can arrive
+// around an uninstall or a token change), and neither that nor a SwipeOne
+// outage is something Shopify retrying the delivery would fix.
+async function forwardToSwipeOne({ shop, session, payload }) {
+  let shopData = {};
+
+  if (shop) {
+    try {
+      const { admin } = await unauthenticated.admin(shop);
+      const response = await admin.graphql(
+        `#graphql
+        query ShopDetails {
+          shop {
+            id
+            name
+            email
+            shopOwnerName
+            myshopifyDomain
+            primaryDomain { host }
+            billingAddress {
+              address1
+              address2
+              phone
+              country
+            }
+            createdAt
+            plan { displayName }
+          }
+        }`,
+      );
+
+      const json = await response.json();
+      shopData = json?.data?.shop ?? {};
+    } catch (err) {
+      // No usable session for this shop — forward what the payload gives us
+      // rather than dropping the event entirely.
+      console.error(
+        `Subscription update: shop lookup failed for ${shop}:`,
+        err?.message || err,
+      );
+    }
+  }
+
+  const response = await fetch(SWIPEONE_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([
+      {
+        type: (
+          "app.subscription_" + payload?.app_subscription?.status
+        ).toLowerCase(),
+        app_name: "audio-player",
+        app_full_name: "Audio Player by bPlugins",
+        app_slug: "html5-audio-player",
+        success: true,
+        shop,
+        user_id: session?.id,
+        install_id: "",
+        data: {
+          name: shopData?.shopOwnerName || "",
+          email: shopData?.email || "",
+          country_name: shopData?.billingAddress?.country || "",
+          address1: shopData?.billingAddress?.address1 || "",
+          address2: shopData?.billingAddress?.address2 || "",
+          phone: shopData?.billingAddress?.phone || "",
+          created_at: shopData?.createdAt || "",
+          domain: shopData?.primaryDomain?.host || shop,
+          myshopify_domain: shopData?.myshopifyDomain || "",
+          plan_display_name: shopData?.plan?.displayName || "",
+          ...payload,
+        },
+        id: session?.id,
+        created: new Date().toISOString().slice(0, 19).replace("T", " "),
+        objects: {
+          user: {
+            email: payload?.email || "",
+          },
+        },
+      },
+    ]),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `SwipeOne returned ${response.status} ${response.statusText}`,
+    );
+  }
+}
+
+async function syncPlanFromWebhook(shop) {
+  if (!shop) return;
+  const { admin } = await unauthenticated.admin(shop);
+  await syncPlanWithShopify(admin, shop);
+}
 
 export const action = async ({ request }) => {
-  const { shop, session, payload } = await authenticate.webhook(request);
-
-  function getFormattedDateTime() {
-    const now = new Date();
-    const pad = (n) => n.toString().padStart(2, "0");
-
-    const year = now.getFullYear();
-    const month = pad(now.getMonth() + 1); // Months are 0-indexed
-    const day = pad(now.getDate());
-    const hours = pad(now.getHours());
-    const minutes = pad(now.getMinutes());
-    const seconds = pad(now.getSeconds());
-
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  }
-
-  const subscription = payload?.app_subscription;
-
-  // The database write comes first and stands on its own. This webhook is the
-  // ONLY signal the app gets when a merchant cancels from the Shopify admin, or
-  // when a subscription is frozen, declined or expires — so if it does not land
-  // here, the shop keeps its paid credits forever. It used to run after an
-  // unguarded `fetch` for shop.json that threw on any non-2xx, which meant a
-  // transient Shopify error skipped the plan update entirely.
-  let synced = { applied: false, reason: "no-payload" };
+  let hook;
   try {
-    synced = await syncSubscriptionState({
-      shop,
-      status: subscription?.status,
-      planName: subscription?.name,
-      chargeId: subscription?.admin_graphql_api_id,
-      occurredAt: subscription?.updated_at,
-    });
-    console.log(
-      `app_subscriptions/update ${shop} ${subscription?.status}:`,
-      synced,
-    );
+    hook = await authenticate.webhook(request);
   } catch (err) {
-    // Returning 500 makes Shopify retry, and syncSubscriptionState is
-    // idempotent — replaying the same status produces the same rows.
-    console.error(`❌ Failed to sync plan for ${shop}:`, err);
-    return new Response("Plan sync failed", { status: 500 });
+    // The library throws a Response (401) for a failed HMAC check — pass it
+    // through so Shopify gets the status it expects and stops retrying.
+    if (err instanceof Response) return err;
+    console.error("Subscription update webhook auth failed:", err);
+    return new Response("Unauthorized", { status: 401 });
   }
 
-  // Analytics forwarding is best-effort and must never fail the webhook now
-  // that the plan update above depends on it returning 200.
-  try {
-    const response = await fetch(
-      `https://${shop}/admin/api/2026-07/shop.json`,
-      {
-        method: "GET",
-        headers: {
-          "X-Shopify-Access-Token": session?.accessToken,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+  // Acknowledge before doing any slow work. Shopify counts a slow or failed
+  // reply as a failed delivery, and everything below is best-effort reporting
+  // that must not affect our delivery record.
+  forwardToSwipeOne(hook).catch((err) =>
+    console.error(
+      "Subscription update: SwipeOne forward failed:",
+      err?.message || err,
+    ),
+  );
 
-    const data = response.ok ? await response.json() : {};
-    if (!response.ok) {
-      console.error("Shopify Error:", await response.text());
-    }
-
-    await fetch(
-      "https://integrations-api.swipeone.com/webhooks/apps/generic-webhooks/68f1d267d1a678d9726d5287",
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify([
-          {
-            type: ("app.subscription_" + subscription?.status).toLowerCase(),
-            app_name: "video-player",
-            app_full_name: "Video Player by bPlugins",
-            app_slug: "video-player-by-bplugins",
-            success: true,
-            shop,
-            user_id: session?.id,
-            install_id: "",
-            data: {
-              name: data?.shop?.shop_owner || "",
-              email: data?.shop?.email || "",
-              country_name: data?.shop?.country_name || "",
-              address1: data?.shop?.address1 || "",
-              address2: data?.shop?.address2 || "",
-              phone: data?.shop?.phone || "",
-              created_at: data?.shop?.created_at || "",
-              domain: data?.shop?.domain || shop,
-              myshopify_domain: data?.shop?.myshopify_domain || "",
-              plan_display_name: data?.shop?.plan_display_name || "",
-              ...payload,
-            },
-            id: session?.id,
-            created: getFormattedDateTime(),
-            objects: {
-              user: {
-                email: payload?.email || "",
-              },
-            },
-          },
-        ]),
-      },
-    );
-  } catch (err) {
-    console.error("SwipeOne subscription notification failed:", err);
-  }
+  // Keep the stored plan in line with Shopify: activated → paid plan;
+  // cancelled / declined / expired / frozen → Free. The sync reads the shop's
+  // real active subscriptions, so a declined *new* upgrade doesn't touch a
+  // plan the shop is already paying for.
+  syncPlanFromWebhook(hook?.shop).catch((err) =>
+    console.error("Subscription update: plan sync failed:", err?.message || err),
+  );
 
   return new Response("OK", { status: 200 });
 };

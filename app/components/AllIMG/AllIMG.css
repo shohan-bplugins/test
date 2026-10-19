@@ -1,0 +1,35 @@
+.fileCardItemImage {
+    display: block;
+    position: relative;
+    overflow: hidden;
+}
+
+.fileCardItemImage__processing {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1;
+}
+
+.fileCardItemImage .is-hidden {
+    opacity: 0;
+}
+
+/* Preview button shows on hover, and stays while that image is previewed. */
+.fileCardItemImage .button {
+    position: absolute;
+    right: 12px;
+    bottom: 36px;
+    display: none;
+}
+
+.fileCardItemImage:hover .button,
+.fileCardItemImage .button.is-active {
+    display: block;
+}
+
+.fileCardItemListImage {
+    display: block;
+}

@@ -45,10 +45,9 @@
   --app-danger: #d72c0d;
   --app-danger-bg: #fef0ee;
   --app-danger-border: #f5c6c0;
-  /* Mirrors --app-primary-shadow: the same RGB as --app-danger at 0.12 alpha.
-     Referenced by .modern-btn.danger:hover in styles.css, which had no fallback,
-     so the hover shadow silently resolved to nothing. */
-  --app-danger-shadow: rgba(215, 44, 13, 0.12);
+
+  /* ---- Warning ---- */
+  --app-warning: #f2c94c;
 
   /* ---- Link ---- */
   --app-link: #1a8d5a;

@@ -1,59 +1,80 @@
-/**
- * NumberUnit — a number paired with a unit (12 + "px").
- *
- * Built from <s-number-field> + <s-select>, replacing an <input type=number>
- * welded to a Polaris <Select> by negative margins and border-radius surgery.
- *
- * Two bugs from the previous version are gone:
- *
- *   • `value.match(/[a-z%]+/i)[0]` threw on a unitless value ("12"), because
- *     `.match()` returns null. The unit now falls back to the first option.
- *   • the value was mirrored into local state and pushed back out through an
- *     effect on mount, so simply rendering the control reported a change and
- *     marked the customizer dirty. It is now derived straight from props.
- */
-const UNIT_PATTERN = /[a-z%]+/i;
+import React, { useEffect } from "react";
+import { WebNumberField, WebSelect } from "../PolarisWeb/fields";
 
+const isMissing = (value) =>
+  value === undefined ||
+  value === null ||
+  value === "" ||
+  !Number.isFinite(parseFloat(value));
+
+const splitValue = (value, fallbackUnit = "px") => {
+  const str = String(value ?? "");
+  const number = parseFloat(str);
+  return {
+    number: Number.isFinite(number) ? number : 0,
+    // Unit = trailing letters/% after the number (e.g. "12px" -> "px").
+    unit: str.match(/\d\s*([a-z%]+)\s*$/i)?.[1] || fallbackUnit,
+  };
+};
+
+// Number + unit picker. Value in and out is a CSS length string ("12px").
 const NumberUnit = ({
   label,
   options = [],
-  value,
+  value = "0px",
   onChange,
-  max = 1500,
-  min = -100,
+  min = 0,
+  max = 1000,
+  details = "",
+  isProFeature = false,
+  isProUser = true,
 }) => {
-  const unit = value?.match(UNIT_PATTERN)?.[0] ?? options[0]?.value ?? "px";
-  const parsed = Number.parseInt(value, 10);
-  const amount = Number.isNaN(parsed) ? 0 : parsed;
+  const locked = isProFeature && !isProUser;
+  const fallbackUnit = options.some((o) => o.value === "px")
+    ? "px"
+    : options[0]?.value || "px";
+  const { number, unit } = splitValue(value, fallbackUnit);
 
-  const emit = (nextAmount, nextUnit) => onChange(`${nextAmount}${nextUnit}`);
+  // A missing value reports a real "0<unit>" once, so the preview CSS never
+  // gets "undefined" (the previous control did this on every mount).
+  useEffect(() => {
+    if (isMissing(value)) onChange?.(`0${fallbackUnit}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <s-grid gridTemplateColumns="1fr auto" gap="small-100" alignItems="end">
-      <s-number-field
-        label={label}
-        value={String(amount)}
-        min={min}
-        max={max}
-        onInput={(event) => {
-          // s-number-field reports a string, and "" while the field is empty.
-          const next = Number.parseInt(event.target.value, 10);
-          emit(Number.isNaN(next) ? 0 : next, unit);
-        }}
-      />
-      <s-select
-        label="Unit"
-        labelAccessibilityVisibility="exclusive"
-        value={unit}
-        onChange={(event) => emit(amount, event.target.value)}
-      >
-        {options.map((option) => (
-          <s-option key={option.value} value={option.value}>
-            {option.label}
-          </s-option>
-        ))}
-      </s-select>
-    </s-grid>
+    <s-stack gap="small-300">
+      <s-stack direction="inline" gap="small-200" alignItems="center">
+        <s-text>{label}</s-text>
+        {locked ? <s-badge tone="success">PRO</s-badge> : null}
+      </s-stack>
+      <s-grid gridTemplateColumns="minmax(0, 1fr) auto" gap="small-200">
+        <WebNumberField
+          label={label}
+          labelAccessibilityVisibility="exclusive"
+          value={String(number)}
+          min={min || 0}
+          max={max}
+          disabled={locked || undefined}
+          onChange={(v) => {
+            const n = parseFloat(v);
+            if (!Number.isNaN(n) && n >= (min || 0)) onChange?.(`${n}${unit}`);
+          }}
+        />
+        {options.length ? (
+          <WebSelect
+            label={`${label} unit`}
+            labelAccessibilityVisibility="exclusive"
+            value={unit}
+            options={options}
+            disabled={locked || undefined}
+            onChange={(u) => onChange?.(`${number}${u}`)}
+          />
+        ) : null}
+      </s-grid>
+      {/* Help text under the row keeps the number and unit fields aligned. */}
+      {details ? <s-text color="subdued">{details}</s-text> : null}
+    </s-stack>
   );
 };
 
