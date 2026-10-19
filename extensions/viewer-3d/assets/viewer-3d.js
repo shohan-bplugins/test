@@ -2602,12 +2602,19 @@
     card.setAttribute('role', 'dialog');
     card.setAttribute('aria-label', h.title);
 
-    // The blocks in the merchant's order (hsBlockOrder); the CSS spaces them
-    // whatever the order.
+    // The title always leads; below it, the blocks in the merchant's order
+    // (hsBlockOrder). The CSS spaces them whatever the order.
+    var title = document.createElement('div');
+    title.className = 'e3d-hotspot-title';
+    title.textContent = h.title;
+    card.appendChild(title);
     hsBlockOrder(h).forEach(function (block) {
       if (block === 'image' && h.image) card.appendChild(buildHsImage(h.image));
       else if (block === 'video' && h.video) card.appendChild(buildHsVideo(h.video));
-      else if (block === 'text') card.appendChild(buildHsText(h));
+      else if (block === 'text') {
+        var text = buildHsText(h);
+        if (text) card.appendChild(text);
+      }
       else if (block === 'product' && h.product) card.appendChild(buildHsProduct(h.product));
     });
     // view3d cancels wheel events on the whole annotation (so scrolling over
@@ -2619,14 +2626,11 @@
     return el;
   }
 
-  // Title, description and link: the card's text, kept together.
+  // Description and link, kept together; null when the hotspot has neither.
   function buildHsText(h) {
+    if (!h.description && !h.linkUrl) return null;
     var box = document.createElement('div');
     box.className = 'e3d-hotspot-body';
-    var title = document.createElement('div');
-    title.className = 'e3d-hotspot-title';
-    title.textContent = h.title;
-    box.appendChild(title);
     if (h.description) {
       var body = document.createElement('div');
       body.className = 'e3d-hotspot-text';

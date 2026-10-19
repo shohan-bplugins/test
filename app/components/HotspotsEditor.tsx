@@ -268,20 +268,19 @@ export function HotspotsEditor({
 
               {open ? (
                 <div className="hs-form">
+                  {/* Always the top of the card, so not among the blocks. */}
+                  <s-text-field
+                    label="Title"
+                    value={h.title}
+                    maxLength={MAX_TITLE}
+                    onInput={(e) => update(h.id, { title: fieldValue(e) })}
+                  />
                   <HotspotExtras
                     hotspot={h}
                     update={(patch) => update(h.id, patch)}
                     onChooseMedia={(type) => setPicker({ id: h.id, type })}
                     text={
                       <>
-                        <s-text-field
-                          label="Title"
-                          value={h.title}
-                          maxLength={MAX_TITLE}
-                          onInput={(e) =>
-                            update(h.id, { title: fieldValue(e) })
-                          }
-                        />
                         <s-text-area
                           label="Description"
                           rows={3}
@@ -424,8 +423,9 @@ export function HotspotsEditor({
 }
 
 /**
- * The card's content, one block each: the text (title, description, link),
- * an image, a video, and a product with Add to cart / Buy now. The blocks are
+ * The card's content below its title (which always leads): one block each
+ * for the text (description and link), an image, a video, and a product with
+ * Add to cart / Buy now. The blocks are
  * listed in the order the shopper's card shows them, and that order is
  * changed right here — drag a block by its header, or use its arrows
  * (keyboard and touch, where drag and drop does not work). Image, video and
@@ -440,7 +440,7 @@ function HotspotExtras({
   hotspot: Hotspot;
   update: (patch: Partial<Hotspot>) => void;
   onChooseMedia: (type: "image" | "video") => void;
-  /** The text block's fields, built by the list above. */
+  /** The text block's fields (description and link), built by the list above. */
   text: ReactNode;
 }) {
   const shopify = useAppBridge();
@@ -691,7 +691,7 @@ function HotspotExtras({
   return (
     <div className="hs-extras">
       <s-text color="subdued">
-        Drag a block by its ⠿ handle to change where it shows in the card.
+        Drag a block by its ⠿ handle to change where it shows in the card. The title always stays on top.
       </s-text>
       {order.map((b, i) => (
         <div
@@ -770,7 +770,7 @@ function HotspotExtras({
 const BLOCK_NAMES: Record<HotspotBlock, string> = {
   image: "Image",
   video: "Video",
-  text: "Text",
+  text: "Description",
   product: "Product",
 };
 

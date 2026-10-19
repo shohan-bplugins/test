@@ -87,8 +87,8 @@ export type Hotspot = {
   order?: HotspotBlock[];
 };
 
-/** The parts of a hotspot's card that can be reordered. Text is the title,
- * description and link together. */
+/** The parts of a hotspot's card that can be reordered, below its title
+ * (always first). Text is the description and link together. */
 export const HOTSPOT_BLOCKS = ["image", "video", "text", "product"] as const;
 export type HotspotBlock = (typeof HOTSPOT_BLOCKS)[number];
 
@@ -366,12 +366,20 @@ export function buildHotspotElement(
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", h.title);
 
-  // The blocks in the merchant's order (hotspotBlockOrder); spacing between
-  // them comes from the CSS, whatever the order.
+  // The title always leads; below it, the blocks in the merchant's order
+  // (hotspotBlockOrder). Spacing between them comes from the CSS, whatever
+  // the order.
+  const title = document.createElement("div");
+  title.className = "e3d-hotspot-title";
+  title.textContent = h.title;
+  card.appendChild(title);
   for (const block of hotspotBlockOrder(h)) {
     if (block === "image" && h.image) card.appendChild(buildImage(h.image));
     else if (block === "video" && h.video) card.appendChild(buildVideo(h.video));
-    else if (block === "text") card.appendChild(buildText(h));
+    else if (block === "text") {
+      const text = buildText(h);
+      if (text) card.appendChild(text);
+    }
     else if (block === "product" && h.product) {
       card.appendChild(buildProduct(h.product, onPreviewCommerce));
     }
@@ -495,15 +503,12 @@ export function resetViewOnHotspotClose(view3d: any): () => void {
   };
 }
 
-/** Title, description and link: the card's text, kept together. */
-function buildText(h: Hotspot): HTMLElement {
+/** Description and link, kept together; null when the hotspot has neither. */
+function buildText(h: Hotspot): HTMLElement | null {
+  const url = safeHotspotUrl(h.linkUrl);
+  if (!h.description && !url) return null;
   const box = document.createElement("div");
   box.className = "e3d-hotspot-body";
-
-  const title = document.createElement("div");
-  title.className = "e3d-hotspot-title";
-  title.textContent = h.title;
-  box.appendChild(title);
 
   if (h.description) {
     const body = document.createElement("div");
@@ -512,7 +517,6 @@ function buildText(h: Hotspot): HTMLElement {
     box.appendChild(body);
   }
 
-  const url = safeHotspotUrl(h.linkUrl);
   if (url) {
     const a = document.createElement("a");
     a.className = "e3d-hotspot-link";

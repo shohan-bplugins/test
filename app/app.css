@@ -590,11 +590,16 @@
 .e3d-hotspot-card > * + .e3d-hotspot-product {
   margin-top: 12px;
 }
-/* A product leading the card needs no divider above it. */
-.e3d-hotspot-card > .e3d-hotspot-product:first-child {
-  margin-top: 0;
+/* A product right under the title needs no divider between them. */
+.e3d-hotspot-card > .e3d-hotspot-title + .e3d-hotspot-product {
+  margin-top: 10px;
   padding-top: 0;
   border-top: 0;
+}
+
+/* The title leads every card; its description sits close under it. */
+.e3d-hotspot-card > .e3d-hotspot-title + .e3d-hotspot-body {
+  margin-top: 0;
 }
 
 .e3d-hotspot-product-row {
