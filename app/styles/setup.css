@@ -1,0 +1,184 @@
+/* Setup page styles.
+
+   Previously injected from a <style>{`...`}</style> block inside the JSX, which
+   re-declared the whole sheet on every render. Scoped to this route. */
+.su-layout { display: grid; grid-template-columns: 232px 1fr; gap: 16px; margin-top: 16px; align-items: start; }
+@media (max-width: 860px) { .su-layout { grid-template-columns: 1fr; } }
+.su-tabs {
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 12px; padding: 6px; position: sticky; top: 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+@media (max-width: 860px) { .su-tabs { position: static; flex-direction: row; flex-wrap: wrap; } }
+.su-tab {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; text-align: left; font: inherit; font-size: 13px; font-weight: 550;
+  padding: 9px 11px; border: 0; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--app-text-secondary, #6d7175);
+  transition: background .15s ease, color .15s ease, transform .15s ease, padding-left .2s cubic-bezier(.2,.8,.2,1);
+}
+.su-tab:hover,
+.su-tab-host:hover .su-tab { background: var(--app-bg-subtle, #fafbfb); color: var(--app-text-primary, #202223); }
+.su-tab { position: relative; }
+.su-tab::before {
+  content: ""; position: absolute; left: 3px; top: 50%;
+  width: 3px; height: 0; border-radius: 2px; transform: translateY(-50%);
+  background: var(--app-primary, #1a8d5a);
+  transition: height .22s cubic-bezier(.2,.8,.2,1);
+}
+.su-tab:hover:not(.active),
+.su-tab-host:hover .su-tab:not(.active) { transform: translateX(1px); }
+.su-tab.active {
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a); font-weight: 650;
+  padding-left: 15px;
+}
+.su-tab.active::before { height: 18px; }
+@media (prefers-reduced-motion: reduce) {
+  .su-panel, .su-panel > * { animation: none; }
+  .su-tab, .su-tab::before { transition: none; }
+  .su-tab:hover:not(.active) { transform: none; }
+}
+.su-tab-note {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 999px;
+  background: var(--app-primary, #1a8d5a); color: #fff;
+}
+.su-panel {
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 12px; padding: 20px;
+  /* Replays on every tab change, because the panel is keyed on the
+     active tab id — so switching reads as a deliberate move rather
+     than a hard content swap. */
+  animation: suPanelIn .24s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes suPanelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Stagger the first few blocks so the eye lands on the heading first. */
+.su-panel > * { animation: suFadeUp .28s cubic-bezier(.2,.8,.2,1) both; }
+.su-panel > *:nth-child(1) { animation-delay: .02s; }
+.su-panel > *:nth-child(2) { animation-delay: .06s; }
+.su-panel > *:nth-child(3) { animation-delay: .10s; }
+@keyframes suFadeUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.su-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.su-head-action { margin-inline-start: auto; }
+.su-title { font-size: 16px; font-weight: 650; color: var(--app-text-primary, #202223); margin: 0; }
+.su-lede { font-size: 13.5px; line-height: 1.6; color: var(--app-text-secondary, #6d7175); margin: 0 0 12px; }
+.su-lede b, .su-list b { color: var(--app-text-primary, #202223); }
+.su-steps { margin: 0 0 12px; padding-left: 20px; font-size: 13px; line-height: 1.8; color: var(--app-text-secondary, #6d7175); }
+.su-list { margin: 10px 0 0; padding-left: 20px; font-size: 12.5px; line-height: 1.7; color: var(--app-text-secondary, #6d7175); }
+.su-snippet { margin-top: 10px; border: 1px solid var(--app-border, #e1e3e5); border-radius: 10px; overflow: hidden; }
+.su-snippet-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 10px; background: var(--app-bg-subtle, #fafbfb);
+  border-bottom: 1px solid var(--app-border, #e1e3e5);
+}
+.su-snippet-label { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--app-text-secondary, #6d7175); }
+.su-code { margin: 0; padding: 12px 14px; background: #1c2226; color: #e8ecef; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+code { background: var(--app-bg-muted, #f1f2f4); padding: 1px 5px; border-radius: 4px; font-size: 12px; color: var(--app-text-primary, #202223); }
+.su-picker { margin-bottom: 6px; }
+/* s-grid defaults to `display: contents`, which has no box — so the margin
+   above would be dropped on the floor. `block` gives the host a box for it;
+   the columns still come from s-grid's own shadow grid. */
+s-grid.su-picker { display: block; }
+.su-invalid { margin: 6px 0 0; font-size: 12px; color: var(--app-danger, #d72c0d); }
+.su-note {
+  margin-top: 12px; padding: 11px 13px; border-radius: 10px;
+  background: var(--app-primary-bg, #eef9f3);
+  border: 1px solid var(--app-primary-border, #a3d9bc);
+  font-size: 12.5px; line-height: 1.55; color: var(--app-text-dark, #44474a);
+}
+.su-note b { color: var(--app-text-primary, #202223); }
+/* 16:9 frame for the tutorial modal. */
+.su-video { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
+.su-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* ── Hosts that are now custom elements ─────────────────────────────────
+   s-stack / s-box / s-heading / s-paragraph are not block-level by default, so
+   any class moved onto one must restate its display. */
+s-stack.su-head,
+s-stack.su-snippet-bar {
+  display: flex;
+}
+
+s-box.su-head-action {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+s-heading.su-title {
+  display: block;
+}
+
+s-paragraph.su-invalid {
+  display: block;
+}
+
+/* Lede paragraphs that carried an inline margin-top. */
+s-paragraph.su-lede-mt12 {
+  display: block;
+  margin-top: 12px;
+}
+
+s-paragraph.su-lede-mt14 {
+  display: block;
+  margin-top: 14px;
+}
+
+s-box.su-layout {
+  display: flex;
+}
+
+/* The picker is an <s-grid>, not a CSS grid on an s-box.
+   An s-box slots its light-DOM children into a single wrapper inside its own
+   shadow root, so `display: grid` on the host gets exactly one grid item (that
+   wrapper) — the two fields ended up stacked in track 1 with track 2 collapsed
+   to 0px. s-grid does the grid inside its shadow root, where the children
+   actually are, so the columns come from its gridTemplateColumns attribute.
+   Verified in a browser. */
+
+/* s-select and s-text-field are `display: contents` — they have no box of
+   their own, so they cannot be grid items at all. Each field needs a real box
+   around it, and that box needs its display restated. */
+s-box.su-field {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* Tab rail. The rail is a real <nav> (see the route), so .su-tabs needs no
+   host override; s-clickable is only the semantic host and stays a plain block
+   so the inner s-stack draws the whole tab and fills it. */
+s-clickable.su-tab-host {
+  display: block;
+}
+
+/* block, NOT flex. s-stack lays its children out inside its own shadow root;
+   making the host a flex container turns that shadow container into a
+   shrink-to-fit flex item, which leaves justifyContent="space-between" no free
+   space and parks the "Easiest" pill against the label instead of the far
+   edge. As a block the shadow container fills the host and space-between
+   works. Verified in a browser — do not "restate display: flex" here. */
+s-stack.su-tab {
+  display: block;
+}
+
+s-text.su-tab-note {
+  display: inline-block;
+}
+
+/* 16:9 tutorial frame, now on an s-box inside the App Bridge modal. */
+s-box.su-video {
+  display: block;
+}
+
+s-box.su-panel,
+s-box.su-snippet {
+  display: block;
+}

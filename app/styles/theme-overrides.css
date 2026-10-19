@@ -1,0 +1,25 @@
+/* ============================================================
+   Theme overrides — loaded AFTER Polaris so these win the cascade.
+   Recolors every Polaris primary button to the app's brand green
+   (--app-primary). Change the green in variables.css to update.
+   ============================================================ */
+
+:root {
+  /* Polaris "brand fill" tokens drive primary buttons (and other brand
+     surfaces). Map them to the app green. */
+  --p-color-bg-fill-brand: var(--app-primary, #1a8d5a);
+  --p-color-bg-fill-brand-hover: var(--app-primary-hover, #15734a);
+  --p-color-bg-fill-brand-active: #115c3b;
+  --p-color-bg-fill-brand-selected: #115c3b;
+  --p-color-bg-fill-brand-disabled: var(--app-primary-border, #a3d9bc);
+}
+
+/* Solid green primary buttons — drop Polaris's default gradient sheen so the
+   color reads as a clean brand green. */
+.Polaris-Button--variantPrimary {
+  --pc-button-bg-gradient: none;
+  --pc-button-bg: var(--app-primary, #1a8d5a);
+  --pc-button-bg_hover: var(--app-primary-hover, #15734a);
+  --pc-button-bg_active: #115c3b;
+  --pc-button-bg_disabled: var(--app-primary-border, #a3d9bc);
+}

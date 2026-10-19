@@ -1,0 +1,109 @@
+/* Help and Resources — light-DOM helpers.
+   Card, buttons, avatar and text are Polaris web components; these cover the
+   parts the library has no component for. */
+
+/* s-stack direction="inline" hardcodes flex-wrap:wrap ({block:"nowrap",
+   inline:"wrap"} internally) with no way to opt out, so every "title left /
+   control right" row is hand-rolled. */
+.vp-wc-help-head {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vp-wc-help-head-title {
+  display: block;
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+
+.vp-wc-help-head-toggle {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.vp-wc-help-person {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Video thumbnail ──────────────────────────────────────────────────────── */
+/* s-clickable handles focus, keyboard activation and the button role; this only
+   supplies the poster and the play affordance. The old markup was a plain div
+   with onClick — unreachable by keyboard entirely. */
+.vp-wc-help-video {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--app-primary-bg, #eef9f3) url("/Video_Player_by_bPlugins_thumbnail.png") no-repeat center center / cover;
+}
+
+/* Brand wash over the poster, lifted on hover/focus to reveal it fully. */
+.vp-wc-help-video::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--app-primary, #1a8d5a);
+  opacity: 0.72;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.vp-wc-help-video:hover::after,
+s-clickable:focus-visible .vp-wc-help-video::after {
+  opacity: 0;
+}
+
+.vp-wc-help-play {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  inline-size: 46px;
+  block-size: 46px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: transform 0.25s ease;
+}
+
+.vp-wc-help-video:hover .vp-wc-help-play {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+/* Play triangle. #202223 rather than a token because it sits on the white
+   circle above, which is white in both themes. */
+.vp-wc-help-play::before {
+  content: "";
+  inline-size: 0;
+  block-size: 0;
+  border-block-start: 8px solid transparent;
+  border-block-end: 8px solid transparent;
+  border-inline-start: 12px solid #202223;
+  margin-inline-start: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .vp-wc-help-video::after,
+  .vp-wc-help-play {
+    transition: none;
+  }
+
+  .vp-wc-help-video:hover .vp-wc-help-play {
+    transform: translate(-50%, -50%);
+  }
+}

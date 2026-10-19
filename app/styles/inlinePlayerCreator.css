@@ -1,0 +1,125 @@
+/* InlinePlayerCreatorModal — the success celebration, plus the media rows.
+
+   The confetti burst, the ring pulse and the drawn check mark are bespoke
+   motion with no Polaris equivalent, so they stay. Lifted out of a <style>
+   block inlined in the component's JSX, where it was re-inserted on every
+   render. */
+
+@keyframes ipcm-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes ipcm-draw { to { stroke-dashoffset: 0; } }
+@keyframes ipcm-ring {
+  0% { transform: scale(0.55); opacity: 0.45; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes ipcm-rise {
+  0% { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes ipcm-success {
+  0% { transform: scale(0.6); opacity: 0; }
+  55% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes ipcm-confetti {
+  0% { transform: translate(0,0) rotate(0deg) scale(0.3); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) rotate(var(--r)) scale(1); opacity: 0; }
+}
+.ipcm-badge { animation: ipcm-pop 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+.ipcm-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: #1a8d5a; opacity: 0;
+  animation: ipcm-ring 0.9s 0.15s ease-out both;
+}
+.ipcm-check { stroke-dasharray: 30; stroke-dashoffset: 30; animation: ipcm-draw 0.45s 0.28s ease-out forwards; }
+.ipcm-confetti { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.ipcm-confetti i {
+  position: absolute; top: 50%; left: 50%;
+  width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  border-radius: 2px; opacity: 0;
+  animation: ipcm-confetti 0.9s cubic-bezier(0.15,0.7,0.3,1) forwards;
+}
+.ipcm-text { animation: ipcm-rise 0.4s 0.35s ease-out both; }
+.ipcm-success {
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #0c8a52;
+  animation: ipcm-success 0.55s 0.42s cubic-bezier(0.16,1,0.3,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ipcm-badge, .ipcm-ring, .ipcm-check, .ipcm-text, .ipcm-success {
+    animation: none; opacity: 1; transform: none; stroke-dashoffset: 0;
+  }
+  .ipcm-confetti { display: none; }
+}
+
+/* Media picker rows (choose a video / poster, and each grid item). */
+.ipcm-row {
+  display: block;
+  background: #fafbfb;
+}
+
+.ipcm-row.is-chosen {
+  background: #f6fbf8;
+}
+
+.ipcm-row-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #ebedef;
+  color: #8a8f94;
+}
+
+.ipcm-row-thumb.is-small {
+  width: 44px;
+  height: 44px;
+}
+
+.ipcm-row-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Lets the middle column shrink so long titles ellipsis instead of pushing
+   the action button out of the row. */
+.ipcm-row-body {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+
+.ipcm-row-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.ipcm-empty {
+  display: block;
+  padding: 22px 12px;
+  border: 1px dashed #c9cccf;
+  border-radius: 12px;
+  background: #fafbfb;
+  color: #8a8f94;
+  text-align: center;
+}
+
+.ipcm-text {
+  display: block;
+  max-width: 400px;
+  text-align: center;
+}

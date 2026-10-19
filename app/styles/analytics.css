@@ -1,0 +1,1331 @@
+/* ============================================================
+   Analytics & Reports — clean, minimal dashboard
+   Neutral chrome, brand green reserved for data viz.
+   Tokens from app/styles/variables.css.
+   ============================================================ */
+
+.an-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* Drive all responsive grids off the real content width (Polaris constrains
+     it), not the browser viewport — otherwise wide windows cram too many
+     columns into a narrow column. */
+  container-type: inline-size;
+  container-name: anwrap;
+  margin-bottom: 40px;
+}
+
+/* ── Scope Tabs ─────────────────────────────────────────────── */
+.an-scope-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@container anwrap (max-width: 600px) {
+  .an-scope-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
+.an-scope-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 14px;
+  padding: 16px 20px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.an-scope-card:hover {
+  border-color: var(--app-border-medium, #cfd1d4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.an-scope-card.active {
+  border-color: var(--app-primary, #1a8d5a);
+  background: var(--app-primary-bg, #eef9f3);
+  box-shadow: 0 0 0 1px var(--app-primary, #1a8d5a);
+}
+
+.an-scope-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 141, 90, 0.25);
+}
+
+.an-scope-card:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.an-scope-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--app-bg-muted, #f3f5f4);
+  color: var(--app-text-secondary, #6d7175);
+  flex-shrink: 0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.an-scope-card.active .an-scope-icon {
+  background: #fff;
+  color: var(--app-primary, #1a8d5a);
+}
+
+.an-scope-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.an-scope-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--app-text-primary, #202223);
+  transition: color 0.2s ease;
+}
+
+.an-scope-card.active .an-scope-title {
+  color: var(--app-primary, #1a8d5a);
+}
+
+.an-scope-desc {
+  font-size: 13px;
+  color: var(--app-text-secondary, #6d7175);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.an-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--app-primary, #1a8d5a);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* ── Controls ─────────────────────────────────────────────── */
+.an-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 14px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.an-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.an-field-player {
+  /* flex: 1 1 320px; */
+  min-width: calc(100% - 240px);
+}
+
+.an-field-date {
+  flex: 0 0 auto;
+  min-width: 220px;
+}
+
+.an-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--app-text-secondary, #6d7175);
+}
+
+.an-select-wrap {
+  position: relative;
+  display: block;
+  align-items: center;
+}
+
+.an-select-icon {
+  position: absolute;
+  left: 13px;
+  width: 16px;
+  height: 16px;
+  color: var(--app-text-muted, #8c9196);
+  pointer-events: none;
+}
+
+.an-select-chevron {
+  position: absolute;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--app-text-muted, #8c9196);
+  pointer-events: none;
+}
+
+.an-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--app-text-primary, #202223);
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border-input, #dde0e4);
+  border-radius: 10px;
+  padding: 11px 38px 11px 38px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.an-select:hover {
+  border-color: var(--app-border-medium, #cfd1d4);
+}
+
+.an-select:focus {
+  outline: none;
+  border-color: var(--app-primary, #1a8d5a);
+  box-shadow: 0 0 0 3px var(--app-primary-shadow, rgba(26, 141, 90, 0.12));
+}
+
+.an-field-date .an-select {
+  min-width: 210px;
+}
+
+/* Make the Polaris date-range trigger match the .an-select video field.
+   Polaris v12 secondary buttons draw their border/height via box-shadow and
+   tokens, so we override those to mirror the custom combobox above. */
+.an-field-date .Polaris-Button {
+  width: 100%;
+  min-width: 210px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--app-text-primary, #202223);
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border-input, #dde0e4);
+  border-radius: 10px;
+  box-shadow: none;
+  padding-block: 11px;
+  padding-inline: 14px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.an-field-date .Polaris-Button:hover {
+  background: var(--app-bg-surface, #fff);
+  border-color: var(--app-border-medium, #cfd1d4);
+  box-shadow: none;
+}
+
+.an-field-date .Polaris-Button:focus-visible {
+  outline: none;
+  border-color: var(--app-primary, #1a8d5a);
+  box-shadow: 0 0 0 3px var(--app-primary-shadow, rgba(26, 141, 90, 0.12));
+}
+
+.an-field-date .Polaris-Button:disabled {
+  background: var(--app-bg-surface, #fff);
+  border-color: var(--app-border-input, #dde0e4);
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+/* ── Searchable video combobox ────────────────────────────── */
+.an-combo {
+  position: relative;
+}
+
+.an-combo-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-scrollbar-thumb, #d0d3d6) transparent;
+}
+
+.an-combo-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  color: var(--app-text-primary, #202223);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.an-combo-option:hover,
+.an-combo-option.active {
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a);
+}
+
+.an-combo-option.selected {
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a);
+  font-weight: 600;
+}
+
+.an-combo-empty {
+  padding: 14px 12px;
+  font-size: 13px;
+  color: var(--app-text-secondary, #6d7175);
+  text-align: center;
+}
+
+/* ── KPI cards ────────────────────────────────────────────── */
+.an-kpis {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@container anwrap (min-width: 440px) {
+  .an-kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Compact cards fit all five in one row from a fairly narrow column. */
+@container anwrap (min-width: 600px) {
+  .an-kpis {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.an-kpi {
+  position: relative;
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 12px;
+  padding: 15px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  gap: 3px;
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.an-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  border-color: var(--app-primary-border, #a3d9bc);
+}
+
+.an-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.an-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a);
+  flex: 0 0 auto;
+}
+
+.an-kpi-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.an-kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--app-bg-muted, #f1f2f3);
+  color: var(--app-text-secondary, #6d7175);
+  white-space: nowrap;
+}
+
+.an-kpi-delta.up {
+  background: #e7f7ee;
+  color: #0f7a4b;
+}
+
+.an-kpi-delta.down {
+  background: #fdecea;
+  color: #d72c0d;
+}
+
+.an-kpi-value {
+  font-size: 25px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.an-kpi-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-text-dark, #44474a);
+  line-height: 1.25;
+}
+
+/* ── Section cards ────────────────────────────────────────── */
+.an-card {
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  transition: box-shadow 0.25s ease;
+}
+
+.an-card:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+
+.an-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px 0;
+}
+
+.an-card-titlewrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.an-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--app-primary-bg, #eef9f3);
+  color: var(--app-primary, #1a8d5a);
+  flex: 0 0 auto;
+}
+
+.an-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+  margin: 0;
+}
+
+.an-card-body {
+  padding: 16px 24px 24px;
+}
+
+.an-card-body.flush {
+  padding: 16px 0 0;
+}
+
+/* ── Layout rows ──────────────────────────────────────────── */
+.an-row {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr;
+}
+
+.an-row-breakdown {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* ── Wide trend (left) + narrower top-countries (right) ──────── */
+.an-row-2080 {
+  grid-template-columns: 1fr;
+}
+
+@container anwrap (min-width: 720px) {
+  .an-row-2080 {
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.an-row-2080>.an-card {
+  min-width: 0;
+}
+
+/* ── Stat lists with proportion bars (browsers / devices / OS …) ─ */
+.an-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.an-list-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.an-list-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.an-list-label {
+  font-size: 14px;
+  color: var(--app-text-dark, #44474a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.an-list-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+  white-space: nowrap;
+}
+
+.an-list-pct {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-muted, #8c9196);
+  min-width: 34px;
+  text-align: right;
+}
+
+.an-list-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--app-bg-muted, #f1f2f3);
+  overflow: hidden;
+}
+
+.an-list-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--app-primary, #1a8d5a), #29a86b);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.an-empty {
+  font-size: 13px;
+  color: var(--app-text-secondary, #6d7175);
+  margin: 6px 0;
+}
+
+/* ── Top players leaderboard ─────────────────────────────────── */
+.an-lb {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.an-lb-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 64px 84px auto;
+  gap: 12px;
+  padding: 0 8px 6px;
+  border-bottom: 1px solid var(--app-border, #e1e3e5);
+}
+
+.an-lb-head>span {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted, #8c9196);
+}
+
+.an-lb-h-num {
+  text-align: right;
+}
+
+.an-lb-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 64px 84px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  transition: background 0.15s ease;
+}
+
+.an-lb-row:hover {
+  background: var(--app-bg-muted, #f6f6f7);
+}
+
+.an-lb-row:not(.is-top):not(:last-child) {
+  border-bottom: 1px solid var(--app-border, #e1e3e5);
+  border-radius: 0;
+}
+
+.an-lb-row.is-top,
+.an-lb-row.is-top:hover {
+  background: var(--app-primary-bg, #eef9f3);
+  box-shadow: inset 0 0 0 1px var(--app-primary-border, #a3d9bc),
+    inset 3px 0 0 var(--app-primary, #1a8d5a);
+}
+
+.an-lb-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.an-lb-rank {
+  flex: 0 0 auto;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-text-secondary, #6d7175);
+  background: var(--app-bg-muted, #f1f2f3);
+}
+
+.an-lb-rank.is-first {
+  background: transparent;
+  font-size: 16px;
+}
+
+.an-lb-rank.is-second {
+  background: linear-gradient(135deg, #d9dde2, #b7bdc6);
+  color: #fff;
+}
+
+.an-lb-rank.is-third {
+  background: linear-gradient(135deg, #e7c39c, #cd9b6a);
+  color: #fff;
+}
+
+.an-lb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-dark, #44474a);
+  min-width: 0;
+}
+
+.an-lb-row.is-top .an-lb-name {
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+}
+
+.an-lb-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--app-primary, #1a8d5a);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.an-lb-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.an-lb-metric b {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text-primary, #202223);
+  font-variant-numeric: tabular-nums;
+}
+
+.an-lb-metric i {
+  display: none;
+  /* labels live in the header on desktop */
+  font-style: normal;
+  font-size: 11px;
+  color: var(--app-text-muted, #8c9196);
+}
+
+.an-lb-act {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.an-lb-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--app-primary, #1a8d5a);
+  background: var(--app-bg-surface, #fff);
+  border: 1px solid var(--app-primary-border, #a3d9bc);
+  border-radius: 7px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.an-lb-link:hover {
+  background: var(--app-primary, #1a8d5a);
+  border-color: var(--app-primary, #1a8d5a);
+  color: #fff;
+}
+
+@media (max-width: 620px) {
+  .an-lb-head {
+    display: none;
+  }
+
+  .an-lb-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 12px;
+  }
+
+  .an-lb-player {
+    grid-column: 1 / -1;
+  }
+
+  .an-lb-metric {
+    align-items: flex-start;
+  }
+
+  .an-lb-metric i {
+    display: block;
+    /* labels return when the header is hidden */
+  }
+
+  .an-lb-act {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* ── Trend chart ──────────────────────────────────────────── */
+.an-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.an-trend-plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 160px;
+  border-bottom: 1px solid var(--app-border, #e1e3e5);
+  /* faint horizontal gridlines at 0 / 25 / 50 / 75 / 100% */
+  background-image: repeating-linear-gradient(to top,
+      rgba(0, 0, 0, 0.06) 0 1px,
+      transparent 1px 25%);
+}
+
+.an-trend-bar-wrap {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.an-trend-bar {
+  position: relative;
+  width: 68%;
+  max-width: 26px;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, #2eb574, var(--app-primary, #1a8d5a));
+  transition:
+    height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.15s ease;
+}
+
+.an-trend-bar:hover {
+  filter: brightness(1.08);
+}
+
+.an-trend-bar.empty {
+  background: var(--app-bg-muted, #eef1f4);
+}
+
+/* hover value bubble */
+.an-trend-bar:hover::after {
+  content: attr(data-v);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--app-text-primary, #202223);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* Now an <s-stack direction="inline" gap="small-300">: both declarations come
+   from those props. Deliberately left without a display so the host stays
+   display:contents and its shadow flex wrapper spans the plot — giving this
+   host a box would let that wrapper shrink to fit instead. */
+.an-trend-axis {}
+
+.an-trend-label {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--app-text-secondary, #6d7175);
+  white-space: nowrap;
+  /* Only every Nth label is rendered; allow it to overflow into the empty
+     neighbour slots so it isn't clipped to a single bar's width. */
+  overflow: visible;
+}
+
+/* ── Per-video table ──────────────────────────────────────── */
+.an-card .Polaris-DataTable__Cell {
+  font-size: 13px;
+}
+
+/* Date-range picker: show the two months side by side (left/right) instead of
+   stacked top/bottom. Polaris lays months out in a flex row that wraps when the
+   popover is too narrow; widen the popover (set in JSX) and stop the wrap. */
+.AnalyticsDateRange .Polaris-DatePicker__MonthLayout {
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+
+/* ================================
+   Pro gating (free plan)
+   ================================ */
+.an-pro-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg,
+      var(--app-success-gradient-start),
+      var(--app-primary));
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.an-kpi.locked {
+  position: relative;
+}
+
+.an-kpi.locked .an-kpi-value {
+  color: var(--app-text-placeholder);
+}
+
+.an-pro-lock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 16px;
+  text-align: center;
+  min-height: 120px;
+}
+
+.an-pro-lock-icon {
+  display: inline-flex;
+  color: var(--app-primary);
+}
+
+.an-pro-lock-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--app-text-secondary);
+}
+
+.an-pro-lock-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--app-primary);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.an-pro-lock-cta:hover {
+  background: var(--app-primary-hover);
+}
+
+.an-pro-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  background: var(--app-primary-bg);
+  border: 1px solid var(--app-primary-border);
+  border-radius: 12px;
+}
+
+.an-pro-banner-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--app-primary);
+}
+
+.an-pro-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.an-pro-banner-text strong {
+  font-size: 14px;
+  color: var(--app-text-primary);
+}
+
+.an-pro-banner-text span {
+  font-size: 13px;
+  color: var(--app-text-secondary);
+}
+
+.an-pro-banner-cta {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--app-primary);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.an-pro-banner-cta:hover {
+  background: var(--app-primary-hover);
+}
+
+.an-pro-lock-cta[aria-busy="true"],
+.an-pro-banner-cta[aria-busy="true"] {
+  opacity: 0.85;
+  cursor: progress;
+}
+
+/* Inline spinner shown on the upgrade buttons while redirecting to Pricing. */
+.an-btn-spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: an-btn-spin 0.7s linear infinite;
+}
+
+@keyframes an-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 600px) {
+  .an-pro-banner {
+    flex-wrap: wrap;
+  }
+
+  .an-pro-banner-cta {
+    margin-left: 0;
+  }
+}
+
+/* ── Reload button (page header action) ─────────────────────────────────── */
+.an-reload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--app-primary, #1a8d5a);
+  background: var(--app-primary-light, #eaf7f0);
+  border: 1px solid var(--app-primary-border, #cdeadd);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.1s ease;
+}
+
+.an-reload-btn:hover:not(:disabled) {
+  background: var(--app-primary, #1a8d5a);
+  color: #fff;
+  border-color: var(--app-primary, #1a8d5a);
+  box-shadow: 0 4px 12px rgba(26, 141, 90, 0.25);
+}
+
+.an-reload-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.an-reload-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 141, 90, 0.25);
+}
+
+.an-reload-btn:disabled {
+  cursor: progress;
+  opacity: 0.9;
+}
+
+.an-reload-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.an-reload-icon.spinning {
+  animation: an-reload-spin 0.8s linear infinite;
+}
+
+@keyframes an-reload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Hosts that are now Polaris web components ──────────────────────────
+   s-stack / s-box / s-heading / s-text / s-paragraph are not block-level by
+   default, so any class moved onto one has to restate its display. */
+s-stack.an-card-head,
+s-stack.an-card-titlewrap,
+s-stack.an-kpi-top {
+  display: flex;
+}
+
+s-box.an-pro-lock {
+  display: flex;
+}
+
+s-heading.an-card-title {
+  display: block;
+}
+
+s-text.an-kpi-label,
+s-text.an-list-label {
+  display: block;
+}
+
+s-paragraph.an-pro-lock-text,
+s-paragraph.an-empty {
+  display: block;
+}
+
+s-box.an-pro-banner,
+s-stack.an-pro-banner-text {
+  display: flex;
+}
+
+s-text.an-scope-title,
+s-text.an-field-label {
+  display: block;
+}
+
+s-text.an-lb-h-num,
+s-text.an-list-pct {
+  display: inline;
+}
+
+s-paragraph.an-empty {
+  display: block;
+}
+
+/* Structural containers that are now <s-box>; restate their display. */
+s-box.an-wrap {
+  display: flex;
+}
+
+s-box.an-controls {
+  display: flex;
+}
+
+s-box.an-kpis {
+  display: grid;
+}
+
+s-box.an-scope-tabs {
+  display: grid;
+}
+
+s-box.an-lb {
+  display: flex;
+}
+
+s-box.an-lb-head {
+  display: grid;
+}
+
+s-box.an-list {
+  display: flex;
+}
+
+s-box.an-list-main {
+  display: block;
+}
+
+s-box.an-list-row {
+  display: flex;
+}
+
+s-box.an-combo {
+  display: block;
+}
+
+s-box.an-combo-panel {
+  display: block;
+}
+
+s-box.an-combo-empty {
+  display: block;
+}
+
+s-box.an-select-wrap {
+  display: block;
+}
+
+
+/* Structural containers now rendered as <s-box>; restate their display. */
+s-box.an-wrap {
+  display: flex;
+}
+
+s-box.an-controls {
+  display: flex;
+}
+
+s-box.an-kpis {
+  display: grid;
+}
+
+s-box.an-scope-tabs {
+  display: grid;
+}
+
+s-box.an-lb {
+  display: flex;
+}
+
+s-box.an-lb-head {
+  display: grid;
+}
+
+s-box.an-list {
+  display: flex;
+}
+
+s-box.an-list-main {
+  display: block;
+}
+
+s-box.an-list-row {
+  display: flex;
+}
+
+s-box.an-combo {
+  display: block;
+}
+
+s-box.an-combo-panel {
+  display: block;
+}
+
+s-box.an-combo-empty {
+  display: block;
+}
+
+s-box.an-select-wrap {
+  display: block;
+}
+
+
+/* Text/structure carriers now rendered as Polaris web components. */
+s-stack.an-scope-text,
+s-stack.an-lb-player,
+s-stack.an-lb-act {
+  display: flex;
+}
+
+s-text.an-list-value,
+s-text.an-lb-name,
+s-text.an-lb-metric,
+s-text.an-scope-desc {
+  display: block;
+}
+
+/* Second pass: containers and icon wrappers now rendered as <s-box>. */
+s-box.an-card-body {
+  display: block;
+}
+
+s-box.an-field {
+  display: flex;
+}
+
+s-box.an-lb-row,
+s-box.an-row {
+  display: grid;
+}
+
+s-box.an-card-icon,
+s-box.an-kpi-icon,
+s-box.an-scope-icon,
+s-box.an-pro-banner-icon,
+s-box.an-pro-lock-icon {
+  display: inline-flex;
+}
+
+s-box.an-row {
+  display: grid;
+}
+
+s-box.an-kpi {
+  display: flex;
+}
+
+s-box.an-card {
+  display: block;
+}
+
+
+/* ── Third pass ───────────────────────────────────────────────
+   Measured against the live polaris-1.js, and the reason the two blocks above
+   exist at all: an <s-box> / <s-stack> host defaults to `display: contents`,
+   so it has NO box of its own — anything these classes set on it (background,
+   padding, border, size) is dropped until a rule here gives it a display.
+   That is what "restate the display" is really doing.
+
+   What that does NOT do is make the host lay its children out. <s-box> renders
+   <span class="box"><slot></slot></span> and that .box is always block, so a
+   rule like `s-box.foo { display: grid }` produces a grid whose only item is
+   .box, while the real children stay stacked inside it. s-box has no layout
+   prop either — its `display` prop only accepts auto|none. Flex and grid
+   therefore have to come from <s-stack> / <s-grid>, whose shadow wrappers are
+   real flex/grid containers and do lay slotted children out (verified: an
+   s-stack's children stretch identically to native flex).
+
+   Still-unconverted elements on this page, and why:
+     • .an-trend-plot, .an-trend-bar-wrap, .an-list-track keep plain divs —
+       each has a percentage-height child, and a slotted child resolves its %
+       against the auto-height shadow wrapper and collapses to 0.
+     • .an-kpi-value (25px), .an-kpi-delta, .an-lb-rank, .an-trend-label,
+       .an-field-label and .an-lb-metric i stay plain elements — <s-text>
+       paints slotted text through a wrapper that sets its own font-size
+       (~13px) and colour, beating anything set on the host. Overriding that
+       needs the build-hashed --s-global-* / --t-text-* tokens that
+       app/utils/polarisWebComponents.js rules out, since the hash changes
+       with every Shopify polaris-1.js release.
+     • the 5 <button>s, the combobox <input> and the upgrade <a> stay native
+       for the same hashed-token reason: s-clickable paints its own background
+       and border from --s-clickable-*-26021 on inner shadow elements, which
+       outer CSS cannot reach. */
+
+/* Childless leaves: these need a box, but slot nothing, so they convert. */
+s-box.an-trend-bar,
+s-box.an-list-fill,
+s-box.an-btn-spinner {
+  display: block;
+}
+
+/* Polaris sets box-sizing:border-box on its elements; this ring was authored
+   against the default content-box, where the 2px border sits outside the 14px
+   circle. Without this it renders 14px overall instead of 18px and drags the
+   button's height down with it. */
+s-box.an-btn-spinner {
+  box-sizing: content-box;
+}.stretch-card { height: 100%; display: flex; flex-direction: column; } .stretch-card > div { height: 100%; }
