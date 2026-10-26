@@ -150,6 +150,7 @@
   data-config-complete says which of those two cases this is, so the script can
   top up a partial config from the app instead of guessing.
 {%- endcomment -%}
+{%- capture viewer_i18n -%}{%- render 'viewer_i18n' -%}{%- endcapture -%}
 {%- capture source_attrs -%}
 {%- if model_url != blank -%}
 data-model-url="{{ model_url | escape }}"
@@ -203,6 +204,8 @@ data-model-url="{{ model_url | escape }}"
         iosSrc are free text) would terminate a single-quoted attribute early.
       {%- endcomment %}
       data-config="{{ viewer_config | escape }}"
+      data-locale="{{ request.locale.iso_code | escape }}"
+      data-i18n="{{ viewer_i18n | strip | escape }}"
     >
       <canvas class="view3d-canvas"></canvas>
     </div>
@@ -240,42 +243,42 @@ data-model-url="{{ model_url | escape }}"
 
 {% schema %}
 {
-  "name": "3D Viewer — Any Model",
+  "name": "t:viewer_3d.page.name",
   "target": "section",
   "settings": [
     {
       "type": "header",
-      "content": "Model source"
+      "content": "t:viewer_3d.shared.header_source"
     },
     {
       "type": "paragraph",
-      "content": "Use either a Model ID or a file URL. The Model ID also applies that model's saved viewer settings, so it's the better option — copy it from the app under 3D Models → (your model) → Model ID."
+      "content": "t:viewer_3d.page.paragraph"
     },
     {
       "type": "text",
       "id": "model_id",
-      "label": "Model ID",
-      "info": "From the app's 3D Models library. Takes priority over the URL below."
+      "label": "t:viewer_3d.page.model_id.label",
+      "info": "t:viewer_3d.page.model_id.info"
     },
     {
       "type": "url",
       "id": "model_url",
-      "label": "Model URL (.glb / .gltf)",
-      "info": "Alternative to a Model ID: paste a direct file URL from Settings → Files."
+      "label": "t:viewer_3d.page.model_url.label",
+      "info": "t:viewer_3d.page.model_url.info"
     },
     {
       "type": "text",
       "id": "caption",
-      "label": "Caption (optional)"
+      "label": "t:viewer_3d.page.caption.label"
     },
     {
       "type": "header",
-      "content": "Appearance"
+      "content": "t:viewer_3d.page.header_appearance"
     },
     {
       "type": "range",
       "id": "height",
-      "label": "Viewer height",
+      "label": "t:viewer_3d.shared.height.label",
       "min": 200,
       "max": 800,
       "step": 50,
@@ -285,23 +288,23 @@ data-model-url="{{ model_url | escape }}"
     {
       "type": "color",
       "id": "background_color",
-      "label": "Background color",
+      "label": "t:viewer_3d.shared.background_color.label",
       "default": "#ffffff"
     },
     {
       "type": "header",
-      "content": "Interaction"
+      "content": "t:viewer_3d.page.header_interaction"
     },
     {
       "type": "checkbox",
       "id": "auto_rotate",
-      "label": "Auto rotate",
+      "label": "t:viewer_3d.page.auto_rotate.label",
       "default": true
     },
     {
       "type": "checkbox",
       "id": "show_controls",
-      "label": "Show on-screen controls",
+      "label": "t:viewer_3d.page.show_controls.label",
       "default": true
     }
   ]

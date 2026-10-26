@@ -32,6 +32,7 @@ import {
 
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
+import { useT, type TFunction } from "~/i18n";
 import {
   BUTTON_FILL,
   fieldValue,
@@ -264,12 +265,12 @@ function previewUrl(p: ProductRow, shopDomain: string | null): string | null {
 }
 
 const STATUS_LABELS: Record<ProductStatus, string> = {
-  ACTIVE: "Active",
-  DRAFT: "Draft",
-  ARCHIVED: "Archived",
+  ACTIVE: "statusActive",
+  DRAFT: "statusDraft",
+  ARCHIVED: "statusArchived",
 };
 
-function StatusBadge({ status }: { status: ProductStatus }) {
+function StatusBadge({ status, t }: { status: ProductStatus; t: TFunction }) {
   return (
     <s-badge
       tone={
@@ -280,7 +281,7 @@ function StatusBadge({ status }: { status: ProductStatus }) {
             : "neutral"
       }
     >
-      {STATUS_LABELS[status]}
+      {t(STATUS_LABELS[status])}
     </s-badge>
   );
 }
@@ -427,13 +428,15 @@ export default function ProductsIndex() {
   const routeTo = useRouteNav();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState(query);
+  const t = useT("products");
+  const tc = useT("common");
 
   useEffect(() => {
     setSearchInput(query);
   }, [query]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (searchInput.trim() === query) return;
       const params = new URLSearchParams(searchParams);
       if (searchInput.trim()) params.set("q", searchInput.trim());
@@ -442,7 +445,7 @@ export default function ProductsIndex() {
       params.delete("before");
       setSearchParams(params, { replace: true });
     }, 350);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
@@ -466,8 +469,8 @@ export default function ProductsIndex() {
   const allDone = metafieldDefsReady && assigned > 0;
 
   return (
-    <s-page heading="Product 3D models">
-      <BackButton to="/app" label="Dashboard" />
+    <s-page heading={t("heading")}>
+      <BackButton to="/app" label={t("backDashboard")} />
 
       {/* Same reasoning as the dashboard: one primary action per page, and it
           is the one the merchant is here to take. Upgrade steps down beside it
@@ -478,7 +481,7 @@ export default function ProductsIndex() {
         href="/app/models"
         onClick={routeTo("/app/models")}
       >
-        Open model library
+        {t("openModelLibrary")}
       </s-button>
       {planTitle === FREE_PLAN_NAME ? (
         <s-button
@@ -486,7 +489,7 @@ export default function ProductsIndex() {
           href="/app/pricing"
           onClick={routeTo("/app/pricing")}
         >
-          Upgrade
+          {tc("upgrade")}
         </s-button>
       ) : null}
       <SupportAction />
@@ -494,31 +497,31 @@ export default function ProductsIndex() {
       <s-section>
         <s-stack direction="block" gap="base">
           <s-paragraph color="subdued">
-            {assigned} of {totalProducts} products have a 3D model assigned.
+            {t("assignedSummary", { assigned, total: totalProducts })}
           </s-paragraph>
           <s-stack direction="inline" gap="small" alignItems="center">
-            <s-badge icon="wand">{`${planTitle} plan`}</s-badge>
+            <s-badge icon="wand">{t("planBadge", { plan: planTitle })}</s-badge>
             <s-badge tone={productLimitReached ? "critical" : "neutral"}>
-              {`${assigned} / ${formatLimit(productLimit)} products`}
+              {t("productsUsage", { used: assigned, limit: formatLimit(productLimit, tc("unlimited")) })}
             </s-badge>
             <s-badge tone={modelLimitReached ? "critical" : "neutral"}>
-              {`${distinctModelsUsed} / ${formatLimit(modelLimit)} models`}
+              {t("modelsUsage", { used: distinctModelsUsed, limit: formatLimit(modelLimit, tc("unlimited")) })}
             </s-badge>
           </s-stack>
         </s-stack>
       </s-section>
 
       {!onboardingDone ? (
-        <s-section heading="Getting started">
+        <s-section heading={t("gettingStarted")}>
           <s-paragraph color="subdued">
-            Three quick steps to publish 3D models on your storefront.
+            {t("gettingStartedIntro")}
           </s-paragraph>
 
           {/* secondary-actions, unstyled: that slot takes only "secondary" or "auto". */}
           <s-button
             slot="secondary-actions"
             icon="x"
-            accessibilityLabel="Dismiss getting started"
+            accessibilityLabel={t("dismissGettingStarted")}
             onClick={() =>
               submit({ intent: "dismiss_onboarding" }, { method: "post" })
             }
@@ -527,20 +530,20 @@ export default function ProductsIndex() {
           <s-stack direction="block" gap="base">
             <OnboardingStep
               done={metafieldDefsReady}
-              title="Set up metafield definitions"
-              description="Create custom.model_3d (file) and custom.viewer_3d_config (JSON) with storefront read access."
-              cta={{ label: "Open Setup", href: "/app/setup" }}
+              title={t("stepDefsTitle")}
+              description={t("stepDefsDescription")}
+              cta={{ label: t("stepDefsCta"), href: "/app/setup" }}
               onNavigate={navigate}
             />
             <s-divider />
             <OnboardingStep
               done={assigned > 0}
-              title="Upload your first model"
-              description="Pick a product and upload a .glb file. The block automatically reads it on the storefront."
+              title={t("stepUploadTitle")}
+              description={t("stepUploadDescription")}
               cta={
                 products[0]
                   ? {
-                      label: "Open product",
+                      label: t("stepUploadCta"),
                       href: `/app/products/${shortId(products[0].id)}`,
                     }
                   : undefined
@@ -550,8 +553,8 @@ export default function ProductsIndex() {
             <s-divider />
             <OnboardingStep
               done={allDone}
-              title="Add the theme block"
-              description='In Online Store → Themes → Customize → Product template, add "3D Viewer — Product" under Apps.'
+              title={t("stepBlockTitle")}
+              description={t("stepBlockDescription")}
             />
           </s-stack>
         </s-section>
@@ -560,31 +563,31 @@ export default function ProductsIndex() {
       {limitReached ? (
         <s-banner
           tone="warning"
-          heading={`You've hit the ${planTitle} plan limit`}
+          heading={t("limitHeading", { plan: planTitle })}
         >
           <s-paragraph>
             {productLimitReached
-              ? `${assigned} of ${formatLimit(productLimit)} products already have a 3D model.`
-              : `${distinctModelsUsed} of ${formatLimit(modelLimit)} models in use.`}{" "}
-            Upgrade to add more.
+              ? t("limitProducts", { used: assigned, limit: formatLimit(productLimit, tc("unlimited")) })
+              : t("limitModels", { used: distinctModelsUsed, limit: formatLimit(modelLimit, tc("unlimited")) })}{" "}
+            {t("limitUpgrade")}
           </s-paragraph>
           <s-button
             slot="primary-action"
             variant="primary"
             href="/app/pricing"
             onClick={routeTo("/app/pricing")}
-            accessibilityLabel="View pricing plans"
+            accessibilityLabel={t("viewPricingPlans")}
           >
-            View plans
+            {t("viewPlans")}
           </s-button>
         </s-banner>
       ) : null}
 
-      <s-section heading="3D model library">
+      <s-section heading={t("libraryHeading")}>
         <s-paragraph color="subdued">
           {libraryCount === 0
-            ? "Upload standalone 3D models and embed them on any page via the page block."
-            : `${libraryCount} model${libraryCount === 1 ? "" : "s"} in your library, ready to embed on pages.`}
+            ? t("libraryEmpty")
+            : t("libraryCount", { count: libraryCount })}
         </s-paragraph>
         <s-button
           slot="primary-action"
@@ -592,35 +595,35 @@ export default function ProductsIndex() {
           href="/app/models"
           onClick={routeTo("/app/models")}
         >
-          Open library
+          {t("openLibrary")}
         </s-button>
       </s-section>
 
-      <s-section heading="Products">
+      <s-section heading={t("productsHeading")}>
         <s-paragraph color="subdued">
-          Click a product to upload, replace, or configure its 3D model.
+          {t("productsIntro")}
         </s-paragraph>
 
         <s-stack direction="block" gap="base">
           <s-search-field
-            label="Search products"
+            label={t("searchLabel")}
             labelAccessibilityVisibility="exclusive"
-            placeholder="Search products by title"
+            placeholder={t("searchPlaceholder")}
             value={searchInput}
             onInput={(e) => setSearchInput(fieldValue(e))}
           />
 
           {query ? (
             <s-text color="subdued">
-              {matchCount} result{matchCount === 1 ? "" : "s"} for “{query}”
+              {t("searchResults", { count: matchCount, query })}
             </s-text>
           ) : null}
 
           {products.length === 0 ? (
             <s-text color="subdued">
               {query
-                ? `No products match "${query}".`
-                : "No products found in this store."}
+                ? t("noMatches", { query })
+                : t("noProducts")}
             </s-text>
           ) : (
             /*
@@ -630,10 +633,10 @@ export default function ProductsIndex() {
             */
             <s-table variant="auto">
               <s-table-header-row>
-                <s-table-header listSlot="primary">Product</s-table-header>
-                <s-table-header>Status</s-table-header>
-                <s-table-header>3D model</s-table-header>
-                <s-table-header>Actions</s-table-header>
+                <s-table-header listSlot="primary">{t("colProduct")}</s-table-header>
+                <s-table-header>{t("colStatus")}</s-table-header>
+                <s-table-header>{t("colModel")}</s-table-header>
+                <s-table-header>{t("colActions")}</s-table-header>
               </s-table-header-row>
               <s-table-body>
                 {products.map((p) => {
@@ -654,15 +657,15 @@ export default function ProductsIndex() {
                         </s-stack>
                       </s-table-cell>
                       <s-table-cell>
-                        <StatusBadge status={p.status} />
+                        <StatusBadge status={p.status} t={t} />
                       </s-table-cell>
                       <s-table-cell>
                         {p.hasModel ? (
                           <s-badge tone="success" icon="check">
-                            Assigned
+                            {t("assigned")}
                           </s-badge>
                         ) : (
-                          <s-text color="subdued">No model</s-text>
+                          <s-text color="subdued">{t("noModel")}</s-text>
                         )}
                       </s-table-cell>
                       <s-table-cell>
@@ -693,7 +696,7 @@ export default function ProductsIndex() {
                             href={href}
                             onClick={routeTo(href)}
                           >
-                            {p.hasModel ? "Update" : "Add"}
+                            {p.hasModel ? t("update") : t("add")}
                           </s-button>
                           {/*
                             A draft or archived product has no storefront page
@@ -707,7 +710,7 @@ export default function ProductsIndex() {
                               icon="external"
                               href={preview}
                               target="_blank"
-                              accessibilityLabel={`Preview ${p.title} on your storefront`}
+                              accessibilityLabel={t("previewOnStorefront", { title: p.title })}
                             />
                           ) : null}
                         </s-grid>
@@ -736,21 +739,21 @@ export default function ProductsIndex() {
           >
             <s-text color="subdued">
               {query
-                ? `${matchCount} matching product${matchCount === 1 ? "" : "s"}`
-                : `${totalProducts} products total`}
+                ? t("matchingProducts", { count: matchCount })
+                : t("totalProducts", { count: totalProducts })}
             </s-text>
 
             {pageInfo.hasPreviousPage || pageInfo.hasNextPage ? (
               <s-stack direction="inline" gap="small-500" alignItems="center">
                 <s-button
                   icon="chevron-left"
-                  accessibilityLabel="Previous page"
+                  accessibilityLabel={t("previousPage")}
                   disabled={flag(!pageInfo.hasPreviousPage)}
                   onClick={goPrev}
                 />
                 <s-button
                   icon="chevron-right"
-                  accessibilityLabel="Next page"
+                  accessibilityLabel={t("nextPage")}
                   disabled={flag(!pageInfo.hasNextPage)}
                   onClick={goNext}
                 />

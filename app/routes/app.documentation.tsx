@@ -6,6 +6,7 @@ import { authenticate } from "../shopify.server";
 
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
+import { useT } from "~/i18n";
 
 /** Hosted docs site, embedded below and linked as the escape hatch. */
 const DOCS_URL = "https://apps.bplugins.com/docs/3d-viewer/";
@@ -91,11 +92,12 @@ function DocsEmbed() {
   const [loaded, setLoaded] = useState(false);
   const [slow, setSlow] = useState(false);
   const { ref: frameBoxRef, box } = useFillViewport<HTMLDivElement>();
+  const t = useT("documentation");
 
   useEffect(() => {
     if (loaded) return;
-    const t = setTimeout(() => setSlow(true), SLOW_LOAD_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setSlow(true), SLOW_LOAD_MS);
+    return () => clearTimeout(timer);
   }, [loaded]);
 
   return (
@@ -107,11 +109,8 @@ function DocsEmbed() {
         moment the frame does load.
       */}
       {!loaded && slow ? (
-        <s-banner tone="warning" heading="This is taking longer than usual">
-          <s-paragraph>
-            The documentation site is slow to respond. You can open it in a new
-            tab instead.
-          </s-paragraph>
+        <s-banner tone="warning" heading={t("slow.heading")}>
+          <s-paragraph>{t("slow.body")}</s-paragraph>
           <s-button
             slot="primary-action"
             variant="primary"
@@ -119,7 +118,7 @@ function DocsEmbed() {
             target="_blank"
             icon="external"
           >
-            Visit docs
+            {t("slow.visit")}
           </s-button>
         </s-banner>
       ) : null}
@@ -151,7 +150,7 @@ function DocsEmbed() {
       >
         <iframe
           src={DOCS_URL}
-          title="3D Viewer documentation"
+          title={t("frameTitle")}
           style={{ width: "100%", height: "100%", border: 0, display: "block" }}
           allow="fullscreen"
           referrerPolicy="strict-origin-when-cross-origin"
@@ -169,8 +168,8 @@ function DocsEmbed() {
             }}
           >
             <s-stack direction="block" gap="base" alignItems="center">
-              <s-spinner accessibilityLabel="Loading documentation" />
-              <s-text color="subdued">Loading documentation…</s-text>
+              <s-spinner accessibilityLabel={t("loadingLabel")} />
+              <s-text color="subdued">{t("loading")}</s-text>
             </s-stack>
           </div>
         ) : null}
@@ -180,9 +179,10 @@ function DocsEmbed() {
 }
 
 export default function Documentation() {
+  const t = useT("documentation");
   return (
-    <s-page heading="Documentation" inlineSize="large">
-      <BackButton to="/app" label="Dashboard" />
+    <s-page heading={t("heading")} inlineSize="large">
+      <BackButton to="/app" label={t("backLabel")} />
       <s-button
         slot="primary-action"
         variant="primary"
@@ -190,7 +190,7 @@ export default function Documentation() {
         target="_blank"
         icon="external"
       >
-        Open docs site
+        {t("openSite")}
       </s-button>
       <SupportAction />
 

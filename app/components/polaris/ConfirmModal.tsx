@@ -1,5 +1,6 @@
 import { useOverlay, type OverlayElement } from "./helpers";
 import { ModalAction } from "./ModalAction";
+import { useT } from "~/i18n";
 
 /**
  * A confirmation dialog for destructive actions.
@@ -20,8 +21,8 @@ export function ConfirmModal({
   open,
   heading,
   children,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   tone = "critical",
   loading,
   onConfirm,
@@ -38,6 +39,7 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const tc = useT("common");
   const ref = useOverlay<OverlayElement>(open, onCancel);
 
   return (
@@ -50,10 +52,10 @@ export function ConfirmModal({
         loading={loading}
         onClick={onConfirm}
       >
-        {confirmLabel}
+        {confirmLabel ?? tc("confirm")}
       </ModalAction>
       <ModalAction slot="secondary-actions" onClick={onCancel}>
-        {cancelLabel}
+        {cancelLabel ?? tc("cancel")}
       </ModalAction>
     </s-modal>
   );

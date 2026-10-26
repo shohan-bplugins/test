@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aurora Runner – Aurora Supply Co.</title>
+<link rel="stylesheet" href="/viewer-3d.css">
+<link rel="stylesheet" href="/show.css">
+<script>window.Shopify = { routes: { root: "/" }, currency: { active: "USD" } };</script>
+</head>
+<body>
+<header class="nav">
+  <div class="logo"><span class="mark"></span>AURORA<span class="thin">SUPPLY CO.</span></div>
+  <nav><a>New</a><a class="on">Running</a><a>Trail</a><a>Apparel</a><a>Journal</a></nav>
+  <div class="icons">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>
+    <span class="cart"><svg viewBox="0 0 24 24"><path d="M5 7h14l-1.2 12H6.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><b id="cartCount">0</b></span>
+  </div>
+</header>
+
+<main class="pdp">
+  <section class="media">
+    <div class="thumbs">
+      <div class="thumb on"><span>3D</span></div><div class="thumb t2"></div><div class="thumb t3"></div><div class="thumb t4"></div>
+    </div>
+    <div id="viewerSlot" class="viewer-slot"></div>
+  </section>
+  <section class="info">
+    <div class="crumb">Running / Road</div>
+    <h1 id="pTitle">Aurora Runner</h1>
+    <div class="rating">★★★★★ <span>4.8 · 312 reviews</span></div>
+    <div class="price" id="pPrice">$129.00</div>
+    <p class="lede" id="pLede">A featherlight daily trainer with a recycled-foam midsole and a knit upper that breathes on the longest runs.</p>
+    <div class="opt-label">Color — <b>Ocean</b></div>
+    <div class="swatches"><i style="background:#1f7fb8" class="on"></i><i style="background:#2b2f3a"></i><i style="background:#e6e1d6"></i></div>
+    <div class="opt-label">Size</div>
+    <div class="sizes"><span>7</span><span>8</span><span class="on">9</span><span>10</span><span>11</span><span>12</span></div>
+    <button class="buy">Add to cart</button>
+    <div class="perks"><span>Free shipping over $75</span><span>30-day returns</span></div>
+  </section>
+</main>
+
+<div id="scene" class="scene"></div>
+<div id="wipe" class="wipe"></div>
+<div id="caption" class="caption"><span class="kicker" id="capKick"></span><span id="capText"></span></div>
+<div id="cursor" class="cursor"><svg viewBox="0 0 26 30"><path d="M3 2v22l6-5.5 4 9 3.6-1.6-4-8.8H21z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+<div id="tapdot" class="tapdot"></div>
+
+<script src="/viewer-3d.js" data-vendor-js="/view3d.pkgd.min.js" data-vendor-css="/view3d-bundle.min.css"></script>
+<script type="module" src="/show.js"></script>
+</body>
+</html>

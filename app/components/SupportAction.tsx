@@ -10,6 +10,7 @@ import {
 } from "~/components/polaris/helpers";
 import type { SupportPrefill } from "~/routes/api.support";
 import { ModalAction } from "~/components/polaris/ModalAction";
+import { useT } from "~/i18n";
 
 type Form = {
   name: string;
@@ -34,22 +35,26 @@ const EMPTY: Form = {
 export const SUPPORT_FORM_ID = "support-form";
 export const FEATURE_FORM_ID = "feature-request-form";
 
+/*
+ * [value, English label, message key]. The English label goes into the ticket
+ * itself, for the support team; the merchant sees the translated message.
+ */
 const CATEGORIES = [
-  ["viewer", "3D viewer & display"],
-  ["ar", "AR (View in your room)"],
-  ["library", "Model library & uploads"],
-  ["analytics", "Analytics"],
-  ["theme", "Theme & storefront"],
-  ["other", "Something else"],
+  ["viewer", "3D viewer & display", "categoryViewer"],
+  ["ar", "AR (View in your room)", "categoryAr"],
+  ["library", "Model library & uploads", "categoryLibrary"],
+  ["analytics", "Analytics", "categoryAnalytics"],
+  ["theme", "Theme & storefront", "categoryTheme"],
+  ["other", "Something else", "categoryOther"],
 ] as const;
 
 const IMPORTANCE = [
-  ["nice", "Nice to have"],
-  ["important", "Important to my store"],
-  ["blocking", "Blocking me from using the app"],
+  ["nice", "Nice to have", "importanceNice"],
+  ["important", "Important to my store", "importanceImportant"],
+  ["blocking", "Blocking me from using the app", "importanceBlocking"],
 ] as const;
 
-const label = (list: readonly (readonly [string, string])[], key: string) =>
+const label = (list: readonly (readonly [string, string, string])[], key: string) =>
   list.find(([k]) => k === key)?.[1] ?? key;
 
 /**
@@ -65,6 +70,7 @@ const label = (list: readonly (readonly [string, string])[], key: string) =>
  * for why the request is made server-side.
  */
 export function SupportAction() {
+  const t = useT("support");
   return (
     <>
       <s-button
@@ -73,9 +79,9 @@ export function SupportAction() {
         icon="question-circle"
         commandFor={SUPPORT_FORM_ID}
         command="--show"
-        accessibilityLabel="Open support ticket form"
+        accessibilityLabel={t("openForm")}
       >
-        Support
+        {t("button")}
       </s-button>
       <TicketModal kind="support" />
     </>
@@ -103,6 +109,8 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
     message: string;
   } | null>(null);
   const shopify = useAppBridge();
+  const t = useT("support");
+  const tc = useT("common");
 
   // Two fetchers: one reads the defaults, one posts the ticket. Sharing one
   // would let the loader's response overwrite the submit result and vice versa.
@@ -190,9 +198,8 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
       setSent({
         ticketNumber: submit.data.ticketNumber ?? null,
         message: feature
-          ? "Your idea is with the team. We read every request and use them to decide what to build next."
-          : (submit.data.message ??
-            "Your support ticket has been created successfully."),
+          ? t("featureSentBody")
+          : (submit.data.message ?? t("ticketSentBody")),
       });
       setForm(EMPTY);
     }
@@ -225,10 +232,10 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
     <s-modal
       ref={ref as never}
       id={feature ? FEATURE_FORM_ID : SUPPORT_FORM_ID}
-      heading={feature ? "Request a feature" : "Create support ticket"}
+      heading={feature ? t("featureHeading") : t("ticketHeading")}
       size="large"
       accessibilityLabel={
-        feature ? "Request a feature form" : "Create support ticket form"
+        feature ? t("featureFormLabel") : t("ticketFormLabel")
       }
     >
       {sent ? (
@@ -236,28 +243,24 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
           tone="success"
           heading={
             feature
-              ? "Thanks for the idea!"
+              ? t("featureSentHeading")
               : sent.ticketNumber
-                ? `Ticket #${sent.ticketNumber} created`
-                : "Ticket sent"
+                ? t("ticketCreated", { number: String(sent.ticketNumber) })
+                : t("ticketSent")
           }
         >
           <s-paragraph>{sent.message}</s-paragraph>
           <s-paragraph>
             {feature
-              ? "If we have questions, or when it ships, we’ll email you at the address you gave."
-              : "You’ll get a reply by email at the address you gave."}
+              ? t("featureSentFollowUp")
+              : t("ticketSentFollowUp")}
           </s-paragraph>
         </s-banner>
       ) : (
         <s-stack direction="block" gap="base">
           {feature ? (
             <s-banner tone="info">
-              <s-paragraph>
-                Have an idea that would make Easy 3D Viewer better for your
-                store? Tell us what you’d like to do and why — the most useful
-                requests are the ones that explain the problem behind them.
-              </s-paragraph>
+              <s-paragraph>{t("featureIntro")}</s-paragraph>
             </s-banner>
           ) : null}
 
@@ -266,8 +269,8 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
               tone="critical"
               heading={
                 feature
-                  ? "Couldn’t send your request"
-                  : "Couldn’t send your ticket"
+                  ? t("featureSendFailed")
+                  : t("ticketSendFailed")
               }
             >
               <s-paragraph>{error}</s-paragraph>
@@ -279,27 +282,27 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
             gap="base"
           >
             <s-text-field
-              label="Name"
+              label={t("name")}
               required={flag(true)}
               value={form.name}
               onInput={(e) => set("name", fieldValue(e))}
             />
             <s-email-field
-              label="Email"
+              label={t("email")}
               required={flag(true)}
-              details="Where we’ll reply."
+              details={t("emailDetails")}
               value={form.email}
               onInput={(e) => set("email", fieldValue(e))}
             />
           </s-grid>
 
           <s-text-field
-            label={feature ? "Feature title" : "Subject"}
+            label={feature ? t("featureTitle") : t("subject")}
             required={flag(true)}
             placeholder={
               feature
-                ? "e.g. Add hotspots with notes on the 3D model"
-                : "3D model isn’t showing on my product page"
+                ? t("featureTitlePlaceholder")
+                : t("subjectPlaceholder")
             }
             value={form.subject}
             onInput={(e) => set("subject", fieldValue(e))}
@@ -311,24 +314,24 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
               gap="base"
             >
               <s-select
-                label="Category"
+                label={t("category")}
                 value={form.category}
                 onInput={(e) => set("category", fieldValue(e))}
               >
-                {CATEGORIES.map(([k, v]) => (
+                {CATEGORIES.map(([k, , key]) => (
                   <s-option key={k} value={k}>
-                    {v}
+                    {t(key)}
                   </s-option>
                 ))}
               </s-select>
               <s-select
-                label="How important is it?"
+                label={t("importance")}
                 value={form.importance}
                 onInput={(e) => set("importance", fieldValue(e))}
               >
-                {IMPORTANCE.map(([k, v]) => (
+                {IMPORTANCE.map(([k, , key]) => (
                   <s-option key={k} value={k}>
-                    {v}
+                    {t(key)}
                   </s-option>
                 ))}
               </s-select>
@@ -336,18 +339,18 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
           ) : null}
 
           <s-text-area
-            label={feature ? "Describe the feature" : "Message"}
+            label={feature ? t("featureDescription") : t("message")}
             required={flag(true)}
             rows={6}
             placeholder={
               feature
-                ? "What would you like to do, and what problem would it solve for your store or your shoppers?"
-                : "Which product or model is affected, what you did, and what happened instead."
+                ? t("featureDescriptionPlaceholder")
+                : t("messagePlaceholder")
             }
             details={
               feature
-                ? "Examples, links or how another app does it all help."
-                : "The more detail the better — we reply by email."
+                ? t("featureDescriptionDetails")
+                : t("messageDetails")
             }
             value={form.message}
             onInput={(e) => set("message", fieldValue(e))}
@@ -361,7 +364,7 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
           variant="primary"
           onClick={() => setOpen(false)}
         >
-          Done
+          {tc("done")}
         </ModalAction>
       ) : (
         <ModalAction
@@ -370,12 +373,12 @@ function TicketModal({ kind }: { kind: "support" | "feature" }) {
           loading={sending}
           onClick={send}
         >
-          {feature ? "Send request" : "Send ticket"}
+          {feature ? t("sendRequest") : t("sendTicket")}
         </ModalAction>
       )}
       {!sent ? (
         <ModalAction slot="secondary-actions" onClick={() => setOpen(false)}>
-          Cancel
+          {tc("cancel")}
         </ModalAction>
       ) : null}
     </s-modal>

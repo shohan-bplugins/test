@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "Seuls les fichiers .glb ou .gltf sont pris en charge",
+  "chooseFile": "Choisissez un fichier .glb ou .gltf",
+  "tooBigRaw": "Le fichier fait {size}. Maximum {max} Mo avant optimisation.",
+  "tooBig": "Le fichier fait {size}. La taille maximale acceptée est de {max} Mo — activez « Optimiser pour un chargement plus rapide » pour importer des fichiers plus volumineux.",
+  "stillTooBig": "Encore {size} après optimisation (au lieu de {original}). Maximum {max} Mo.",
+  "cantShrink": "Le fichier fait {size} et n’a pas pu être réduit davantage. Maximum {max} Mo.",
+  "saving": "Optimisé : {from} → {to} ({pct} % plus léger)",
+  "quota": "Vous avez atteint la limite de {limit} modèles 3D de votre forfait {plan}. Passez à un forfait supérieur pour en ajouter d’autres.",
+  "fileGone": "Le fichier n’est plus disponible. Ajoutez-le à nouveau.",
+  "uploadFailed": "Échec de l’importation"
+}

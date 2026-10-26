@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useLocale, useT, type TFunction } from "~/i18n";
+
 /*
  * Daily engagement as grouped columns: one bar per event type per period, one shared count
  * axis (all three are counts of the same unit, so a single scale is honest).
@@ -21,14 +23,15 @@ export type DayPoint = {
 
 export type SeriesKey = "view" | "interact" | "ar";
 
+/** `label` is a message key in the "charts" namespace. */
 export const SERIES: readonly {
   key: SeriesKey;
   label: string;
   color: string;
 }[] = [
-  { key: "view", label: "Views", color: "var(--viz-series-1)" },
-  { key: "interact", label: "Interactions", color: "var(--viz-series-2)" },
-  { key: "ar", label: "AR Click", color: "var(--viz-series-3)" },
+  { key: "view", label: "seriesView", color: "var(--viz-series-1)" },
+  { key: "interact", label: "seriesInteract", color: "var(--viz-series-2)" },
+  { key: "ar", label: "seriesAr", color: "var(--viz-series-3)" },
 ];
 
 /*
@@ -56,8 +59,11 @@ function niceScale(max: number): { top: number; ticks: number[] } {
 }
 
 const utc = (day: string) => new Date(`${day}T00:00:00Z`);
-const fmt = (day: string, opts: Intl.DateTimeFormatOptions) =>
-  utc(day).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
+const fmtDay = (
+  locale: string,
+  day: string,
+  opts: Intl.DateTimeFormatOptions,
+) => utc(day).toLocaleDateString(locale, { ...opts, timeZone: "UTC" });
 
 /*
  * One point per day for a month or less, per week up to ~four months, per
@@ -65,10 +71,16 @@ const fmt = (day: string, opts: Intl.DateTimeFormatOptions) =>
  * read or hover; a weekly or monthly sum shows the trend instead.
  */
 type Grain = "day" | "week" | "month";
+/** Message keys in the "charts" namespace. */
 const GRAIN_LABEL: Record<Grain, string> = {
-  day: "Daily",
-  week: "Weekly",
-  month: "Monthly",
+  day: "grainDay",
+  week: "grainWeek",
+  month: "grainMonth",
+};
+const GRAIN_ARIA: Record<Grain, string> = {
+  day: "chartAriaDay",
+  week: "chartAriaWeek",
+  month: "chartAriaMonth",
 };
 /** Pixels each date label needs, so labels never overlap. */
 const LABEL_SPACE: Record<Grain, number> = { day: 52, week: 52, month: 52 };
@@ -77,7 +89,13 @@ const LABEL_SPACE: Record<Grain, number> = { day: 52, week: 52, month: 52 };
  *  not comparable with its neighbours'. */
 type Bucket = DayPoint & { label: string; title: string; partial: boolean };
 
-function bucketize(data: DayPoint[]): { grain: Grain; buckets: Bucket[] } {
+function bucketize(
+  data: DayPoint[],
+  t: TFunction,
+  locale: string,
+): { grain: Grain; buckets: Bucket[] } {
+  const fmt = (day: string, opts: Intl.DateTimeFormatOptions) =>
+    fmtDay(locale, day, opts);
   const grain: Grain =
     data.length <= 31 ? "day" : data.length <= 120 ? "week" : "month";
 
@@ -115,7 +133,9 @@ function bucketize(data: DayPoint[]): { grain: Grain; buckets: Bucket[] } {
       // Labelled by its first day in range, so a week clipped by the range
       // start is not named after a day the chart does not cover.
       label = fmt(first, { month: "short", day: "numeric" });
-      title = `Week of ${fmt(first, { month: "short", day: "numeric", year: "numeric" })}`;
+      title = t("weekOf", {
+        date: fmt(first, { month: "short", day: "numeric", year: "numeric" }),
+      });
     } else {
       // Short month names, with the year only where it changes — the first
       // label and every January — as "Oct ’25", which cannot be misread as
@@ -124,7 +144,10 @@ function bucketize(data: DayPoint[]): { grain: Grain; buckets: Bucket[] } {
       const yearMark = first === data[0].day || d.getUTCMonth() === 0;
       const short = fmt(first, { month: "short" });
       label = yearMark
-        ? `${short} ’${String(d.getUTCFullYear()).slice(2)}`
+        ? t("monthYearShort", {
+            month: short,
+            year: String(d.getUTCFullYear()).slice(2),
+          })
         : short;
       title = fmt(first, { month: "long", year: "numeric" });
     }
@@ -141,7 +164,9 @@ function bucketize(data: DayPoint[]): { grain: Grain; buckets: Bucket[] } {
               ),
             ).getUTCDate();
     const partial = days.length < fullLength;
-    if (partial) title += ` (${days.length} of ${fullLength} days)`;
+    if (partial) {
+      title = t("partialDays", { title, days: days.length, total: fullLength });
+    }
     return {
       day: first,
       view: sum("view"),
@@ -169,10 +194,15 @@ export function EngagementChart({
    */
   onLockedClick?: () => void;
 }) {
+  const t = useT("charts");
+  const locale = useLocale();
   const offered = only ? SERIES.filter((s) => only.includes(s.key)) : SERIES;
   const locked =
     only && onLockedClick ? SERIES.filter((s) => !only.includes(s.key)) : [];
-  const { grain, buckets: data } = useMemo(() => bucketize(days), [days]);
+  const { grain, buckets: data } = useMemo(
+    () => bucketize(days, t, locale),
+    [days, t, locale],
+  );
   const [hover, setHover] = useState<number | null>(null);
   /*
    * Lines can be switched off from the legend — AR launches are usually a
@@ -276,7 +306,7 @@ export function EngagementChart({
     <div className="viz-root">
       <style>{VIZ_CSS}</style>
 
-      <div className="viz-legend" role="group" aria-label="Show or hide series">
+      <div className="viz-legend" role="group" aria-label={t("legendAria")}>
         {offered.map((s) => {
           const on = !hidden.has(s.key);
           return (
@@ -294,7 +324,7 @@ export function EngagementChart({
                   borderColor: s.color,
                 }}
               />
-              {s.label}
+              {t(s.label)}
             </button>
           );
         })}
@@ -304,14 +334,14 @@ export function EngagementChart({
             type="button"
             className="viz-legend-item viz-legend-locked"
             onClick={onLockedClick}
-            aria-label={`${s.label} — available on paid plans. Upgrade.`}
+            aria-label={t("lockedSeriesAria", { label: t(s.label) })}
           >
             <span className="viz-swatch" style={{ borderColor: s.color }} />
-            {s.label}
+            {t(s.label)}
             <span className="viz-pro">PRO</span>
           </button>
         ))}
-        <span className="viz-grain">{GRAIN_LABEL[grain]}</span>
+        <span className="viz-grain">{t(GRAIN_LABEL[grain])}</span>
       </div>
 
       <div className="viz-plot" ref={plotRef}>
@@ -319,27 +349,27 @@ export function EngagementChart({
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           role="img"
-          aria-label={`${GRAIN_LABEL[grain]} views, interactions and AR clicks. The table below lists the daily numbers.`}
+          aria-label={t(GRAIN_ARIA[grain])}
           onPointerMove={onMove}
           onPointerLeave={() => setHover(null)}
         >
-          {ticks.map((t) => (
-            <g key={t}>
+          {ticks.map((tick) => (
+            <g key={tick}>
               <line
                 className="viz-grid"
                 x1={PAD.left}
                 x2={W - PAD.right}
-                y1={y(t)}
-                y2={y(t)}
+                y1={y(tick)}
+                y2={y(tick)}
               />
               <text
                 className="viz-axis"
                 x={PAD.left - 8}
-                y={y(t)}
+                y={y(tick)}
                 dy="0.32em"
                 textAnchor="end"
               >
-                {t.toLocaleString("en-US")}
+                {tick.toLocaleString(locale)}
               </text>
             </g>
           ))}
@@ -423,8 +453,8 @@ export function EngagementChart({
             {offered.map((s) => (
               <div key={s.key} className="viz-tooltip-row">
                 <span className="viz-swatch" style={{ background: s.color }} />
-                <span>{s.label}</span>
-                <strong>{hovered[s.key].toLocaleString("en-US")}</strong>
+                <span>{t(s.label)}</span>
+                <strong>{hovered[s.key].toLocaleString(locale)}</strong>
               </div>
             ))}
           </div>

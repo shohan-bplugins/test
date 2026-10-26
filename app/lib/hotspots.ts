@@ -17,6 +17,12 @@
  * The storefront widget (extensions/viewer-3d/assets/viewer-3d.js) cannot
  * import this file and mirrors sanitizeHotspots and the element markup by hand.
  */
+import {
+  DEFAULT_STOREFRONT_STRINGS,
+  LOCALE_PATTERN,
+  fmt,
+  type StorefrontStrings,
+} from "./storefront-strings";
 
 export const MAX_HOTSPOTS = 20;
 export const MAX_TITLE = 60;
@@ -29,7 +35,17 @@ export type HotspotImage = { url: string; alt: string };
 /** YouTube / Vimeo by id; a video file (Shopify Files, or any https mp4/webm) by URL. */
 export type HotspotVideo =
   | { kind: "youtube" | "vimeo"; id: string; url: "" }
-  | { kind: "file"; id: ""; url: string };
+  | {
+      kind: "file";
+      id: "";
+      url: string;
+      /**
+       * A still from the video, shown on the card before play: Shopify's own
+       * preview frame for a file from Shopify Files. Without one, the card
+       * shows the video's first frame instead (primeHotspotVideoFrames).
+       */
+      poster?: string;
+    };
 
 /**
  * A product to sell from the hotspot. A snapshot for display in the admin and
@@ -70,7 +86,126 @@ export type Hotspot = {
   image: HotspotImage | null;
   video: HotspotVideo | null;
   product: HotspotProduct | null;
+  /**
+   * The order of the card's blocks, as the merchant arranged them. Absent
+   * until they do: the card then keeps its original layout (hotspotBlockOrder).
+   */
+  order?: HotspotBlock[];
+  /**
+   * The merchant's translations, by storefront locale ("fr", "pt-BR"). Sparse:
+   * a field left out shows the base text above, which is the shop's primary
+   * language. Position, media and product are shared by every language.
+   */
+  translations?: Record<string, HotspotText>;
 };
+
+/** The parts of a hotspot that are text a shopper reads. */
+export type HotspotText = {
+  title?: string;
+  description?: string;
+  linkLabel?: string;
+  imageAlt?: string;
+};
+export const HOTSPOT_TEXT_FIELDS = [
+  "title",
+  "description",
+  "linkLabel",
+  "imageAlt",
+] as const satisfies readonly (keyof HotspotText)[];
+/** More than any shop publishes in practice; bounds the metafield's size. */
+export const MAX_HOTSPOT_LOCALES = 20;
+const TEXT_MAX: Record<keyof HotspotText, number> = {
+  title: MAX_TITLE,
+  description: MAX_DESCRIPTION,
+  linkLabel: MAX_LINK_LABEL,
+  imageAlt: 200,
+};
+
+/**
+ * The merchant's translation for `locale`: the exact one (pt-BR), else its
+ * language's (pt), else empty. Mirrors hsTranslation in viewer-3d.js.
+ */
+export function pickHotspotTranslation(
+  h: Hotspot,
+  locale: string | null | undefined,
+): HotspotText {
+  if (!h.translations || !locale) return {};
+  const want = locale.toLowerCase();
+  const lang = want.split("-")[0];
+  let byLang: HotspotText | undefined;
+  for (const [k, v] of Object.entries(h.translations)) {
+    const key = k.toLowerCase();
+    if (key === want) return v;
+    if (key === lang) byLang = v;
+  }
+  return byLang ?? {};
+}
+
+/** The hotspot as a shopper in `locale` reads it. */
+export function localizeHotspot(
+  h: Hotspot,
+  locale: string | null | undefined,
+): Hotspot {
+  const tr = pickHotspotTranslation(h, locale);
+  if (!Object.keys(tr).length) return h;
+  return {
+    ...h,
+    title: tr.title || h.title,
+    description: tr.description || h.description,
+    linkLabel: tr.linkLabel || h.linkLabel,
+    image: h.image ? { ...h.image, alt: tr.imageAlt || h.image.alt } : null,
+  };
+}
+
+/** Keeps well-formed locales and non-empty, clamped fields; drops the rest. */
+function sanitizeTranslations(
+  raw: unknown,
+): { translations?: Record<string, HotspotText> } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, HotspotText> = {};
+  let count = 0;
+  for (const [locale, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (count >= MAX_HOTSPOT_LOCALES) break;
+    if (!LOCALE_PATTERN.test(locale) || !value || typeof value !== "object") {
+      continue;
+    }
+    const v = value as Record<string, unknown>;
+    const text: HotspotText = {};
+    for (const field of HOTSPOT_TEXT_FIELDS) {
+      const clean = str(v[field], TEXT_MAX[field]);
+      if (clean) text[field] = clean;
+    }
+    if (Object.keys(text).length) {
+      out[locale] = text;
+      count += 1;
+    }
+  }
+  return count ? { translations: out } : {};
+}
+
+/** The parts of a hotspot's card that can be reordered, below its title
+ * (always first). Text is the description and link together. */
+export const HOTSPOT_BLOCKS = ["image", "video", "text", "product"] as const;
+export type HotspotBlock = (typeof HOTSPOT_BLOCKS)[number];
+
+/**
+ * The card's blocks in the order to show them — all four, whether or not the
+ * hotspot has each (missing ones are simply skipped when building). Without a
+ * saved order this is the layout cards always had: the media first and the
+ * product last, with an image that has a video beside it under the text.
+ * Mirrored by hsBlockOrder in viewer-3d.js.
+ */
+export function hotspotBlockOrder(
+  h: Pick<Hotspot, "order" | "image" | "video">,
+): HotspotBlock[] {
+  const base: HotspotBlock[] =
+    h.video && h.image
+      ? ["video", "text", "image", "product"]
+      : ["image", "video", "text", "product"];
+  if (!h.order?.length) return base;
+  const out = h.order.filter((b, i, a) => HOTSPOT_BLOCKS.includes(b) && a.indexOf(b) === i);
+  return [...out, ...base.filter((b) => !out.includes(b))];
+}
 
 const str = (v: unknown, max: number) =>
   typeof v === "string" ? v.trim().slice(0, max) : "";
@@ -166,7 +301,9 @@ function sanitizeVideo(raw: unknown): HotspotVideo | null {
   }
   if (v.kind === "file") {
     const parsed = parseVideoUrl(v.url);
-    return parsed?.kind === "file" ? parsed : null;
+    if (parsed?.kind !== "file") return null;
+    const poster = safeImageUrl(v.poster);
+    return poster ? { ...parsed, poster } : parsed;
   }
   return null;
 }
@@ -247,9 +384,21 @@ export function sanitizeHotspots(raw: unknown): Hotspot[] {
       })(),
       video: sanitizeVideo(h.video),
       product: sanitizeProduct(h.product),
+      ...sanitizeOrder(h.order),
+      ...sanitizeTranslations(h.translations),
     });
   }
   return out;
+}
+
+/** A saved block order, kept only if it is one; see Hotspot.order. */
+function sanitizeOrder(raw: unknown): { order?: HotspotBlock[] } {
+  if (!Array.isArray(raw)) return {};
+  const order = raw.filter(
+    (b, i, a): b is HotspotBlock =>
+      HOTSPOT_BLOCKS.includes(b as HotspotBlock) && a.indexOf(b) === i,
+  );
+  return order.length ? { order } : {};
 }
 
 /** A hex colour for the markers, or the default. */
@@ -291,6 +440,7 @@ export function buildHotspotElement(
   color: string,
   onPreviewCommerce?: () => void,
   label: HotspotLabel = "number",
+  strings: StorefrontStrings = DEFAULT_STOREFRONT_STRINGS,
 ): HTMLElement {
   const el = document.createElement("div");
   // view3d's classes, for its flip-x / flip-y / selected / hidden toggles;
@@ -304,7 +454,10 @@ export function buildHotspotElement(
   pin.type = "button";
   pin.className = "e3d-hotspot-pin";
   pin.textContent = label === "title" ? h.title : String(index + 1);
-  pin.setAttribute("aria-label", `Hotspot ${index + 1}: ${h.title}`);
+  pin.setAttribute(
+    "aria-label",
+    fmt(strings.hotspot_pin, { n: index + 1, title: h.title }),
+  );
   el.appendChild(pin);
 
   const card = document.createElement("div");
@@ -314,39 +467,25 @@ export function buildHotspotElement(
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", h.title);
 
-  if (h.video) card.appendChild(buildVideo(h.video));
-  else if (h.image) card.appendChild(buildImage(h.image));
-
+  // The title always leads; below it, the blocks in the merchant's order
+  // (hotspotBlockOrder). Spacing between them comes from the CSS, whatever
+  // the order.
   const title = document.createElement("div");
   title.className = "e3d-hotspot-title";
   title.textContent = h.title;
   card.appendChild(title);
-
-  if (h.description) {
-    const body = document.createElement("div");
-    body.className = "e3d-hotspot-text";
-    body.textContent = h.description;
-    card.appendChild(body);
-  }
-
-  // An image alongside a video goes under the text rather than competing
-  // with the player for the top of the card.
-  if (h.video && h.image) card.appendChild(buildImage(h.image));
-
-  const url = safeHotspotUrl(h.linkUrl);
-  if (url) {
-    const a = document.createElement("a");
-    a.className = "e3d-hotspot-link";
-    a.href = url;
-    a.textContent = h.linkLabel || "Learn more";
-    if (!url.startsWith("/")) {
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
+  for (const block of hotspotBlockOrder(h)) {
+    if (block === "image" && h.image) card.appendChild(buildImage(h.image));
+    else if (block === "video" && h.video)
+      card.appendChild(buildVideo(h.video, strings));
+    else if (block === "text") {
+      const text = buildText(h, strings);
+      if (text) card.appendChild(text);
     }
-    card.appendChild(a);
+    else if (block === "product" && h.product) {
+      card.appendChild(buildProduct(h.product, strings, onPreviewCommerce));
+    }
   }
-
-  if (h.product) card.appendChild(buildProduct(h.product, onPreviewCommerce));
   // view3d cancels wheel events on the whole annotation (so scrolling over a
   // pin never zooms the model) — which also stops a tall card scrolling.
   // Scrolled by hand instead.
@@ -381,7 +520,11 @@ export function wireHotspotHover(
     if (e.pointerType !== "mouse" || !canHover()) return;
     window.clearTimeout(timer);
     const annotation = get();
-    if (annotation && !annotation.focusing) annotation._onFocus?.();
+    if (annotation && !annotation.focusing) {
+      // No camera turn to undo when it closes; see resetViewOnHotspotClose.
+      annotation[HOVER_OPENED] = true;
+      annotation._onFocus?.();
+    }
   });
   el.addEventListener("pointerleave", (e) => {
     if (e.pointerType !== "mouse") return;
@@ -391,6 +534,103 @@ export function wireHotspotHover(
       if (annotation?.focusing) annotation.unfocus();
     }, 250);
   });
+}
+
+/** Set on an annotation opened by hover, which never turned the camera. */
+const HOVER_OPENED = "__e3dHoverOpened";
+
+/**
+ * Closing a hotspot's card glides the camera back to the starting view — the
+ * same reset as the toolbar's Reset view — undoing the turn that opening it
+ * made. Not when:
+ * - another hotspot opened in the same click (view3d closes the old one, then
+ *   opens the new one; resetting would swing away from the new one),
+ * - the shopper dragged the model (view3d closes the card as soon as the model
+ *   is grabbed; resetting would undo the angle they just turned to). A press
+ *   that turns out to be a click, with no camera movement, still resets,
+ * - the card was opened by hover, which never moved the camera.
+ * Returns a cleanup. Mirrored by resetViewOnHsClose in viewer-3d.js.
+ */
+export function resetViewOnHotspotClose(view3d: any): () => void {
+  let holding = false;
+  let pending = false;
+  let holdPose: number[] | null = null;
+  const pose = () => {
+    const p = view3d.camera?.currentPose;
+    return p ? [p.yaw, p.pitch, p.zoom] : null;
+  };
+  const reset = () => {
+    const list: any[] = view3d.annotation?.list ?? [];
+    if (list.some((a) => a.focusing)) return;
+    view3d.camera?.reset?.(500);
+  };
+  const onHold = () => {
+    holding = true;
+    holdPose = pose();
+  };
+  const onRelease = () => {
+    holding = false;
+    if (!pending) return;
+    pending = false;
+    const now = pose();
+    const moved =
+      !holdPose || !now || now.some((v, i) => Math.abs(v - holdPose![i]) > 0.5);
+    if (!moved) reset();
+  };
+  const controls: any[] = view3d.control?.controls ?? [];
+  controls.forEach((c) => {
+    c.on?.("hold", onHold);
+    c.on?.("release", onRelease);
+  });
+  const onUnfocus = (evt: any) => {
+    const annotation = evt?.annotation;
+    const hovered = !!annotation?.[HOVER_OPENED];
+    if (annotation) annotation[HOVER_OPENED] = false;
+    if (hovered) return;
+    // After the event that closed it has finished: by then a pin pressed in
+    // the same click has opened, and a press on the model has reported its
+    // hold — whose release then decides between a click and a drag.
+    window.setTimeout(() => {
+      if (holding) pending = true;
+      else reset();
+    }, 0);
+  };
+  view3d.on?.("annotationUnfocus", onUnfocus);
+  return () => {
+    view3d.off?.("annotationUnfocus", onUnfocus);
+    controls.forEach((c) => {
+      c.off?.("hold", onHold);
+      c.off?.("release", onRelease);
+    });
+  };
+}
+
+/** Description and link, kept together; null when the hotspot has neither. */
+function buildText(h: Hotspot, strings: StorefrontStrings): HTMLElement | null {
+  const url = safeHotspotUrl(h.linkUrl);
+  if (!h.description && !url) return null;
+  const box = document.createElement("div");
+  box.className = "e3d-hotspot-body";
+
+  if (h.description) {
+    const body = document.createElement("div");
+    body.className = "e3d-hotspot-text";
+    body.textContent = h.description;
+    box.appendChild(body);
+  }
+
+  if (url) {
+    const a = document.createElement("a");
+    a.className = "e3d-hotspot-link";
+    a.href = url;
+    a.textContent = h.linkLabel || strings.learn_more;
+    if (!url.startsWith("/")) {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    }
+    box.appendChild(a);
+  }
+  return box;
 }
 
 function buildImage(image: HotspotImage): HTMLElement {
@@ -403,18 +643,29 @@ function buildImage(image: HotspotImage): HTMLElement {
   return img;
 }
 
-function buildVideo(video: HotspotVideo): HTMLElement {
+function buildVideo(video: HotspotVideo, strings: StorefrontStrings): HTMLElement {
   const box = document.createElement("div");
   box.className = "e3d-hotspot-video";
+  // Read back by activateHotspotVideo, which builds the player later, and by
+  // resetHotspotVideos, which rebuilds this thumbnail.
+  box.dataset.title = strings.video;
+  box.dataset.playLabel = strings.play_video;
   box.dataset.kind = video.kind;
   box.dataset.src = video.kind === "file" ? video.url : video.id;
-  if (video.kind === "youtube") {
-    box.style.backgroundImage = `url("https://i.ytimg.com/vi/${video.id}/hqdefault.jpg")`;
+  const poster =
+    video.kind === "youtube"
+      ? `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`
+      : video.kind === "file"
+        ? safeImageUrl(video.poster)
+        : "";
+  if (poster) {
+    box.dataset.poster = poster;
+    box.style.backgroundImage = `url("${poster}")`;
   }
   const play = document.createElement("button");
   play.type = "button";
   play.className = "e3d-hotspot-play";
-  play.setAttribute("aria-label", "Play video");
+  play.setAttribute("aria-label", strings.play_video);
   play.innerHTML =
     '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
   play.addEventListener("click", (e) => {
@@ -433,6 +684,7 @@ export function activateHotspotVideo(box: HTMLElement) {
   box.style.backgroundImage = "";
   if (kind === "file") {
     const video = document.createElement("video");
+    if (box.dataset.poster) video.poster = box.dataset.poster;
     video.src = src;
     video.controls = true;
     video.autoplay = true;
@@ -446,23 +698,63 @@ export function activateHotspotVideo(box: HTMLElement) {
       ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(src)}?autoplay=1&rel=0&playsinline=1`
       : `https://player.vimeo.com/video/${encodeURIComponent(src)}?autoplay=1`;
   iframe.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
+  // YouTube refuses to play without a Referer ("Error 153: video player
+  // configuration error"), and the page's own policy may withhold it: hosting
+  // panels commonly add `Referrer-Policy: same-origin` (see DEPLOY-VPS.md),
+  // which sends none cross-origin. The browser default, set on the frame, wins
+  // over the page's. Same as the dashboard's tutorial embed.
+  iframe.referrerPolicy = "strict-origin-when-cross-origin";
   iframe.allowFullscreen = true;
-  iframe.title = "Video";
+  iframe.title = box.dataset.title || DEFAULT_STOREFRONT_STRINGS.video;
   box.appendChild(iframe);
+}
+
+/**
+ * A file video with no poster shows its own first frame instead of a blank
+ * box: a muted, metadata-only <video> behind the play button. Called when a
+ * card opens, not when it is built, so a page with many hotspots does not
+ * fetch from every video at load. `#t=0.1` makes iOS Safari paint a frame.
+ */
+export function primeHotspotVideoFrames(root: HTMLElement) {
+  root
+    .querySelectorAll<HTMLElement>(
+      '.e3d-hotspot-video[data-kind="file"]:not([data-poster])',
+    )
+    .forEach((box) => {
+      if (box.querySelector("video, iframe")) return;
+      const frame = document.createElement("video");
+      frame.className = "e3d-hotspot-frame";
+      frame.muted = true;
+      frame.playsInline = true;
+      frame.preload = "metadata";
+      frame.setAttribute("aria-hidden", "true");
+      frame.src = `${(box.dataset.src ?? "").split("#")[0]}#t=0.1`;
+      box.insertBefore(frame, box.firstChild);
+    });
 }
 
 /** Stops any playing video in a card by putting the thumbnail back. */
 export function resetHotspotVideos(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>(".e3d-hotspot-video").forEach((box) => {
-    if (!box.querySelector("iframe, video")) return;
+    if (!box.querySelector("iframe, video:not(.e3d-hotspot-frame)")) return;
     const fresh = buildVideo(
       box.dataset.kind === "file"
-        ? { kind: "file", id: "", url: box.dataset.src ?? "" }
+        ? {
+            kind: "file",
+            id: "",
+            url: box.dataset.src ?? "",
+            poster: box.dataset.poster ?? "",
+          }
         : {
             kind: box.dataset.kind as "youtube" | "vimeo",
             id: box.dataset.src ?? "",
             url: "",
           },
+      {
+        ...DEFAULT_STOREFRONT_STRINGS,
+        video: box.dataset.title || DEFAULT_STOREFRONT_STRINGS.video,
+        play_video: box.dataset.playLabel || DEFAULT_STOREFRONT_STRINGS.play_video,
+      },
     );
     box.replaceWith(fresh);
   });
@@ -470,6 +762,7 @@ export function resetHotspotVideos(root: HTMLElement) {
 
 function buildProduct(
   product: HotspotProduct,
+  strings: StorefrontStrings,
   onPreviewCommerce?: () => void,
 ): HTMLElement {
   const box = document.createElement("div");
@@ -516,8 +809,9 @@ function buildProduct(
       actions.appendChild(b);
     };
     if (product.addToCart)
-      add("Add to cart", "e3d-hotspot-btn--primary", "add");
-    if (product.buyNow) add("Buy now", "e3d-hotspot-btn--secondary", "buy");
+      add(strings.add_to_cart, "e3d-hotspot-btn--primary", "add");
+    if (product.buyNow)
+      add(strings.buy_now, "e3d-hotspot-btn--secondary", "buy");
     box.appendChild(actions);
   }
   // Mirrors the storefront's link to the full product page. Outside the
@@ -525,7 +819,7 @@ function buildProduct(
   const view = document.createElement("a");
   view.className = "e3d-hotspot-product-link";
   view.href = `/products/${encodeURIComponent(product.handle)}?variant=${encodeURIComponent(product.variantId)}`;
-  view.textContent = "View product →";
+  view.textContent = strings.view_product;
   if (onPreviewCommerce) {
     view.addEventListener("click", (e) => {
       e.preventDefault();

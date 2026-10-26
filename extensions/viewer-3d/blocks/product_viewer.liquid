@@ -71,6 +71,7 @@
 -%}
 
 {%- if model_url != blank -%}
+  {%- capture viewer_i18n -%}{%- render 'viewer_i18n' -%}{%- endcapture -%}
   <div class="viewer-3d-block" {{ block.shopify_attributes }}>
     <div
       id="viewer-3d-{{ block.id }}"
@@ -96,6 +97,8 @@
         iosSrc are free text) would terminate a single-quoted attribute early.
       {%- endcomment %}
       data-config="{{ cfg | json | escape }}"
+      data-locale="{{ request.locale.iso_code | escape }}"
+      data-i18n="{{ viewer_i18n | strip | escape }}"
     >
       <canvas class="view3d-canvas"></canvas>
     </div>
@@ -124,31 +127,31 @@
 
 {% schema %}
 {
-  "name": "3D Viewer — Product",
+  "name": "t:viewer_3d.product.name",
   "target": "section",
   "settings": [
     {
       "type": "header",
-      "content": "Model source"
+      "content": "t:viewer_3d.shared.header_source"
     },
     {
       "type": "paragraph",
-      "content": "By default the model comes from the product metafield custom.model_3d (managed via the 3D Viewer app). Leave the override blank for the normal flow. Only paste a direct .glb / .gltf URL below if you want to override the metafield for testing."
+      "content": "t:viewer_3d.product.paragraph"
     },
     {
       "type": "url",
       "id": "model_url",
-      "label": "Manual model URL (must end in .glb or .gltf)",
-      "info": "Leave empty to use the product metafield. Non-model URLs are ignored."
+      "label": "t:viewer_3d.product.model_url.label",
+      "info": "t:viewer_3d.product.model_url.info"
     },
     {
       "type": "header",
-      "content": "Default appearance"
+      "content": "t:viewer_3d.product.header_appearance"
     },
     {
       "type": "range",
       "id": "height",
-      "label": "Viewer height",
+      "label": "t:viewer_3d.shared.height.label",
       "min": 200,
       "max": 800,
       "step": 50,
@@ -158,7 +161,7 @@
     {
       "type": "color",
       "id": "background_color",
-      "label": "Background color",
+      "label": "t:viewer_3d.shared.background_color.label",
       "default": "#ffffff"
     }
   ]

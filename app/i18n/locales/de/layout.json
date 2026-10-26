@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "Vergrößern",
+  "control_zoomOut": "Verkleinern",
+  "control_reset": "Ansicht zurücksetzen",
+  "control_fullscreen": "Vollbild",
+  "control_screenshot": "Screenshot",
+  "control_ar": "In deinem Raum ansehen",
+  "control_animation": "Animation",
+  "slotTopLeft": "oben links",
+  "slotTopCenter": "oben mittig",
+  "slotTopRight": "oben rechts",
+  "slotBottomLeft": "unten links",
+  "slotBottomCenter": "unten mittig",
+  "slotBottomRight": "unten rechts",
+  "chipOffA11y": "{control}, ausgeschaltet. Zum Einschalten auf den Viewer ziehen oder die Eingabetaste drücken.",
+  "chipOnA11y": "{control}, {where}. Zum Verschieben ziehen oder die Pfeiltasten verwenden; Entf zum Ausschalten.",
+  "empty": "Leer",
+  "instructions": "Ziehe ein Steuerelement an eine Position oder zwischen zwei andere, um die Reihenfolge festzulegen. Ziehe es in die Ablage unten, um es auszublenden, oder aus der Ablage heraus, um es anzuzeigen.",
+  "hidden": "Ausgeblendet",
+  "whereHidden": "ausgeblendet",
+  "dropToHide": "Zum Ausblenden ablegen",
+  "nothingHidden": "Nichts ausgeblendet — ziehe ein Steuerelement hierher, um es auszublenden"
+}

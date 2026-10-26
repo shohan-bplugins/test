@@ -1,0 +1,43 @@
+1
+00:00:00,400 --> 00:00:04,150
+Meet Hotspots — the newest feature in Easy 3D Viewer.
+
+2
+00:00:04,951 --> 00:00:11,081
+Pin the details that sell your product right onto the 3D model. The pins stay locked in place as it turns.
+
+3
+00:00:11,882 --> 00:00:17,372
+One click, and the camera glides to that exact spot while a card opens with the story behind it.
+
+4
+00:00:18,172 --> 00:00:20,822
+Add a photo to show the detail up close…
+
+5
+00:00:21,905 --> 00:00:27,805
+…or a video — from YouTube, Vimeo, or your own file — that plays right inside the card.
+
+6
+00:00:28,605 --> 00:00:35,625
+And hotspots can sell. Shoppers pick a variant, see the live price, and add to cart without ever leaving the model.
+
+7
+00:00:39,495 --> 00:00:44,145
+Make them yours. Show titles instead of numbers, in your own brand color…
+
+8
+00:00:44,946 --> 00:00:49,036
+…and open cards on hover, so shoppers simply point to explore.
+
+9
+00:00:55,057 --> 00:01:02,357
+On phones, every card opens as a clean bottom sheet. Easy to read, easy to tap, with the same shop buttons.
+
+10
+00:01:05,687 --> 00:01:14,197
+Setting one up takes seconds. Click Add hotspot, click the spot on the model, then give it a title and a short description. No code needed.
+
+11
+00:01:20,582 --> 00:01:29,842
+Hotspots. Up to twenty per model, on the Pro and Pro Plus plans. Explain, show, and sell — right on the model. Easy 3D Viewer.

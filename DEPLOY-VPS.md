@@ -90,7 +90,7 @@ Required:
 | `SHOPIFY_API_KEY` | Partner Dashboard → your app → **Client ID** |
 | `SHOPIFY_API_SECRET` | Partner Dashboard → **Client secret** |
 | `SHOPIFY_APP_URL` | `https://app.example.com` — no trailing slash |
-| `SCOPES` | `write_products,write_files,write_themes` |
+| `SCOPES` | `write_products,write_files,write_themes,read_locales` |
 
 Optional: `GA_MEASUREMENT_ID`, `CLARITY_PROJECT_ID` (both default to the IDs in
 `app/lib/analytics.server.ts`; set either to `off` to disable), and
@@ -383,6 +383,7 @@ Re-run `shopify app deploy` from your local machine only when
 | `MissingSessionTableError: Prisma session table does not exist` | **Almost never a missing collection.** See below |
 | App frame blank or refuses to load | Not on HTTPS, or `SHOPIFY_APP_URL` doesn't match `application_url` exactly |
 | `Refused to display … because it set 'X-Frame-Options' to 'sameorigin'` | A security-headers block in nginx that this guide's step 8 does not add — see below |
+| YouTube in a hotspot shows "Error 153 — video player configuration error" | The same security-headers block's `referrer-policy: same-origin` (below) withholds the Referer YouTube requires. The hotspot player now sets its own policy on the iframe; changing the header to `strict-origin-when-cross-origin` also fixes it |
 | 413 on model upload | `client_max_body_size` (step 8) |
 | Merchants redirected to a dead `trycloudflare.com` URL | `shopify app dev` overwrote the production URLs — see the warning in step 10 |
 | App loads but the storefront block can't resolve a Model ID | `[app_proxy].url` still points at the old domain |

@@ -690,7 +690,7 @@
   letter-spacing: normal !important;
   text-transform: none !important;
   text-decoration: none !important;
-  text-align: left !important;
+  text-align: start !important;
   cursor: pointer !important;
   opacity: 1 !important;
   -webkit-appearance: none !important;
@@ -759,7 +759,7 @@
   font-size: 12px !important;
   font-weight: 400 !important;
   line-height: 16px !important;
-  text-align: left !important;
+  text-align: start !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
   pointer-events: none !important;
   opacity: 0 !important;
@@ -1106,7 +1106,7 @@
   border-radius: 10px;
   background: #fff;
   color: #1a1a1a;
-  text-align: left;
+  text-align: start;
   white-space: normal;
   font: 400 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
@@ -1221,6 +1221,12 @@
   background: #000;
 }
 
+/* The first-frame stand-in for a poster sits under the play button. */
+.e3d-hotspot-video video.e3d-hotspot-frame {
+  object-fit: cover;
+  pointer-events: none;
+}
+
 .e3d-hotspot-play {
   all: unset;
   position: absolute;
@@ -1250,6 +1256,33 @@
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #ececec;
+}
+
+/*
+ * The card's blocks can come in any order (Hotspot.order), so the space
+ * between them belongs to whichever block follows another, not to a fixed
+ * position. Looks the same as before in the default order.
+ */
+.e3d-hotspot-card > .e3d-hotspot-media,
+.e3d-hotspot-card > .e3d-hotspot-video {
+  margin: 0;
+}
+.e3d-hotspot-card > * + * {
+  margin-top: 10px;
+}
+.e3d-hotspot-card > * + .e3d-hotspot-product {
+  margin-top: 12px;
+}
+/* A product right under the title needs no divider between them. */
+.e3d-hotspot-card > .e3d-hotspot-title + .e3d-hotspot-product {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The title leads every card; its description sits close under it. */
+.e3d-hotspot-card > .e3d-hotspot-title + .e3d-hotspot-body {
+  margin-top: 0;
 }
 
 .e3d-hotspot-product-row {

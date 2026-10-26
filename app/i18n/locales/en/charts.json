@@ -1,0 +1,16 @@
+{
+  "seriesView": "Views",
+  "seriesInteract": "Interactions",
+  "seriesAr": "AR Click",
+  "grainDay": "Daily",
+  "grainWeek": "Weekly",
+  "grainMonth": "Monthly",
+  "chartAriaDay": "Daily views, interactions and AR clicks. The table below lists the daily numbers.",
+  "chartAriaWeek": "Weekly views, interactions and AR clicks. The table below lists the daily numbers.",
+  "chartAriaMonth": "Monthly views, interactions and AR clicks. The table below lists the daily numbers.",
+  "weekOf": "Week of {date}",
+  "monthYearShort": "{month} ’{year}",
+  "partialDays": "{title} ({days} of {total} days)",
+  "legendAria": "Show or hide series",
+  "lockedSeriesAria": "{label} — available on paid plans. Upgrade."
+}

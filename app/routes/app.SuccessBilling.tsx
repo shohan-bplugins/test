@@ -15,6 +15,18 @@ import {
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
 import { useRouteNav } from "~/components/polaris/helpers";
+import { useT } from "~/i18n";
+
+/** Subscription statuses Shopify reports (lowercased), for display. */
+const STATUS_KEYS: Record<string, string> = {
+  active: "statusActive",
+  pending: "statusPending",
+  accepted: "statusAccepted",
+  declined: "statusDeclined",
+  expired: "statusExpired",
+  frozen: "statusFrozen",
+  cancelled: "statusCancelled",
+};
 
 type LoaderData = {
   ok: boolean;
@@ -114,17 +126,18 @@ export const loader = async ({
 export default function SuccessBilling() {
   const { ok, chargeName, chargeStatus } = useLoaderData<typeof loader>();
   const routeTo = useRouteNav();
+  const t = useT("billing");
 
   const activated = ok && chargeStatus === "active";
   const heading = activated
-    ? "Subscription activated"
+    ? t("successActivated")
     : ok
-      ? "Subscription updated"
-      : "Subscription pending";
+      ? t("successUpdated")
+      : t("successPending");
 
   return (
     <s-page heading={heading}>
-      <BackButton to="/app" label="Dashboard" />
+      <BackButton to="/app" label={t("dashboard")} />
       <SupportAction />
 
       <s-section>
@@ -138,28 +151,33 @@ export default function SuccessBilling() {
           <s-banner
             tone={ok ? "success" : "warning"}
             heading={
-              ok ? "Your plan is up to date" : "We couldn’t confirm the charge"
+              ok ? t("successUpToDate") : t("successNotConfirmed")
             }
           >
             {chargeName ? (
               <s-paragraph>
-                {chargeName} plan · status: {chargeStatus}
+                {t("successChargeStatus", {
+                  plan: chargeName,
+                  status:
+                    chargeStatus && STATUS_KEYS[chargeStatus]
+                      ? t(STATUS_KEYS[chargeStatus])
+                      : (chargeStatus ?? ""),
+                })}
               </s-paragraph>
             ) : null}
             {!ok ? (
               <s-paragraph>
-                If you completed payment in Shopify, refresh the pricing page or
-                contact support.
+                {t("successNotConfirmedHelp")}
               </s-paragraph>
             ) : null}
           </s-banner>
 
           <s-stack direction="inline" gap="base">
             <s-button variant="primary" href="/app" onClick={routeTo("/app")}>
-              Go to dashboard
+              {t("goToDashboard")}
             </s-button>
             <s-button href="/app/pricing" onClick={routeTo("/app/pricing")}>
-              Back to pricing
+              {t("backToPricing")}
             </s-button>
           </s-stack>
         </s-stack>

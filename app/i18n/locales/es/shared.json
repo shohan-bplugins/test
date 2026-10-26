@@ -1,0 +1,6 @@
+{
+  "backTo": "Volver a {label}",
+  "language": "Idioma",
+  "languageAuto": "Automático (igual que el panel de Shopify)",
+  "languageHelp": "El idioma de esta aplicación. Automático usa el idioma de tu panel de Shopify. La tienda online no se ve afectada."
+}

@@ -8,12 +8,16 @@ import { authenticate } from "../shopify.server";
 import { framedRedirect } from "~/lib/framed-redirect.server";
 import { hasChosenPlan, parseFeatures, getPlans } from "~/lib/billing.server";
 import {
-  formatLimit,
+  ADVANCE_PLAN_NAME,
+  FREE_PLAN_NAME,
   formatMoney,
   GROWTH_PLAN_NAME,
+  isUnlimited,
+  STARTER_PLAN_NAME,
 } from "~/lib/billing-constants";
 import { launchOfferActive, launchOfferPrice } from "~/lib/launch-offer";
 import { BUTTON_FILL, flag } from "~/components/polaris/helpers";
+import { useT, type TFunction } from "~/i18n";
 
 /*
  * The first screen after install: pick a plan, nothing else.
@@ -62,6 +66,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
+/*
+ * Plan names, descriptions and feature rows come from the Plan table in
+ * English (seeded in lib/billing.server.ts, and the title is also the name of
+ * the Shopify charge), so they are translated here at render time. A known
+ * plan or row maps to a message; anything else is shown as stored. Kept in
+ * step with the same table in app.pricing.tsx.
+ */
+const PLAN_KEYS: Record<string, string> = {
+  [FREE_PLAN_NAME]: "planFree",
+  [STARTER_PLAN_NAME]: "planStarter",
+  [GROWTH_PLAN_NAME]: "planGrowth",
+  [ADVANCE_PLAN_NAME]: "planAdvance",
+};
+
+const FEATURE_ROWS: [RegExp, string][] = [
+  [/^Unlimited products with a 3D model$/, "featureProductsUnlimited"],
+  [/^(\d+) products? with a 3D model$/, "featureProducts"],
+  [/^Unlimited models in your library$/, "featureModelsUnlimited"],
+  [/^(\d+) models? in your library$/, "featureModels"],
+  [/^1 model per product$/, "featureOneModelPerProduct"],
+  [/^Every viewer feature included$/, "featureEverything"],
+  [/^Standard email support$/, "featureStandardSupport"],
+  [/^Priority email support$/, "featurePrioritySupport"],
+  [/^Premium priority support$/, "featurePremiumSupport"],
+];
+
+function planFeature(t: TFunction, feature: string) {
+  for (const [re, key] of FEATURE_ROWS) {
+    const m = re.exec(feature);
+    if (m) return m[1] ? t(key, { count: Number(m[1]) }) : t(key);
+  }
+  return feature;
+}
+
 type ActionResult = {
   ok: boolean;
   error?: string;
@@ -74,6 +112,7 @@ export default function SelectPlan() {
   const shopify = useAppBridge();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const busy = fetcher.state !== "idle";
+  const t = useT("billing");
 
   useEffect(() => {
     const data = fetcher.data;
@@ -105,15 +144,11 @@ export default function SelectPlan() {
   }
 
   return (
-    <s-page heading="Select a plan">
+    <s-page heading={t("selectPlanHeading")}>
       <s-section>
         <s-stack direction="block" gap="small-200">
-          <s-heading>Welcome! Choose a plan to get started</s-heading>
-          <s-paragraph>
-            Every plan includes the full 3D viewer. Plans differ only in how
-            many products and models you can use, and you can change your plan
-            any time from Pricing.
-          </s-paragraph>
+          <s-heading>{t("selectPlanWelcome")}</s-heading>
+          <s-paragraph>{t("selectPlanIntro")}</s-paragraph>
         </s-stack>
       </s-section>
 
@@ -127,12 +162,18 @@ export default function SelectPlan() {
           const isPopular = plan.name === GROWTH_PLAN_NAME;
           const payPrice =
             isPaid && offerActive ? launchOfferPrice(price) : price;
+          const planKey = PLAN_KEYS[plan.name];
+          const title = planKey ? t(planKey) : plan.title;
           const features =
             plan.features.length > 0
-              ? plan.features
+              ? plan.features.map((f) => planFeature(t, f))
               : [
-                  `${formatLimit(plan.productLimit)} products`,
-                  `${formatLimit(plan.modelLimit)} 3D models`,
+                  isUnlimited(plan.productLimit)
+                    ? t("unlimitedProducts")
+                    : t("productCount", { count: plan.productLimit }),
+                  isUnlimited(plan.modelLimit)
+                    ? t("unlimitedModels")
+                    : t("modelCount", { count: plan.modelLimit }),
                 ];
 
           return (
@@ -163,9 +204,9 @@ export default function SelectPlan() {
                 >
                   <s-stack direction="block" gap="small-300">
                     <s-stack direction="inline" gap="small" alignItems="center">
-                      <s-heading>{plan.title}</s-heading>
+                      <s-heading>{title}</s-heading>
                       {isPopular ? (
-                        <s-badge tone="info">Recommended</s-badge>
+                        <s-badge tone="info">{t("recommended")}</s-badge>
                       ) : null}
                     </s-stack>
                     <s-stack
@@ -179,12 +220,16 @@ export default function SelectPlan() {
                         </s-text>
                       ) : null}
                       <span style={{ fontSize: "1.5rem", fontWeight: 600 }}>
-                        {isPaid ? `$${formatMoney(payPrice)}` : "Free"}
+                        {isPaid ? `$${formatMoney(payPrice)}` : t("free")}
                       </span>
-                      {isPaid ? <s-text color="subdued">/ month</s-text> : null}
+                      {isPaid ? (
+                        <s-text color="subdued">{t("perMonth")}</s-text>
+                      ) : null}
                     </s-stack>
                     {plan.description ? (
-                      <s-text color="subdued">{plan.description}</s-text>
+                      <s-text color="subdued">
+                        {planKey ? t(`${planKey}Description`) : plan.description}
+                      </s-text>
                     ) : null}
                   </s-stack>
 
@@ -204,9 +249,9 @@ export default function SelectPlan() {
                     >
                       {isPaid
                         ? plan.trialDays > 0
-                          ? `Start ${plan.trialDays}-day free trial`
-                          : `Choose ${plan.title}`
-                        : "Start with Free"}
+                          ? t("startTrial", { count: plan.trialDays })
+                          : t("choosePlan", { plan: title })
+                        : t("startFree", { plan: t("planFree") })}
                     </s-button>
                   </div>
                 </div>

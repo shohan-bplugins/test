@@ -28,7 +28,10 @@ import {
 
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
+import { LanguagePicker } from "~/components/LanguagePicker";
 import { flag, useRouteNav } from "~/components/polaris/helpers";
+import { useT, type TFunction } from "~/i18n";
+import { getServerT } from "~/i18n/i18n.server";
 
 type DefinitionStatus = {
   key: string;
@@ -63,6 +66,8 @@ type LoaderData = {
 // helpers below take an owner type. It defaults to PRODUCT so the existing
 // per-product definitions read exactly as before.
 type MetafieldOwner = "PRODUCT" | "SHOP";
+
+type ServerT = ReturnType<typeof getServerT>;
 
 async function checkDefinition(
   admin: any,
@@ -150,7 +155,11 @@ async function readOne(
   }
 }
 
-function summarise(raw: string, source: "app" | "legacy"): LibraryContents {
+function summarise(
+  raw: string,
+  source: "app" | "legacy",
+  t: ServerT,
+): LibraryContents {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -158,7 +167,7 @@ function summarise(raw: string, source: "app" | "legacy"): LibraryContents {
         present: true,
         count: 0,
         sampleIds: [],
-        error: "The metafield holds something that isn't a model map.",
+        error: t("errors.notModelMap"),
         source,
       };
     }
@@ -183,15 +192,15 @@ function summarise(raw: string, source: "app" | "legacy"): LibraryContents {
   }
 }
 
-async function readLibrary(admin: any): Promise<LibraryContents> {
+async function readLibrary(admin: any, t: ServerT): Promise<LibraryContents> {
   // Both read at once rather than the legacy one only after the app one comes
   // back empty: it was a second Shopify round trip in series on every load.
   const [app, legacy] = await Promise.all([
     readOne(admin, APP_LIBRARY_NAMESPACE, APP_LIBRARY_KEY),
     readOne(admin, LIBRARY_NAMESPACE, LIBRARY_KEY),
   ]);
-  if (app.raw) return summarise(app.raw, "app");
-  if (legacy.raw) return summarise(legacy.raw, "legacy");
+  if (app.raw) return summarise(app.raw, "app", t);
+  if (legacy.raw) return summarise(legacy.raw, "legacy", t);
 
   return {
     present: false,
@@ -208,6 +217,7 @@ export const loader = async ({
   request,
 }: LoaderFunctionArgs): Promise<LoaderData> => {
   const { admin, session } = await authenticate.admin(request);
+  const t = getServerT(request, "setup");
   const [modelDef, configDef, libraryDef, library, dbModelCount] =
     await Promise.all([
       checkDefinition(admin, "custom", "model_3d"),
@@ -217,7 +227,7 @@ export const loader = async ({
       // the merchant-owned `custom` one is unwritable without a shop-metafield
       // scope this app doesn't request.
       checkDefinition(admin, APP_LIBRARY_NAMESPACE, APP_LIBRARY_KEY, "SHOP"),
-      readLibrary(admin),
+      readLibrary(admin, t),
       // Compared against the metafield's entry count below: the two disagreeing
       // is the signature of a sync that silently isn't landing.
       prisma.model3D.count({ where: { shop: session?.shop ?? "" } }),
@@ -280,6 +290,7 @@ async function enableStorefrontAccess(
   admin: any,
   namespace: string,
   key: string,
+  t: ServerT,
   ownerType: MetafieldOwner = "PRODUCT",
 ): Promise<string | null> {
   const defRes = await admin.graphql(
@@ -302,7 +313,7 @@ async function enableStorefrontAccess(
   );
   const defJson = await defRes.json();
   const id = defJson?.data?.metafieldDefinitions?.edges?.[0]?.node?.id;
-  if (!id) return `Definition ${namespace}.${key} not found`;
+  if (!id) return t("errors.definitionNotFound", { name: `${namespace}.${key}` });
 
   const updateRes = await admin.graphql(
     `#graphql
@@ -340,6 +351,7 @@ async function enableStorefrontAccess(
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop ?? "";
+  const t = getServerT(request, "setup");
 
   const errors: string[] = [];
 
@@ -350,7 +362,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       key: "model_3d",
       type: "file_reference",
       description: "GLB / GLTF 3D model file rendered by the viewer block.",
-    })) ?? (await enableStorefrontAccess(admin, "custom", "model_3d"));
+    })) ?? (await enableStorefrontAccess(admin, "custom", "model_3d", t));
   if (modelErr) errors.push(`custom.model_3d: ${modelErr}`);
 
   const configErr =
@@ -360,7 +372,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       key: "viewer_3d_config",
       type: "json",
       description: "Per-product egjs-view3d viewer configuration (JSON).",
-    })) ?? (await enableStorefrontAccess(admin, "custom", "viewer_3d_config"));
+    })) ?? (await enableStorefrontAccess(admin, "custom", "viewer_3d_config", t));
   if (configErr) errors.push(`custom.viewer_3d_config: ${configErr}`);
 
   // App-reserved namespace, and no enableStorefrontAccess pass: the app owns
@@ -392,7 +404,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // its own was swallowed entirely, letting this page claim success while the
   // page block still couldn't resolve a single Model ID.
   const syncErr = await syncModelLibrary(admin, shop);
-  if (syncErr) errors.push(`model library sync: ${syncErr}`);
+  if (syncErr) errors.push(t("errors.syncFailed", { error: syncErr }));
 
   // The definitions this action just created are what checkDefsReady reports,
   // so the checklist elsewhere must not keep serving the pre-fix answer.
@@ -401,7 +413,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (errors.length) return { ok: false, error: errors.join(" | ") };
   return {
     ok: true,
-    message: "Metafield definitions ready with storefront read access",
+    message: t("toast.ready"),
   };
 };
 
@@ -419,6 +431,7 @@ function StatusRow({
   name: string;
   requireStorefrontAccess?: boolean;
 }) {
+  const t = useT("setup");
   const ready =
     def.exists && (!requireStorefrontAccess || def.storefrontAccess);
   return (
@@ -437,15 +450,15 @@ function StatusRow({
       </s-stack>
       {ready ? (
         <s-badge tone="success" icon="check">
-          Ready
+          {t("status.ready")}
         </s-badge>
       ) : def.exists ? (
         <s-badge tone="warning" icon="alert-triangle">
-          No storefront access
+          {t("status.noStorefrontAccess")}
         </s-badge>
       ) : (
         <s-badge tone="critical" icon="x">
-          Missing
+          {t("status.missing")}
         </s-badge>
       )}
     </s-stack>
@@ -464,11 +477,12 @@ function diagnoseLibrary(
   libraryDef: DefinitionStatus,
   library: LibraryContents,
   dbModelCount: number,
+  t: TFunction,
 ): { tone: "ok" | "warn" | "error"; headline: string; detail: string } {
   if (library.error) {
     return {
       tone: "error",
-      headline: "Couldn't read the library back",
+      headline: t("diagnose.readFailed"),
       detail: library.error,
     };
   }
@@ -476,46 +490,50 @@ function diagnoseLibrary(
   if (!libraryDef.exists) {
     return {
       tone: "error",
-      headline: "No library definition yet",
-      detail:
-        "Run “Create / fix definitions” above. Until it exists, every Model ID resolves to nothing.",
+      headline: t("diagnose.noDefinition"),
+      detail: t("diagnose.noDefinitionDetail"),
     };
   }
 
   if (!library.present || library.count === 0) {
     return {
       tone: "error",
-      headline: "The library is empty",
+      headline: t("diagnose.empty"),
       detail: dbModelCount
-        ? `You have ${dbModelCount} model${dbModelCount === 1 ? "" : "s"} in the app, but none reached the metafield. Run the button above — if it still reads empty afterwards, Shopify is rejecting the write and the reason will be shown here.`
-        : "You haven't added any models yet. Upload one in 3D Models, then come back.",
+        ? t("diagnose.emptyWithModels", { count: dbModelCount })
+        : t("diagnose.emptyNoModels"),
     };
   }
 
   if (library.count < dbModelCount) {
     return {
       tone: "warn",
-      headline: `${library.count} of ${dbModelCount} models are published`,
-      detail:
-        "Models without a resolved file URL are left out. Open the missing ones in 3D Models and re-save them.",
+      headline: t("diagnose.partial", {
+        published: library.count,
+        count: dbModelCount,
+      }),
+      detail: t("diagnose.partialDetail"),
     };
   }
 
   return {
     tone: "ok",
-    headline: `${library.count} model${library.count === 1 ? "" : "s"} available to the theme block`,
+    headline: t("diagnose.ok", { count: library.count }),
     detail:
-      (library.source === "legacy"
-        ? "Being read from the old custom.viewer_3d_library metafield. Still works, but redeploy the app so the block prefers the app-owned namespace. "
-        : "") +
-      "Paste any of these ids into the “3D Viewer — Any Model” block. If one still says “not found”, the id doesn't match — copy it again from the model's page.",
+      library.source === "legacy"
+        ? t("diagnose.okDetailLegacy")
+        : t("diagnose.okDetail"),
   };
 }
+
+const strong = (chunk: string) => <s-text type="strong">{chunk}</s-text>;
 
 export default function Setup() {
   const { modelDef, configDef, libraryDef, library, dbModelCount } =
     useLoaderData<typeof loader>();
-  const libraryState = diagnoseLibrary(libraryDef, library, dbModelCount);
+  const t = useT("setup");
+  const tc = useT("common");
+  const libraryState = diagnoseLibrary(libraryDef, library, dbModelCount, t);
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -525,11 +543,11 @@ export default function Setup() {
 
   useEffect(() => {
     if (actionData?.ok) {
-      shopify.toast.show(actionData.message ?? "Done");
+      shopify.toast.show(actionData.message ?? tc("done"));
     } else if (actionData?.error) {
       shopify.toast.show(actionData.error, { isError: true });
     }
-  }, [actionData, shopify]);
+  }, [actionData, shopify, tc]);
 
   // Renamed from bothReady now that there are three definitions — the library
   // one is what lets the page block resolve a Model ID.
@@ -555,43 +573,38 @@ export default function Setup() {
         : "critical";
 
   return (
-    <s-page heading="Setup">
-      <BackButton to="/app" label="Dashboard" />
+    <s-page heading={t("heading")}>
+      <BackButton to="/app" label={t("backLabel")} />
       <SupportAction />
 
-      <s-paragraph color="subdued">
-        Three steps to get the storefront viewer working end-to-end.
-      </s-paragraph>
+      <s-paragraph color="subdued">{t("intro")}</s-paragraph>
 
-      <s-section heading="1. Metafield definitions">
-        <s-paragraph color="subdued">
-          The block reads these from each product. They must exist and have
-          storefront read access.
-        </s-paragraph>
+      <s-section heading={t("defs.heading")}>
+        <s-paragraph color="subdued">{t("defs.body")}</s-paragraph>
 
         <s-stack direction="block" gap="base">
           <StatusRow
             def={modelDef}
-            label="3D Model (file)"
+            label={t("defs.model")}
             name="custom.model_3d"
           />
           <s-divider />
           <StatusRow
             def={configDef}
-            label="3D Viewer Config (JSON)"
+            label={t("defs.config")}
             name="custom.viewer_3d_config"
           />
           <s-divider />
           <StatusRow
             def={libraryDef}
-            label="3D Model Library (shop, JSON)"
+            label={t("defs.library")}
             name={`${APP_LIBRARY_NAMESPACE}.${APP_LIBRARY_KEY}`}
             requireStorefrontAccess={false}
           />
 
           {allReady ? (
             <s-banner tone="success">
-              <s-paragraph>All three definitions are ready.</s-paragraph>
+              <s-paragraph>{t("defs.allReady")}</s-paragraph>
             </s-banner>
           ) : null}
         </s-stack>
@@ -613,7 +626,7 @@ export default function Setup() {
           loading={flag(submitting)}
           onClick={runSetup}
         >
-          {allReady ? "Re-sync model library" : "Create / fix definitions"}
+          {allReady ? t("defs.resync") : t("defs.createFix")}
         </s-button>
       </s-section>
 
@@ -622,11 +635,8 @@ export default function Setup() {
         schemas exist — this reads the value back, which is the only way to
         tell an empty library from a working one.
       */}
-      <s-section heading="What the theme block can see">
-        <s-paragraph color="subdued">
-          Read back from the shop metafield the “3D Viewer — Any Model” block
-          resolves Model IDs against.
-        </s-paragraph>
+      <s-section heading={t("library.heading")}>
+        <s-paragraph color="subdued">{t("library.body")}</s-paragraph>
 
         <s-banner tone={libraryTone} heading={libraryState.headline}>
           <s-paragraph>{libraryState.detail}</s-paragraph>
@@ -641,7 +651,7 @@ export default function Setup() {
         {actionData?.error ? (
           <s-stack direction="block" gap="small-500">
             <s-text type="strong" tone="critical">
-              Last attempt reported
+              {t("library.lastAttempt")}
             </s-text>
             <s-box background="subdued" padding="small" borderRadius="base">
               <s-text color="subdued">
@@ -654,11 +664,12 @@ export default function Setup() {
         {library.sampleIds.length > 0 ? (
           <s-stack direction="block" gap="small-500">
             <s-text color="subdued">
-              Model IDs the storefront can resolve
               {library.count > library.sampleIds.length
-                ? ` (first ${library.sampleIds.length} of ${library.count})`
-                : ""}
-              :
+                ? t("library.sampleIdsPartial", {
+                    shown: library.sampleIds.length,
+                    total: library.count,
+                  })
+                : t("library.sampleIds")}
             </s-text>
             <s-box background="subdued" padding="small" borderRadius="base">
               <s-stack direction="block" gap="small-500">
@@ -673,51 +684,41 @@ export default function Setup() {
         ) : null}
       </s-section>
 
-      <s-section heading="2. Add the theme block">
+      <s-section heading={t("block.heading")}>
+        <s-paragraph>{t.rich("block.product", { b: strong })}</s-paragraph>
         <s-paragraph>
-          Online Store → Themes → <s-text type="strong">Customize</s-text>.
-          Switch to the Product template, click{" "}
-          <s-text type="strong">Add section</s-text>, scroll to{" "}
-          <s-text type="strong">Apps</s-text>, and add{" "}
-          <s-text type="strong">3D Viewer — Product</s-text>. It picks the model
-          up from the product automatically.
-        </s-paragraph>
-        <s-paragraph>
-          For <s-text type="strong">any other page</s-text> — home, a custom
-          page, a blog post — pick that template from the dropdown at the top of
-          the editor, then <s-text type="strong">Add section</s-text> →{" "}
-          <s-text type="strong">Apps</s-text> →{" "}
-          <s-text type="strong">3D Viewer — Any Model</s-text>. Paste a{" "}
-          <s-text type="strong">Model ID</s-text> from{" "}
-          <s-link href="/app/models" onClick={routeTo("/app/models")}>
-            3D Models
-          </s-link>{" "}
-          into it; that also carries the model’s saved viewer settings. A direct
-          .glb URL works too, but without those settings.
+          {t.rich("block.anyPage", {
+            b: strong,
+            link: (chunk) => (
+              <s-link href="/app/models" onClick={routeTo("/app/models")}>
+                {chunk}
+              </s-link>
+            ),
+          })}
         </s-paragraph>
         <s-paragraph color="subdued">
-          App blocks only exist in Online Store 2.0 themes. If{" "}
-          <s-text type="strong">Apps</s-text> is missing from the Add section
-          list, the template is a legacy .liquid one — use the iframe embed code
-          on the model’s page instead.
+          {t.rich("block.legacy", { b: strong })}
         </s-paragraph>
       </s-section>
 
-      <s-section heading="3. Upload models per product">
+      <s-section heading={t("upload.heading")}>
         <s-paragraph>
-          Open{" "}
-          <s-link href="/app/products" onClick={routeTo("/app/products")}>
-            Product 3D Models
-          </s-link>
-          , click a product, and upload its .glb file. Tweak any viewer setting
-          in the same screen and watch the live preview update.
+          {t.rich("upload.body", {
+            link: (chunk) => (
+              <s-link href="/app/products" onClick={routeTo("/app/products")}>
+                {chunk}
+              </s-link>
+            ),
+          })}
         </s-paragraph>
         <s-paragraph color="subdued">
-          Accepted formats: <s-text type="strong">.glb</s-text> (single-file
-          binary glTF, recommended) and <s-text type="strong">.gltf</s-text>.
-          Files up to 20 MB are accepted; keep them under ~10 MB for the fastest
-          page loads.
+          {t.rich("upload.formats", { b: strong })}
         </s-paragraph>
+      </s-section>
+
+      {/* The same switch as on Home: settings is where it gets looked for. */}
+      <s-section>
+        <LanguagePicker />
       </s-section>
     </s-page>
   );

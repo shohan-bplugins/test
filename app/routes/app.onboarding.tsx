@@ -35,6 +35,8 @@ import { BackButton } from "~/components/BackButton";
 import { useReviewPrompt } from "~/components/ReviewPrompt";
 import { SupportAction } from "~/components/SupportAction";
 import { flag, useRouteNav } from "~/components/polaris/helpers";
+import { useT } from "~/i18n";
+import { getServerT } from "~/i18n/i18n.server";
 
 /**
  * Onboarding is derived, not stored: each step asks the store whether it is
@@ -144,6 +146,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session?.shop ?? "";
   const fd = await request.formData();
   const intent = String(fd.get("intent") ?? "");
+  const t = getServerT(request, "onboarding");
 
   // "Later" is not a state change — the merchant just wants the dashboard, and
   // the checklist must still be waiting for them. Recording it as done here is
@@ -190,8 +193,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!status.productBlockAdded) {
       return {
         ok: false,
-        error:
-          "Still can't see the block. Add it in the theme editor and press Save.",
+        error: t("recheck.notFound"),
       };
     }
     // The viewer is now on the storefront: a review moment.
@@ -206,7 +208,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
 
     if (!status.themeId) {
-      return { ok: true, message: "Block found", reviewPrompt };
+      return { ok: true, message: t("recheck.found"), reviewPrompt };
     }
 
     const placed = await placeBlockAfterBuyButton(
@@ -220,12 +222,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // The block is there, which is what the step is about; failing to move it
       // is a worse message than none, so say the true half.
       console.error("[onboarding] repositioning the block failed", placed.error);
-      return { ok: true, message: "Block found", reviewPrompt };
+      return { ok: true, message: t("recheck.found"), reviewPrompt };
     }
     if (placed.moved) {
       return {
         ok: true,
-        message: "Block found — moved below your buy button",
+        message: t("recheck.moved"),
         reviewPrompt,
       };
     }
@@ -234,12 +236,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       reviewPrompt,
       message:
         placed.reason === "already-in-place"
-          ? "Block found — already below your buy button"
-          : "Block found — drag it where you want it in the theme editor",
+          ? t("recheck.alreadyInPlace")
+          : t("recheck.dragIt"),
     };
   }
 
-  return { ok: false, error: "Unknown action" };
+  return { ok: false, error: t("unknownAction") };
 };
 
 function StepCard({
@@ -259,6 +261,7 @@ function StepCard({
   description: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  const tc = useT("common");
   return (
     <s-box
       padding="base"
@@ -282,7 +285,7 @@ function StepCard({
           <s-stack direction="inline" gap="small" alignItems="center">
             <s-icon type={icon as any} color="subdued" />
             <s-text type="strong">{title}</s-text>
-            {done ? <s-badge tone="success">Done</s-badge> : null}
+            {done ? <s-badge tone="success">{tc("done")}</s-badge> : null}
           </s-stack>
 
           <s-text color="subdued">{description}</s-text>
@@ -297,6 +300,9 @@ function StepCard({
     </s-box>
   );
 }
+
+const code = (chunk: string) => <code>{chunk}</code>;
+const strong = (chunk: string) => <s-text type="strong">{chunk}</s-text>;
 
 export default function Onboarding() {
   const {
@@ -316,6 +322,7 @@ export default function Onboarding() {
   const submit = useSubmit();
   const shopify = useAppBridge();
   const routeTo = useRouteNav();
+  const t = useT("onboarding");
 
   // Step 1 reuses the Setup route's action rather than restating how the three
   // metafield definitions are created and made storefront-readable.
@@ -330,20 +337,20 @@ export default function Onboarding() {
   useEffect(() => {
     const data = setupFetcher.data;
     if (!data) return;
-    if (data.ok) shopify.toast.show(data.message ?? "Metafields ready");
+    if (data.ok) shopify.toast.show(data.message ?? t("toast.metafieldsReady"));
     else if (data.error) shopify.toast.show(data.error, { isError: true });
-  }, [setupFetcher.data, shopify]);
+  }, [setupFetcher.data, shopify, t]);
 
   useEffect(() => {
     if (!actionData) return;
     // `later`, `finish` and `skip` all redirect, so the only response that ever
     // reaches here is `recheck`.
     if ((actionData as any).ok) {
-      shopify.toast.show((actionData as any).message ?? "Theme re-checked");
+      shopify.toast.show((actionData as any).message ?? t("toast.rechecked"));
     } else if ((actionData as any).error) {
       shopify.toast.show((actionData as any).error, { isError: true });
     }
-  }, [actionData, shopify]);
+  }, [actionData, shopify, t]);
 
   const done = doneCount({ defsReady, hasModel, blockAdded });
   const allDone = done === TOTAL_STEPS;
@@ -390,21 +397,17 @@ export default function Onboarding() {
       pointing at an unnamed parent. The encouraging line moved into the section
       below, where the rest of the supporting copy already lives.
     */
-    <s-page heading="Get started">
-      <BackButton to="/app" label="Dashboard" />
+    <s-page heading={t("heading")}>
+      <BackButton to="/app" label={t("backLabel")} />
       <SupportAction />
 
       <s-section>
         <s-stack direction="block" gap="base">
           <s-heading>
-            {allDone
-              ? "You're ready to sell in 3D"
-              : "Let's get your first 3D model live"}
+            {allDone ? t("intro.headingDone") : t("intro.heading")}
           </s-heading>
           <s-paragraph color="subdued">
-            {allDone
-              ? "Everything is configured. Open the dashboard to manage models, or fine-tune a product's viewer."
-              : "Three steps: connect the metafields the viewer reads, add a model, then place the block on your theme."}
+            {allDone ? t("intro.bodyDone") : t("intro.body")}
           </s-paragraph>
 
           {/*
@@ -415,9 +418,9 @@ export default function Onboarding() {
           */}
           <s-stack direction="inline" gap="small" alignItems="center">
             <s-badge tone={allDone ? "success" : "info"}>
-              {`${done} of ${TOTAL_STEPS} done`}
+              {t("progress", { done, total: TOTAL_STEPS })}
             </s-badge>
-            <s-text color="subdued">Setup takes about 3 minutes</s-text>
+            <s-text color="subdued">{t("duration")}</s-text>
           </s-stack>
         </s-stack>
       </s-section>
@@ -429,26 +432,16 @@ export default function Onboarding() {
             done={defsReady}
             active={!defsReady}
             icon="settings"
-            title="Connect the viewer metafields"
+            title={t("step1.title")}
             description={
-              defsReady ? (
-                <>
-                  <code>custom.model_3d</code> and{" "}
-                  <code>custom.viewer_3d_config</code> exist and are readable by
-                  your storefront.
-                </>
-              ) : (
-                <>
-                  The viewer reads each product’s model and settings from two
-                  metafields. This creates them with storefront read access —
-                  nothing on your store changes.
-                </>
-              )
+              defsReady
+                ? t.rich("step1.done", { code })
+                : t("step1.todo")
             }
           >
             {defsReady ? (
               <s-button href="/app/setup" onClick={routeTo("/app/setup")}>
-                Review in Setup
+                {t("step1.review")}
               </s-button>
             ) : (
               <s-button
@@ -462,7 +455,7 @@ export default function Onboarding() {
                   })
                 }
               >
-                Create definitions
+                {t("step1.create")}
               </s-button>
             )}
           </StepCard>
@@ -472,21 +465,11 @@ export default function Onboarding() {
             done={hasModel}
             active={defsReady && !hasModel}
             icon="package"
-            title="Add your first 3D model"
+            title={t("step2.title")}
             description={
-              hasModel ? (
-                <>
-                  {assigned} product{assigned === 1 ? "" : "s"} with a model,{" "}
-                  {libraryCount} in your library. Each product carries one
-                  model, and a model belongs to one product.
-                </>
-              ) : (
-                <>
-                  Upload a <code>.glb</code> or <code>.gltf</code> to a product,
-                  or add one to the library to embed on any page. Every viewer
-                  setting is previewed live before you save.
-                </>
-              )
+              hasModel
+                ? t("step2.done", { count: assigned, library: libraryCount })
+                : t.rich("step2.todo", { code })
             }
           >
             <s-button
@@ -495,14 +478,14 @@ export default function Onboarding() {
               href="/app/products"
               onClick={routeTo("/app/products")}
             >
-              Pick a product
+              {t("step2.pickProduct")}
             </s-button>
             <s-button
               icon="three-d-environment"
               href="/app/models"
               onClick={routeTo("/app/models")}
             >
-              Model library
+              {t("step2.library")}
             </s-button>
           </StepCard>
 
@@ -511,20 +494,11 @@ export default function Onboarding() {
             done={blockAdded}
             active={defsReady && hasModel && !blockAdded}
             icon="rocket"
-            title="Show the viewer on your storefront"
+            title={t("step3.title")}
             description={
-              blockAdded ? (
-                <>
-                  The <s-text type="strong">3D Viewer — Product</s-text> block
-                  is on your published theme’s product template.
-                </>
-              ) : (
-                <>
-                  Add the <s-text type="strong">3D Viewer — Product</s-text>{" "}
-                  block to your product template. We can open the theme editor
-                  with the block already placed — all that’s left is Save.
-                </>
-              )
+              blockAdded
+                ? t.rich("step3.done", { b: strong })
+                : t.rich("step3.todo", { b: strong })
             }
           >
             {!blockAdded && addBlockUrl ? (
@@ -542,12 +516,12 @@ export default function Onboarding() {
                 href={addBlockUrl}
                 target="_blank"
               >
-                Add block for me
+                {t("step3.addBlock")}
               </s-button>
             ) : null}
             {themeEditorUrl ? (
               <s-button href={themeEditorUrl} target="_blank" icon="external">
-                Open theme editor
+                {t("step3.openEditor")}
               </s-button>
             ) : null}
             {!blockAdded ? (
@@ -557,18 +531,16 @@ export default function Onboarding() {
                 loading={flag(submitting)}
                 onClick={() => post("recheck")}
               >
-                I’ve added it — check again
+                {t("step3.recheck")}
               </s-button>
             ) : null}
           </StepCard>
         </s-stack>
       </s-section>
 
-      <s-section heading={allDone ? "All set" : "Need a hand?"}>
+      <s-section heading={allDone ? t("footer.headingDone") : t("footer.heading")}>
         <s-paragraph color="subdued">
-          {allDone
-            ? "You can always come back to this checklist from the Get started link in the app nav."
-            : "The documentation covers file requirements, every viewer setting, AR, and embedding outside Shopify."}
+          {allDone ? t("footer.bodyDone") : t("footer.body")}
         </s-paragraph>
 
         <s-stack direction="inline" gap="small" alignItems="center">
@@ -577,14 +549,14 @@ export default function Onboarding() {
             loading={flag(submitting)}
             onClick={() => post(allDone ? "finish" : "later")}
           >
-            {allDone ? "Go to dashboard" : "Finish later"}
+            {allDone ? t("footer.goToDashboard") : t("footer.finishLater")}
           </s-button>
           <s-button
             icon="book"
             href="/app/documentation"
             onClick={routeTo("/app/documentation")}
           >
-            Documentation
+            {t("footer.documentation")}
           </s-button>
           {!allDone ? (
             <s-button
@@ -592,7 +564,7 @@ export default function Onboarding() {
               loading={flag(submitting)}
               onClick={() => post("skip")}
             >
-              Skip onboarding
+              {t("footer.skip")}
             </s-button>
           ) : null}
         </s-stack>

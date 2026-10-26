@@ -30,6 +30,136 @@
   var INIT_ATTR = 'data-view3d-initialized';
 
   /*
+   * Shopper-facing strings, in the storefront's language.
+   *
+   * The blocks render the theme's translations of every viewer_3d.ui.* key
+   * (locales/*.json, plus anything the merchant overrides) into data-i18n, and
+   * the storefront locale into data-locale. Every block on a page renders the
+   * same strings, so one catalog serves the whole page: read once, from the
+   * first element that carries it.
+   *
+   * The English below is the fallback for a key the theme didn't send — a block
+   * cached from before this existed, or a key added here ahead of a locale
+   * file. Keep it identical to locales/en.default.json; check-locales enforces
+   * that.
+   */
+  var DEFAULT_STRINGS = {
+    zoom_in: 'Zoom in',
+    zoom_out: 'Zoom out',
+    reset: 'Resets view',
+    fullscreen: 'Fullscreen',
+    exit_fullscreen: 'Exit fullscreen',
+    capture: 'Capture and download image',
+    choose_animation: 'Choose animation',
+    animation_none: 'None',
+    loading: 'Loading model…',
+    load_failed: 'Failed to load model',
+    ar_view_in_room: 'View in your room',
+    ar_view_on_phone: 'View in your room on your phone',
+    ar_scan_qr: 'Scan with your phone’s camera to see this in AR.',
+    qr_code: 'QR code',
+    close: 'Close',
+    hotspot: 'Hotspot',
+    hotspot_n: 'Hotspot {n}',
+    hotspot_pin: 'Hotspot {n}: {title}',
+    learn_more: 'Learn more',
+    play_video: 'Play video',
+    video: 'Video',
+    add_to_cart: 'Add to cart',
+    buy_now: 'Buy now',
+    view_product: 'View product →',
+    option_n: 'Option {n}',
+    sold_out: 'Sold out',
+    unavailable: 'Unavailable',
+    adding: 'Adding…',
+    added: 'Added ✓',
+    added_to_cart: 'Added to your cart',
+    view_cart: 'View cart',
+    add_failed: 'Could not add to cart'
+  };
+
+  var pageStrings = null;
+  var pageLocaleCode = null;
+
+  function readPageI18n() {
+    if (pageStrings) return;
+    pageStrings = {};
+    var host = document.querySelector('[data-view3d][data-i18n]');
+    if (host) {
+      try {
+        var parsed = JSON.parse(host.getAttribute('data-i18n'));
+        if (parsed && typeof parsed === 'object') {
+          Object.keys(parsed).forEach(function (k) {
+            // A missing theme translation renders as Shopify's
+            // "translation missing: …" text; fall back to English instead.
+            var v = parsed[k];
+            if (typeof v === 'string' && v && v.indexOf('translation missing') === -1) {
+              pageStrings[k] = v;
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('[viewer-3d] invalid data-i18n JSON:', e);
+      }
+    }
+    var withLocale = document.querySelector('[data-view3d][data-locale]');
+    pageLocaleCode =
+      (withLocale && withLocale.getAttribute('data-locale')) ||
+      (window.Shopify && window.Shopify.locale) ||
+      document.documentElement.lang ||
+      '';
+  }
+
+  // t('hotspot_n', { n: 2 }) -> "Hotspot 2", in the shopper's language.
+  function t(key, vars) {
+    readPageI18n();
+    var s = pageStrings[key] || DEFAULT_STRINGS[key] || key;
+    if (vars) {
+      s = s.replace(/\{(\w+)\}/g, function (m, name) {
+        return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : m;
+      });
+    }
+    return s;
+  }
+
+  // For a translated string going into markup built as text, e.g. an SVG.
+  function escapeAttr(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function pageLocale() {
+    readPageI18n();
+    return pageLocaleCode;
+  }
+
+  /*
+   * A hotspot's text in the shopper's language: the merchant's translation for
+   * the exact locale (pt-BR), else for its language (pt), else nothing — the
+   * caller then uses the base text. Mirrors pickHotspotTranslation in
+   * app/lib/hotspots.ts.
+   */
+  function hsTranslation(h) {
+    var all = h && h.translations;
+    if (!all || typeof all !== 'object') return {};
+    var locale = String(pageLocale() || '').toLowerCase();
+    if (!locale) return {};
+    var lang = locale.split('-')[0];
+    var exact = null;
+    var byLang = null;
+    Object.keys(all).forEach(function (k) {
+      var key = k.toLowerCase();
+      if (key === locale) exact = all[k];
+      else if (key === lang) byLang = all[k];
+    });
+    var picked = exact || byLang;
+    return picked && typeof picked === 'object' ? picked : {};
+  }
+
+  /*
    * Every live viewer, so detached ones can be torn down.
    *
    * Nothing used to be destroyed here at all. That is survivable on a normal
@@ -1121,7 +1251,7 @@
     var dim = size + 8;
     return (
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dim + ' ' + dim +
-      '" shape-rendering="crispEdges" role="img" aria-label="QR code">' +
+      '" shape-rendering="crispEdges" role="img" aria-label="' + escapeAttr(t('qr_code')) + '">' +
       '<rect width="' + dim + '" height="' + dim + '" fill="#ffffff"/>' +
       '<path d="' + d + '" fill="#000000"/></svg>'
     );
@@ -1380,7 +1510,7 @@
       overlay = document.createElement('div');
       overlay.className = 'viewer-3d-ar-qr';
       overlay.setAttribute('role', 'dialog');
-      overlay.setAttribute('aria-label', 'View in your room on your phone');
+      overlay.setAttribute('aria-label', t('ar_view_on_phone'));
 
       var card = document.createElement('div');
       card.className = 'viewer-3d-ar-qr-card';
@@ -1388,10 +1518,10 @@
       code.className = 'viewer-3d-ar-qr-code';
       var title = document.createElement('p');
       title.className = 'viewer-3d-ar-qr-title';
-      title.textContent = 'View in your room';
+      title.textContent = t('ar_view_in_room');
       var text = document.createElement('p');
       text.className = 'viewer-3d-ar-qr-text';
-      text.textContent = 'Scan with your phone’s camera to see this in AR.';
+      text.textContent = t('ar_scan_qr');
       card.appendChild(code);
       card.appendChild(title);
       card.appendChild(text);
@@ -1400,7 +1530,7 @@
       var closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.className = 'viewer-3d-mini-toolbar-btn viewer-3d-ar-qr-close';
-      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.setAttribute('aria-label', t('close'));
       closeBtn.innerHTML = CLOSE_ICON;
       closeBtn.addEventListener('click', close);
       overlay.appendChild(closeBtn);
@@ -1570,7 +1700,7 @@
         }).then(function (available) {
           if (!document.contains(el)) return;
           if (available) {
-            addButton('ar', 'View in your room', AR_ICON, function () {
+            addButton('ar', t('ar_view_in_room'), AR_ICON, function () {
               track(el, 'ar');
               view3d.ar.enter().catch(function (err) {
                 // Permission refused, or an AR session already running. Silence
@@ -1584,7 +1714,7 @@
               qrBtn.focus();
             });
             if (!qr) return;
-            qrBtn = addButton('ar', 'View in your room on your phone', AR_ICON, function () {
+            qrBtn = addButton('ar', t('ar_view_on_phone'), AR_ICON, function () {
               track(el, 'ar');
               hideTooltip();
               qr.toggle();
@@ -1595,15 +1725,15 @@
     }
 
     if (showZoom) {
-      addButton('zoomIn', 'Zoom in', ZOOM_IN_ICON, function () {
+      addButton('zoomIn', t('zoom_in'), ZOOM_IN_ICON, function () {
         stepZoom(view3d, 15);
       });
-      addButton('zoomOut', 'Zoom out', ZOOM_OUT_ICON, function () {
+      addButton('zoomOut', t('zoom_out'), ZOOM_OUT_ICON, function () {
         stepZoom(view3d, -15);
       });
     }
     if (showReset) {
-      addButton('reset', 'Resets view', RESET_ICON, function () {
+      addButton('reset', t('reset'), RESET_ICON, function () {
         if (view3d.camera) view3d.camera.reset(500);
       });
     }
@@ -1627,7 +1757,7 @@
 
       var setFsIcon = function (isOn) {
         fsBtn.innerHTML = isOn ? EXIT_FULLSCREEN_ICON : FULLSCREEN_ICON;
-        fsBtn.setAttribute('aria-label', isOn ? 'Exit fullscreen' : 'Fullscreen');
+        fsBtn.setAttribute('aria-label', isOn ? t('exit_fullscreen') : t('fullscreen'));
       };
 
       var exitMaximize = function () {
@@ -1693,11 +1823,11 @@
       closeBar.className =
         'viewer-3d-mini-toolbar pos-' + closeSlot + ' viewer-3d-fs-only';
       closeBar.appendChild(
-        makeButton('Exit fullscreen', CLOSE_ICON, exitFullscreen, closeSlot.indexOf('top') === 0)
+        makeButton(t('exit_fullscreen'), CLOSE_ICON, exitFullscreen, closeSlot.indexOf('top') === 0)
       );
       el.appendChild(closeBar);
 
-      var fsBtn = addButton('fullscreen', 'Fullscreen', FULLSCREEN_ICON, function () {
+      var fsBtn = addButton('fullscreen', t('fullscreen'), FULLSCREEN_ICON, function () {
         if (maximized) {
           exitMaximize();
           return;
@@ -1726,7 +1856,7 @@
     // is painted onto an offscreen canvas first and the WebGL frame is
     // drawn on top of that before exporting.
     if (showScreenshot) {
-    addButton('screenshot', 'Capture and download image', CAMERA_ICON, function () {
+    addButton('screenshot', t('capture'), CAMERA_ICON, function () {
       try {
         var canvas = el.querySelector('canvas');
         if (!canvas) return;
@@ -1826,7 +1956,7 @@
       var nameBtn = document.createElement('button');
       nameBtn.type = 'button';
       nameBtn.className = 'viewer-3d-animation-name-btn';
-      nameBtn.setAttribute('aria-label', 'Choose animation');
+      nameBtn.setAttribute('aria-label', t('choose_animation'));
       nameBtn.setAttribute('aria-haspopup', 'listbox');
       // The pulsing dot the admin preview shows whenever a clip is playing
       // (hidden while the selection is "None"), reproduced so the storefront
@@ -1861,7 +1991,7 @@
       // Below when the switcher sits against the top edge, where there's no
       // room above it for a tooltip.
       attachTooltip(nameBtn, function () {
-        return open ? null : 'Choose animation';
+        return open ? null : t('choose_animation');
       }, position.indexOf('top') === 0);
       nameBtn.addEventListener('mousedown', function (e) {
         e.stopPropagation();
@@ -1889,7 +2019,7 @@
       var uiIndex = null;
       function setActive(idx) {
         uiIndex = idx;
-        nameLabel.textContent = idx === -1 ? 'None' : clips[idx].name;
+        nameLabel.textContent = idx === -1 ? t('animation_none') : clips[idx].name;
         // Restart the label's wipe-in. Removing the class isn't enough on its
         // own — without reading a layout property in between, the browser
         // coalesces the remove and the add into no change at all and the
@@ -1999,7 +2129,7 @@
       var noneBtn = document.createElement('button');
       noneBtn.type = 'button';
       noneBtn.setAttribute('role', 'option');
-      noneBtn.textContent = 'None';
+      noneBtn.textContent = t('animation_none');
       noneBtn.addEventListener('click', function () {
         selectClip(-1);
       });
@@ -2074,19 +2204,22 @@
     overlay.innerHTML =
       '<div class="viewer-3d-loading-pill">' +
       '<span class="viewer-3d-loading-spinner">' + SPINNER_ICON + '</span>' +
-      '<span class="viewer-3d-loading-text">Loading model…</span>' +
+      '<span class="viewer-3d-loading-text"></span>' +
       '</div>';
+    overlay.querySelector('.viewer-3d-loading-text').textContent = t('loading');
     el.appendChild(overlay);
     return overlay;
   }
 
+  // The shopper sees a plain, translated message; the detail — endpoints, ids,
+  // library errors — goes to the console for whoever is debugging the store.
   function showError(el, message) {
     var note = document.createElement('div');
     note.className = 'viewer-3d-error';
     note.innerHTML =
       '<span class="viewer-3d-error-icon">' + ALERT_ICON + '</span>' +
       '<p class="viewer-3d-error-text"></p>';
-    note.querySelector('.viewer-3d-error-text').textContent = message;
+    note.querySelector('.viewer-3d-error-text').textContent = t('load_failed');
     el.appendChild(note);
     console.error('[viewer-3d] ' + message);
   }
@@ -2488,9 +2621,9 @@
     }
   }
 
-  function hsImage(raw) {
+  function hsImage(raw, altOverride) {
     var url = raw && hsHttps(raw.url);
-    return url ? { url: url, alt: hsString(raw.alt, 200) } : null;
+    return url ? { url: url, alt: hsString(altOverride, 200) || hsString(raw.alt, 200) } : null;
   }
 
   function hsVideo(raw) {
@@ -2503,7 +2636,7 @@
     }
     if (raw.kind === 'file') {
       var url = hsHttps(raw.url);
-      return url ? { kind: 'file', url: url } : null;
+      return url ? { kind: 'file', url: url, poster: hsHttps(raw.poster) } : null;
     }
     return null;
   }
@@ -2526,6 +2659,31 @@
     };
   }
 
+  // The card's reorderable blocks. Mirrors HOTSPOT_BLOCKS in app/lib/hotspots.ts.
+  var HS_BLOCKS = ['image', 'video', 'text', 'product'];
+
+  function hsOrder(raw) {
+    if (!Array.isArray(raw)) return null;
+    var out = raw.filter(function (b, i) {
+      return HS_BLOCKS.indexOf(b) !== -1 && raw.indexOf(b) === i;
+    });
+    return out.length ? out : null;
+  }
+
+  /*
+   * The card's blocks in the order to show them; without a saved order, the
+   * layout cards always had. Mirrors hotspotBlockOrder in app/lib/hotspots.ts.
+   */
+  function hsBlockOrder(h) {
+    var base = h.video && h.image
+      ? ['video', 'text', 'image', 'product']
+      : ['image', 'video', 'text', 'product'];
+    if (!h.order) return base;
+    return h.order.concat(base.filter(function (b) {
+      return h.order.indexOf(b) === -1;
+    }));
+  }
+
   function sanitizeHotspots(raw) {
     if (!Array.isArray(raw)) return [];
     var out = [];
@@ -2537,20 +2695,24 @@
         h.position.every(isFinite) ? h.position : null;
       var onFace = meshIndex >= 0 && faceIndex >= 0;
       if (!onFace && !position) return;
+      // The merchant's translation for the shopper's language, field by field;
+      // anything left untranslated keeps the base text.
+      var tr = hsTranslation(h);
       out.push({
         id: hsString(h.id, 40).replace(/[^\w-]/g, ''),
-        title: hsString(h.title, 60) || 'Hotspot ' + (out.length + 1),
-        description: hsString(h.description, 280),
-        linkLabel: hsString(h.linkLabel, 40),
+        title: hsString(tr.title, 60) || hsString(h.title, 60) || t('hotspot_n', { n: out.length + 1 }),
+        description: hsString(tr.description, 280) || hsString(h.description, 280),
+        linkLabel: hsString(tr.linkLabel, 40) || hsString(h.linkLabel, 40),
         linkUrl: safeHotspotUrl(h.linkUrl),
         meshIndex: onFace ? meshIndex : -1,
         faceIndex: onFace ? faceIndex : -1,
         weights: hsTriple(h.weights, [1 / 3, 1 / 3, 1 / 3]),
         position: position,
         focus: hsTriple(h.focus, [0, 0, 0]),
-        image: hsImage(h.image),
+        image: hsImage(h.image, tr.imageAlt),
         video: hsVideo(h.video),
-        product: hsProduct(h.product)
+        product: hsProduct(h.product),
+        order: hsOrder(h.order)
       });
     });
     return out;
@@ -2567,7 +2729,7 @@
     pin.type = 'button';
     pin.className = 'e3d-hotspot-pin';
     pin.textContent = label === 'title' ? h.title : String(index + 1);
-    pin.setAttribute('aria-label', 'Hotspot ' + (index + 1) + ': ' + h.title);
+    pin.setAttribute('aria-label', t('hotspot_pin', { n: index + 1, title: h.title }));
     el.appendChild(pin);
 
     var card = document.createElement('div');
@@ -2576,32 +2738,21 @@
     card.setAttribute('role', 'dialog');
     card.setAttribute('aria-label', h.title);
 
-    if (h.video) card.appendChild(buildHsVideo(h.video));
-    else if (h.image) card.appendChild(buildHsImage(h.image));
-
+    // The title always leads; below it, the blocks in the merchant's order
+    // (hsBlockOrder). The CSS spaces them whatever the order.
     var title = document.createElement('div');
     title.className = 'e3d-hotspot-title';
     title.textContent = h.title;
     card.appendChild(title);
-    if (h.description) {
-      var body = document.createElement('div');
-      body.className = 'e3d-hotspot-text';
-      body.textContent = h.description;
-      card.appendChild(body);
-    }
-    if (h.video && h.image) card.appendChild(buildHsImage(h.image));
-    if (h.linkUrl) {
-      var a = document.createElement('a');
-      a.className = 'e3d-hotspot-link';
-      a.href = h.linkUrl;
-      a.textContent = h.linkLabel || 'Learn more';
-      if (h.linkUrl.charAt(0) !== '/') {
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
+    hsBlockOrder(h).forEach(function (block) {
+      if (block === 'image' && h.image) card.appendChild(buildHsImage(h.image));
+      else if (block === 'video' && h.video) card.appendChild(buildHsVideo(h.video));
+      else if (block === 'text') {
+        var text = buildHsText(h);
+        if (text) card.appendChild(text);
       }
-      card.appendChild(a);
-    }
-    if (h.product) card.appendChild(buildHsProduct(h.product));
+      else if (block === 'product' && h.product) card.appendChild(buildHsProduct(h.product));
+    });
     // view3d cancels wheel events on the whole annotation (so scrolling over
     // a pin never zooms the model), which also stops a tall card scrolling.
     card.addEventListener('wheel', function (e) {
@@ -2609,6 +2760,31 @@
     }, { passive: true });
     el.appendChild(card);
     return el;
+  }
+
+  // Description and link, kept together; null when the hotspot has neither.
+  function buildHsText(h) {
+    if (!h.description && !h.linkUrl) return null;
+    var box = document.createElement('div');
+    box.className = 'e3d-hotspot-body';
+    if (h.description) {
+      var body = document.createElement('div');
+      body.className = 'e3d-hotspot-text';
+      body.textContent = h.description;
+      box.appendChild(body);
+    }
+    if (h.linkUrl) {
+      var a = document.createElement('a');
+      a.className = 'e3d-hotspot-link';
+      a.href = h.linkUrl;
+      a.textContent = h.linkLabel || t('learn_more');
+      if (h.linkUrl.charAt(0) !== '/') {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      }
+      box.appendChild(a);
+    }
+    return box;
   }
 
   function buildHsImage(image) {
@@ -2631,13 +2807,17 @@
     box.className = 'e3d-hotspot-video';
     box.setAttribute('data-kind', video.kind);
     box.setAttribute('data-src', video.kind === 'file' ? video.url : video.id);
-    if (video.kind === 'youtube') {
-      box.style.backgroundImage = 'url("https://i.ytimg.com/vi/' + video.id + '/hqdefault.jpg")';
+    var poster = video.kind === 'youtube'
+      ? 'https://i.ytimg.com/vi/' + video.id + '/hqdefault.jpg'
+      : video.kind === 'file' ? hsHttps(video.poster) : '';
+    if (poster) {
+      box.setAttribute('data-poster', poster);
+      box.style.backgroundImage = 'url("' + poster + '")';
     }
     var play = document.createElement('button');
     play.type = 'button';
     play.className = 'e3d-hotspot-play';
-    play.setAttribute('aria-label', 'Play video');
+    play.setAttribute('aria-label', t('play_video'));
     play.innerHTML = PLAY_ICON;
     play.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -2647,6 +2827,8 @@
       box.style.backgroundImage = '';
       if (kind === 'file') {
         var v = document.createElement('video');
+        var posterUrl = box.getAttribute('data-poster');
+        if (posterUrl) v.poster = posterUrl;
         v.src = src;
         v.controls = true;
         v.autoplay = true;
@@ -2659,8 +2841,12 @@
         ? 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(src) + '?autoplay=1&rel=0&playsinline=1'
         : 'https://player.vimeo.com/video/' + encodeURIComponent(src) + '?autoplay=1';
       iframe.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media';
+      // YouTube won't play without a Referer (Error 153), and a theme or app
+      // may set a policy that withholds it. Mirrors activateHotspotVideo in
+      // app/lib/hotspots.ts.
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       iframe.allowFullscreen = true;
-      iframe.title = 'Video';
+      iframe.title = t('video');
       box.appendChild(iframe);
     });
     box.appendChild(play);
@@ -2671,10 +2857,34 @@
   function resetHsVideos(root) {
     var boxes = root.querySelectorAll('.e3d-hotspot-video');
     Array.prototype.forEach.call(boxes, function (box) {
-      if (!box.querySelector('iframe, video')) return;
+      if (!box.querySelector('iframe, video:not(.e3d-hotspot-frame)')) return;
       var kind = box.getAttribute('data-kind');
       var src = box.getAttribute('data-src');
-      box.replaceWith(buildHsVideo(kind === 'file' ? { kind: 'file', url: src } : { kind: kind, id: src }));
+      box.replaceWith(buildHsVideo(kind === 'file'
+        ? { kind: 'file', url: src, poster: box.getAttribute('data-poster') || '' }
+        : { kind: kind, id: src }));
+    });
+  }
+
+  /*
+   * A file video with no poster shows its own first frame rather than a blank
+   * box: a muted, metadata-only <video> behind the play button, added when the
+   * card opens so a page of hotspots does not fetch every video at load.
+   * `#t=0.1` makes iOS Safari paint a frame. Mirrors primeHotspotVideoFrames
+   * in app/lib/hotspots.ts.
+   */
+  function primeHsVideoFrames(root) {
+    var boxes = root.querySelectorAll('.e3d-hotspot-video[data-kind="file"]:not([data-poster])');
+    Array.prototype.forEach.call(boxes, function (box) {
+      if (box.querySelector('video, iframe')) return;
+      var frame = document.createElement('video');
+      frame.className = 'e3d-hotspot-frame';
+      frame.muted = true;
+      frame.playsInline = true;
+      frame.preload = 'metadata';
+      frame.setAttribute('aria-hidden', 'true');
+      frame.src = (box.getAttribute('data-src') || '').split('#')[0] + '#t=0.1';
+      box.insertBefore(frame, box.firstChild);
     });
   }
 
@@ -2742,8 +2952,8 @@
     if (product.addToCart || product.buyNow) {
       var actions = document.createElement('div');
       actions.className = 'e3d-hotspot-actions';
-      if (product.addToCart) actions.appendChild(hsButton('Add to cart', 'primary', 'add'));
-      if (product.buyNow) actions.appendChild(hsButton('Buy now', 'secondary', 'buy'));
+      if (product.addToCart) actions.appendChild(hsButton(t('add_to_cart'), 'primary', 'add'));
+      if (product.buyNow) actions.appendChild(hsButton(t('buy_now'), 'secondary', 'buy'));
       box.appendChild(actions);
     }
     // Always there, so a shopper who wants every option, photo and detail has
@@ -2752,7 +2962,7 @@
     view.className = 'e3d-hotspot-product-link';
     view.href = shopRoot() + 'products/' + encodeURIComponent(product.handle) +
       '?variant=' + encodeURIComponent(product.variantId);
-    view.textContent = 'View product →';
+    view.textContent = t('view_product');
     box.appendChild(view);
     return box;
   }
@@ -2812,7 +3022,7 @@
    */
   function buildHsOptions(box, p, variants, start) {
     var names = (p.options || []).map(function (o, i) {
-      return typeof o === 'string' ? o : (o && o.name) || 'Option ' + (i + 1);
+      return typeof o === 'string' ? o : (o && o.name) || t('option_n', { n: i + 1 });
     });
     var count = Math.max(names.length, variantValues(variants[0]).length);
     if (!count) return;
@@ -2828,7 +3038,7 @@
       var label = document.createElement('label');
       label.className = 'e3d-hotspot-option';
       var caption = document.createElement('span');
-      caption.textContent = names[i] || 'Option ' + (i + 1);
+      caption.textContent = names[i] || t('option_n', { n: i + 1 });
       var select = document.createElement('select');
       values.forEach(function (val) {
         var opt = document.createElement('option');
@@ -2866,7 +3076,7 @@
     var priceEl = box.querySelector('.e3d-hotspot-product-price');
     var buttons = box.querySelectorAll('.e3d-hotspot-btn');
     var link = box.querySelector('.e3d-hotspot-product-link');
-    var labels = { add: 'Add to cart', buy: 'Buy now' };
+    var labels = { add: t('add_to_cart'), buy: t('buy_now') };
     var status = box.querySelector('.e3d-hotspot-status');
     if (status && !initial) status.textContent = '';
     if (variant && priceEl) priceEl.textContent = formatMoney(variant.price);
@@ -2884,7 +3094,7 @@
       b.disabled = !buyable;
       var action = b.getAttribute('data-action');
       if (buyable) b.textContent = labels[action] || b.textContent;
-      else if (idx === 0) b.textContent = variant ? 'Sold out' : 'Unavailable';
+      else if (idx === 0) b.textContent = variant ? t('sold_out') : t('unavailable');
       else b.textContent = labels[action] || b.textContent;
     });
   }
@@ -2918,7 +3128,7 @@
     var close = document.createElement('button');
     close.type = 'button';
     close.className = 'e3d-hotspot-sheet-close';
-    close.setAttribute('aria-label', 'Close');
+    close.setAttribute('aria-label', t('close'));
     close.textContent = '×';
     var body = document.createElement('div');
     body.className = 'e3d-hotspot-sheet-body';
@@ -2955,7 +3165,7 @@
     s.current = { annotation: annotation, card: card, home: hEl };
     card.style.maxHeight = '';
     s.body.appendChild(card);
-    s.sheet.setAttribute('aria-label', card.getAttribute('aria-label') || 'Hotspot');
+    s.sheet.setAttribute('aria-label', card.getAttribute('aria-label') || t('hotspot'));
     s.sheet.style.setProperty('--e3d-hotspot', hEl.style.getPropertyValue('--e3d-hotspot'));
     s.backdrop.setAttribute('data-open', '');
     s.close.focus({ preventScroll: true });
@@ -3014,7 +3224,7 @@
     }
     var label = button.textContent;
     button.disabled = true;
-    button.textContent = 'Adding…';
+    button.textContent = t('adding');
     fetch(shopRoot() + 'cart/add.js', {
       method: 'POST',
       credentials: 'same-origin',
@@ -3023,17 +3233,17 @@
     })
       .then(function (res) {
         return res.json().then(function (json) {
-          if (!res.ok) throw new Error((json && (json.description || json.message)) || 'Could not add to cart');
+          if (!res.ok) throw new Error((json && (json.description || json.message)) || t('add_failed'));
           return json;
         });
       })
       .then(function () {
-        button.textContent = 'Added ✓';
+        button.textContent = t('added');
         var frag = document.createDocumentFragment();
-        frag.appendChild(document.createTextNode('Added to your cart · '));
+        frag.appendChild(document.createTextNode(t('added_to_cart') + ' · '));
         var link = document.createElement('a');
         link.href = shopRoot() + 'cart';
-        link.textContent = 'View cart';
+        link.textContent = t('view_cart');
         frag.appendChild(link);
         setHsStatus(box, frag, false);
         // Counted as an add-to-cart after 3D in the merchant's Analytics.
@@ -3052,7 +3262,7 @@
       .catch(function (err) {
         button.disabled = false;
         button.textContent = label;
-        setHsStatus(box, document.createTextNode(err.message || 'Could not add to cart'), true);
+        setHsStatus(box, document.createTextNode(err.message || t('add_failed')), true);
       });
   }
 
@@ -3093,7 +3303,11 @@
       if (e.pointerType !== 'mouse' || wantsHsSheet(el)) return;
       clearTimeout(timer);
       var ann = getAnn();
-      if (ann && !ann.focusing && ann._onFocus) ann._onFocus();
+      if (ann && !ann.focusing && ann._onFocus) {
+        // No camera turn to undo when it closes; see resetViewOnHsClose.
+        ann.__e3dHoverOpened = true;
+        ann._onFocus();
+      }
     });
     hEl.addEventListener('pointerleave', function (e) {
       if (e.pointerType !== 'mouse') return;
@@ -3102,6 +3316,60 @@
         var ann = getAnn();
         if (ann && ann.focusing && !(hsSheet && hsSheet.current)) ann.unfocus();
       }, 250);
+    });
+  }
+
+  /*
+   * Closing a hotspot's card glides the camera back to the starting view (the
+   * toolbar's Reset view). Not when another hotspot opened in the same click,
+   * when the shopper dragged the model (view3d closes the card as soon as it
+   * is grabbed; a press with no camera movement still counts as a click and
+   * resets), or when the card was opened by hover, which never moved the
+   * camera. Mirrors resetViewOnHotspotClose in app/lib/hotspots.ts.
+   */
+  function resetViewOnHsClose(view3d) {
+    var holding = false;
+    var pending = false;
+    var holdPose = null;
+    function pose() {
+      var p = view3d.camera && view3d.camera.currentPose;
+      return p ? [p.yaw, p.pitch, p.zoom] : null;
+    }
+    function reset() {
+      var list = (view3d.annotation && view3d.annotation.list) || [];
+      for (var i = 0; i < list.length; i++) if (list[i].focusing) return;
+      if (view3d.camera && view3d.camera.reset) view3d.camera.reset(500);
+    }
+    var controls = (view3d.control && view3d.control.controls) || [];
+    controls.forEach(function (c) {
+      if (!c.on) return;
+      c.on('hold', function () {
+        holding = true;
+        holdPose = pose();
+      });
+      c.on('release', function () {
+        holding = false;
+        if (!pending) return;
+        pending = false;
+        var now = pose();
+        var moved = !holdPose || !now || now.some(function (v, i) {
+          return Math.abs(v - holdPose[i]) > 0.5;
+        });
+        if (!moved) reset();
+      });
+    });
+    view3d.on('annotationUnfocus', function (e) {
+      var ann = e && e.annotation;
+      var hovered = !!(ann && ann.__e3dHoverOpened);
+      if (ann) ann.__e3dHoverOpened = false;
+      if (hovered) return;
+      // After the event that closed it: by then a pin pressed in the same
+      // click has opened, and a press on the model has reported its hold —
+      // whose release then decides between a click and a drag.
+      setTimeout(function () {
+        if (holding) pending = true;
+        else reset();
+      }, 0);
     });
   }
 
@@ -3168,9 +3436,11 @@
         var product = hEl && hEl.querySelector('.e3d-hotspot-product');
         if (product) refreshHsProduct(product);
         if (!hEl) return;
+        primeHsVideoFrames(hEl);
         if (wantsHsSheet(el)) openHsSheet(e.annotation);
         else fitHsCard(e.annotation, el);
       });
+      resetViewOnHsClose(view3d);
       view3d.on('annotationUnfocus', function (e) {
         var hEl = e && e.annotation && e.annotation.element;
         if (hsSheet && hsSheet.current && hsSheet.current.annotation === e.annotation) {
@@ -3346,7 +3616,7 @@
       });
       view3d.once('loadError', function () {
         loadingOverlay.remove();
-        showError(el, 'Failed to load model');
+        showError(el, 'model failed to load');
         done();
       });
 

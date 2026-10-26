@@ -1,3 +1,15 @@
+import en from "~/i18n/locales/en/files.json";
+import { interpolate, type Vars } from "~/i18n/format";
+
+/**
+ * The messages below are merchant-facing, so each helper takes the caller's
+ * translator for the "files" namespace — useT("files") in a component,
+ * getServerT(request, "files") in an action. English when left out.
+ */
+export type FilesT = (key: string, vars?: Vars) => string;
+export const englishFiles: FilesT = (key, vars) =>
+  interpolate((en as Record<string, string>)[key] ?? key, "en", vars);
+
 const ACCEPTED_MODEL_EXTENSIONS = [".glb", ".gltf"];
 
 // @egjs/view3d only ships a glTF loader, so accepted and previewable formats
@@ -39,10 +51,18 @@ export function formatFileSize(bytes: number): string {
 }
 
 /** "Optimized 10.6 MB → 680 KB (94% smaller)", or null when nothing shrank. */
-export function describeSaving(originalSize: number, size: number): string | null {
+export function describeSaving(
+  originalSize: number,
+  size: number,
+  t: FilesT = englishFiles,
+): string | null {
   if (!(originalSize > 0) || size >= originalSize) return null;
   const pct = Math.round((1 - size / originalSize) * 100);
-  return `Optimized ${formatFileSize(originalSize)} → ${formatFileSize(size)} (${pct}% smaller)`;
+  return t("saving", {
+    from: formatFileSize(originalSize),
+    to: formatFileSize(size),
+    pct,
+  });
 }
 
 /**
@@ -51,19 +71,23 @@ export function describeSaving(originalSize: number, size: number): string | nul
  * (finalSizeError). With it off the file is stored as it is, so 20 MB applies
  * up front.
  */
-export function validateModelFile(file: File, optimize = false): string | null {
+export function validateModelFile(
+  file: File,
+  optimize = false,
+  t: FilesT = englishFiles,
+): string | null {
   if (!isValidModelFilename(file.name)) {
-    return "Only .glb or .gltf files are supported";
+    return t("onlyGlb");
   }
   if (file.size === 0) {
-    return "Please choose a .glb or .gltf file";
+    return t("chooseFile");
   }
   if (optimize) {
     if (file.size > MAX_RAW_UPLOAD_BYTES) {
-      return `File is ${formatFileSize(file.size)}. Max ${MAX_RAW_UPLOAD_MB} MB before optimization.`;
+      return t("tooBigRaw", { size: formatFileSize(file.size), max: MAX_RAW_UPLOAD_MB });
     }
   } else if (file.size > MAX_MODEL_FILE_SIZE_BYTES) {
-    return `File is ${formatFileSize(file.size)}. Max accepted size is ${MAX_MODEL_FILE_SIZE_MB} MB — turn on "Optimize for faster loading" to upload larger files.`;
+    return t("tooBig", { size: formatFileSize(file.size), max: MAX_MODEL_FILE_SIZE_MB });
   }
   return null;
 }
@@ -77,9 +101,14 @@ export function needsOptimizationToFit(file: File): boolean {
 export function finalSizeError(
   storedSize: number,
   originalSize: number,
+  t: FilesT = englishFiles,
 ): string | null {
   if (storedSize <= MAX_MODEL_FILE_SIZE_BYTES) return null;
   return storedSize < originalSize
-    ? `Still ${formatFileSize(storedSize)} after optimization (from ${formatFileSize(originalSize)}). Max ${MAX_MODEL_FILE_SIZE_MB} MB.`
-    : `File is ${formatFileSize(storedSize)} and couldn't be optimized smaller. Max ${MAX_MODEL_FILE_SIZE_MB} MB.`;
+    ? t("stillTooBig", {
+        size: formatFileSize(storedSize),
+        original: formatFileSize(originalSize),
+        max: MAX_MODEL_FILE_SIZE_MB,
+      })
+    : t("cantShrink", { size: formatFileSize(storedSize), max: MAX_MODEL_FILE_SIZE_MB });
 }

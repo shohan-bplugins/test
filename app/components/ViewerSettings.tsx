@@ -2,6 +2,7 @@ import * as React from "react";
 
 import { fieldChecked, fieldValue, flag } from "~/components/polaris/helpers";
 import type { ViewerConfig } from "~/components/ViewerPreview";
+import { useT } from "~/i18n";
 import {
   CONTROL_ITEMS,
   CONTROL_SLOTS,
@@ -10,13 +11,14 @@ import {
   slotOfControl,
 } from "~/lib/viewer-config";
 
+// Message keys (namespace "viewerSettings"), translated at render.
 const SLOT_NAMES: Record<(typeof CONTROL_SLOTS)[number], string> = {
-  "top-left": "Top left",
-  "top-center": "Top center",
-  "top-right": "Top right",
-  "bottom-left": "Bottom left",
-  "bottom-center": "Bottom center",
-  "bottom-right": "Bottom right",
+  "top-left": "slotTopLeft",
+  "top-center": "slotTopCenter",
+  "top-right": "slotTopRight",
+  "bottom-left": "slotBottomLeft",
+  "bottom-center": "slotBottomCenter",
+  "bottom-right": "slotBottomRight",
 };
 
 const TONE_MAPPINGS = [
@@ -26,7 +28,19 @@ const TONE_MAPPINGS = [
   "Cineon",
   "ACESFilmic",
 ] as const;
+const TONE_MAPPING_LABELS: Record<(typeof TONE_MAPPINGS)[number], string> = {
+  None: "toneNone",
+  Linear: "toneLinear",
+  Reinhard: "toneReinhard",
+  Cineon: "toneCineon",
+  ACESFilmic: "toneAcesFilmic",
+};
 const REPEAT_MODES = ["one", "all", "none"] as const;
+const REPEAT_MODE_LABELS: Record<(typeof REPEAT_MODES)[number], string> = {
+  one: "repeatOne",
+  all: "repeatAll",
+  none: "repeatNone",
+};
 
 /**
  * A collapsible group of settings.
@@ -113,6 +127,8 @@ type Props = {
 };
 
 export function ViewerSettings({ config, onChange }: Props) {
+  const t = useT("viewerSettings");
+  const tl = useT("layout");
   function update<K extends keyof ViewerConfig>(
     key: K,
     value: ViewerConfig[K],
@@ -131,7 +147,7 @@ export function ViewerSettings({ config, onChange }: Props) {
 
   return (
     <s-stack direction="block" gap="base">
-      <CollapsibleSection title="Display" icon="color">
+      <CollapsibleSection title={t("sectionDisplay")} icon="color">
         {/*
           Number fields, where these were range sliders. Polaris ships no
           slider, and the alternative — keeping a hand-styled range input — is
@@ -141,8 +157,8 @@ export function ViewerSettings({ config, onChange }: Props) {
           yaw), and it is reachable by keyboard without a custom key handler.
         */}
         <s-number-field
-          label="Viewer height"
-          details="Height of the viewer canvas, in pixels."
+          label={t("heightLabel")}
+          details={t("heightDetails")}
           suffix="px"
           min={200}
           max={1200}
@@ -152,15 +168,15 @@ export function ViewerSettings({ config, onChange }: Props) {
         />
 
         <s-color-field
-          label="Background color"
-          details="Solid colour behind the model."
+          label={t("backgroundLabel")}
+          details={t("backgroundDetails")}
           value={config.background}
           onInput={(e) => update("background", fieldValue(e))}
         />
 
         <s-number-field
-          label="Exposure"
-          details="HDR brightness."
+          label={t("exposureLabel")}
+          details={t("exposureDetails")}
           min={0}
           max={5}
           step={0.05}
@@ -169,70 +185,70 @@ export function ViewerSettings({ config, onChange }: Props) {
         />
 
         <s-select
-          label="Tone mapping"
+          label={t("toneMappingLabel")}
           value={config.toneMapping}
           onInput={(e) => update("toneMapping", fieldValue(e))}
         >
-          {TONE_MAPPINGS.map((t) => (
-            <s-option key={t} value={t}>
-              {t}
+          {TONE_MAPPINGS.map((tm) => (
+            <s-option key={tm} value={tm}>
+              {t(TONE_MAPPING_LABELS[tm])}
             </s-option>
           ))}
         </s-select>
 
         <s-switch
-          label="Default environment map"
-          details="Generated env map for material reflections."
+          label={t("defaultEnvLabel")}
+          details={t("defaultEnvDetails")}
           checked={flag(config.useDefaultEnv)}
           onInput={(e) => update("useDefaultEnv", fieldChecked(e))}
         />
         <s-switch
-          label="Blur skybox"
+          label={t("skyboxBlurLabel")}
           checked={flag(config.skyboxBlur)}
           onInput={(e) => update("skyboxBlur", fieldChecked(e))}
         />
         <s-switch
-          label="Cast shadow under model"
+          label={t("shadowLabel")}
           checked={flag(config.shadow)}
           onInput={(e) => update("shadow", fieldChecked(e))}
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Environment" icon="sun" defaultOpen={false}>
+      <CollapsibleSection title={t("sectionEnvironment")} icon="sun" defaultOpen={false}>
         <s-url-field
-          label="Skybox HDR URL"
+          label={t("skyboxLabel")}
           placeholder="https://...hdr"
-          details="RGBE .hdr image rendered as the background and used for reflections."
+          details={t("skyboxDetails")}
           value={config.skybox}
           onInput={(e) => update("skybox", fieldValue(e))}
         />
         <s-url-field
-          label="Environment map HDR URL"
+          label={t("envmapLabel")}
           placeholder="https://...hdr"
-          details="Optional separate HDR for material reflections only."
+          details={t("envmapDetails")}
           value={config.envmap}
           onInput={(e) => update("envmap", fieldValue(e))}
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Camera" icon="camera" defaultOpen={false}>
+      <CollapsibleSection title={t("sectionCamera")} icon="camera" defaultOpen={false}>
         <s-select
-          label="FOV mode"
-          details="Auto fits the model. Custom uses the FOV value below."
+          label={t("fovModeLabel")}
+          details={t("fovModeDetails")}
           value={config.fovMode}
           onInput={(e) => update("fovMode", fieldValue(e) as "auto" | "custom")}
         >
-          <s-option value="auto">Auto</s-option>
-          <s-option value="custom">Custom</s-option>
+          <s-option value="auto">{t("fovAuto")}</s-option>
+          <s-option value="custom">{t("fovCustom")}</s-option>
         </s-select>
 
         <s-number-field
-          label="FOV"
+          label={t("fovLabel")}
           suffix="°"
           details={
             config.fovMode === "auto"
-              ? "Disabled in auto mode."
-              : "Field of view, in degrees."
+              ? t("fovDisabled")
+              : t("fovDetails")
           }
           disabled={flag(config.fovMode === "auto")}
           min={1}
@@ -242,7 +258,7 @@ export function ViewerSettings({ config, onChange }: Props) {
           onInput={(e) => update("fov", num(e, config.fov))}
         />
         <s-number-field
-          label="Initial yaw"
+          label={t("yawLabel")}
           suffix="°"
           min={-180}
           max={180}
@@ -251,7 +267,7 @@ export function ViewerSettings({ config, onChange }: Props) {
           onInput={(e) => update("yaw", num(e, config.yaw))}
         />
         <s-number-field
-          label="Initial pitch"
+          label={t("pitchLabel")}
           suffix="°"
           min={-90}
           max={90}
@@ -260,8 +276,8 @@ export function ViewerSettings({ config, onChange }: Props) {
           onInput={(e) => update("pitch", num(e, config.pitch))}
         />
         <s-number-field
-          label="Initial zoom"
-          details="Positive zooms in."
+          label={t("zoomLabel")}
+          details={t("zoomDetails")}
           min={-50}
           max={50}
           step={0.5}
@@ -269,85 +285,85 @@ export function ViewerSettings({ config, onChange }: Props) {
           onInput={(e) => update("initialZoom", num(e, config.initialZoom))}
         />
         <s-switch
-          label="Maintain model size on resize"
+          label={t("maintainSizeLabel")}
           checked={flag(config.maintainSize)}
           onInput={(e) => update("maintainSize", fieldChecked(e))}
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Controls" icon="settings" defaultOpen={false}>
+      <CollapsibleSection title={t("sectionControls")} icon="settings" defaultOpen={false}>
         <s-switch
-          label="Allow rotate"
+          label={t("allowRotateLabel")}
           checked={flag(config.rotate)}
           onInput={(e) => update("rotate", fieldChecked(e))}
         />
         <s-switch
-          label="Allow translate (pan)"
+          label={t("allowTranslateLabel")}
           checked={flag(config.translate)}
           onInput={(e) => update("translate", fieldChecked(e))}
         />
         <s-switch
-          label="Allow zoom"
-          details="Off also hides the zoom in / out buttons."
+          label={t("allowZoomLabel")}
+          details={t("allowZoomDetails")}
           checked={flag(config.zoom)}
           onInput={(e) => update("zoom", fieldChecked(e))}
         />
         <s-switch
-          label="Auto rotate"
+          label={t("autoRotateLabel")}
           checked={flag(config.autoRotate)}
           onInput={(e) => update("autoRotate", fieldChecked(e))}
         />
         <s-switch
-          label="Page scroll on touch"
-          details="Allow vertical scroll when dragging on the canvas."
+          label={t("scrollTouchLabel")}
+          details={t("scrollTouchDetails")}
           checked={flag(config.scrollable)}
           onInput={(e) => update("scrollable", fieldChecked(e))}
         />
         <s-switch
-          label="Page scroll on mouse wheel"
+          label={t("scrollWheelLabel")}
           checked={flag(config.wheelScrollable)}
           onInput={(e) => update("wheelScrollable", fieldChecked(e))}
         />
         <s-switch
-          label="Grab cursor on canvas"
+          label={t("grabCursorLabel")}
           checked={flag(config.useGrabCursor)}
           onInput={(e) => update("useGrabCursor", fieldChecked(e))}
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Control bar" icon="adjust" defaultOpen={false}>
+      <CollapsibleSection title={t("sectionControlBar")} icon="adjust" defaultOpen={false}>
         <s-switch
-          label="Animation clip name / switcher"
-          details="Shows the active clip in the mini toolbar; click it to pick another. Off means the model does not animate at all."
+          label={t("animationSelectorLabel")}
+          details={t("animationSelectorDetails")}
           checked={flag(config.showAnimationSelector)}
           onInput={(e) => update("showAnimationSelector", fieldChecked(e))}
         />
         <s-switch
-          label="Axis gizmo (X/Y/Z)"
-          details="Orientation indicator shown in the corner of the viewer."
+          label={t("axesLabel")}
+          details={t("axesDetails")}
           checked={flag(config.showAxes)}
           onInput={(e) => update("showAxes", fieldChecked(e))}
         />
         <s-switch
-          label="Zoom in / out buttons"
-          details="Hidden while “Allow zoom” is off, under Controls."
+          label={t("zoomButtonsLabel")}
+          details={t("zoomButtonsDetails")}
           checked={flag(config.showZoomButtons)}
           onInput={(e) => update("showZoomButtons", fieldChecked(e))}
         />
         <s-switch
-          label="Camera (snapshot) button"
-          details="Downloads a PNG of the current view."
+          label={t("screenshotLabel")}
+          details={t("screenshotDetails")}
           checked={flag(config.showScreenshotButton)}
           onInput={(e) => update("showScreenshotButton", fieldChecked(e))}
         />
         <s-switch
-          label="Reset view button"
-          details="Returns the camera to its starting angle and zoom."
+          label={t("resetViewLabel")}
+          details={t("resetViewDetails")}
           checked={flag(config.showCameraResetButton)}
           onInput={(e) => update("showCameraResetButton", fieldChecked(e))}
         />
         <s-switch
-          label="Fullscreen button"
+          label={t("fullscreenLabel")}
           checked={flag(config.showFullscreenButton)}
           onInput={(e) => update("showFullscreenButton", fieldChecked(e))}
         />
@@ -357,13 +373,12 @@ export function ViewerSettings({ config, onChange }: Props) {
           end of its new spot's line; the order within a spot is set by dragging.
         */}
         <s-paragraph color="subdued">
-          Positions — or use “Move controls” under the preview to drag each one,
-          including the order within a spot.
+          {t("positionsHelp")}
         </s-paragraph>
         {CONTROL_ITEMS.map((item) => (
           <s-select
             key={item.id}
-            label={`${item.label} position`}
+            label={t("controlPosition", { control: tl(`control_${item.id}`) })}
             value={slotOfControl(config.controlsLayout, item.id)}
             onInput={(e) => {
               const slot = fieldValue(e);
@@ -378,14 +393,14 @@ export function ViewerSettings({ config, onChange }: Props) {
           >
             {CONTROL_SLOTS.map((slot) => (
               <s-option key={slot} value={slot}>
-                {SLOT_NAMES[slot]}
+                {t(SLOT_NAMES[slot])}
               </s-option>
             ))}
           </s-select>
         ))}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Animation" icon="play" defaultOpen={false}>
+      <CollapsibleSection title={t("sectionAnimation")} icon="play" defaultOpen={false}>
         {/*
           Counts clips the way the switcher lists them: 1 is the first clip, 0 is
           none. It used to store `num(e) + 1` while displaying the raw stored
@@ -393,8 +408,8 @@ export function ViewerSettings({ config, onChange }: Props) {
           1-based conversion that only ever reached the write side.
         */}
         <s-number-field
-          label="Default animation index"
-          details="Which clip plays on load, counted as the switcher lists them: 1 = first, 2 = second… 0 = none. Needs “Animation clip name / switcher” (under Control bar) to be on."
+          label={t("animationIndexLabel")}
+          details={t("animationIndexDetails")}
           min={0}
           max={99}
           step={1}
@@ -407,70 +422,70 @@ export function ViewerSettings({ config, onChange }: Props) {
           }
         />
         <s-select
-          label="Repeat mode"
+          label={t("repeatModeLabel")}
           value={config.animationRepeatMode}
           onInput={(e) => update("animationRepeatMode", fieldValue(e))}
         >
           {REPEAT_MODES.map((r) => (
             <s-option key={r} value={r}>
-              {r}
+              {t(REPEAT_MODE_LABELS[r])}
             </s-option>
           ))}
         </s-select>
       </CollapsibleSection>
 
-      <CollapsibleSection title="AR" icon="mobile" defaultOpen={false}>
+      <CollapsibleSection title={t("sectionAr")} icon="mobile" defaultOpen={false}>
         <s-switch
-          label="WebXR AR (modern Android Chrome)"
+          label={t("webArLabel")}
           checked={flag(config.webAR)}
           onInput={(e) => update("webAR", fieldChecked(e))}
         />
         <s-switch
-          label="Google Scene Viewer (Android)"
+          label={t("sceneViewerLabel")}
           checked={flag(config.sceneViewer)}
           onInput={(e) => update("sceneViewer", fieldChecked(e))}
         />
         <s-switch
-          label="Apple Quick Look (iOS)"
-          details="Requires a .usdz model."
+          label={t("quickLookLabel")}
+          details={t("quickLookDetails")}
           checked={flag(config.quickLook)}
           onInput={(e) => update("quickLook", fieldChecked(e))}
         />
         <s-select
-          label="Placement"
-          details="Where the model goes when a shopper opens AR. Wall suits art, mirrors, shelves and TVs. Wall placement works on Android; iPhones place the model as its .usdz file says, which for Shopify's own files is the floor."
+          label={t("placementLabel")}
+          details={t("placementDetails")}
           value={config.arPlacement}
           onInput={(e) =>
             update("arPlacement", fieldValue(e) === "wall" ? "wall" : "floor")
           }
         >
-          <s-option value="floor">Floor</s-option>
-          <s-option value="wall">Wall</s-option>
+          <s-option value="floor">{t("placementFloor")}</s-option>
+          <s-option value="wall">{t("placementWall")}</s-option>
         </s-select>
         <s-url-field
-          label="iOS source URL (.usdz)"
+          label={t("iosSrcLabel")}
           placeholder="https://...usdz"
-          details="Used by Quick Look on iOS Safari. Upload separately to Shopify Files."
+          details={t("iosSrcDetails")}
           value={config.iosSrc}
           onInput={(e) => update("iosSrc", fieldValue(e))}
         />
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="Advanced"
+        title={t("sectionAdvanced")}
         icon="three-d-environment"
         defaultOpen={false}
       >
         <s-text-field
-          label="Material variant"
-          placeholder="leave empty for default"
-          details="Name of a KHR_materials_variants variant in the model."
+          label={t("variantLabel")}
+          placeholder={t("variantPlaceholder")}
+          details={t("variantDetails")}
           value={config.variant}
           onInput={(e) => update("variant", fieldValue(e))}
         />
         <s-switch
-          label="Fix skinned bounding box"
-          details="Recalculate bbox using skeleton weights (rigged models)."
+          label={t("fixSkinnedLabel")}
+          details={t("fixSkinnedDetails")}
           checked={flag(config.fixSkinnedBbox)}
           onInput={(e) => update("fixSkinnedBbox", fieldChecked(e))}
         />

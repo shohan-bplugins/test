@@ -1,0 +1,6 @@
+{
+  "backTo": "{label}に戻る",
+  "language": "言語",
+  "languageAuto": "自動（Shopify管理画面に合わせる）",
+  "languageHelp": "このアプリの表示言語です。「自動」ではShopify管理画面の言語を使用します。オンラインストアには影響しません。"
+}

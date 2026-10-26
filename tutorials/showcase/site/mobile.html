@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<link rel="stylesheet" href="/viewer-3d.css">
+<script>window.Shopify = { routes: { root: "/" }, currency: { active: "USD" } };</script>
+<style>
+body{margin:0;font-family:-apple-system,"Helvetica Neue",sans-serif;color:#16181d;background:#faf8f4}
+.sb{height:54px}
+.nav{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #e4e0d8;background:#fff;font-weight:800;letter-spacing:.14em;font-size:15px}
+.nav i{width:22px;height:2px;background:#16181d;box-shadow:0 7px 0 #16181d,0 -7px 0 #16181d}
+.p{padding:18px 20px}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
+.pr{font-size:19px;font-weight:600}
+.l{font-size:15px;color:#4a4f5b;line-height:1.5}
+.b{margin-top:16px;height:52px;background:#16181d;color:#fff;display:grid;place-items:center;font-weight:600}
+</style></head><body>
+<div class="sb"></div><div class="nav"><i></i>AURORA<span>🛒</span></div>
+<div id="slot"></div>
+<div class="p"><h1>Aurora Runner</h1><div class="pr">$129.00</div><p class="l">A featherlight daily trainer with a recycled-foam midsole and a breathable knit upper.</p><div class="b">Add to cart</div></div>
+<script>
+  window.__v3d = [];
+  var cfg = (window.parent && window.parent.mobileCfg) || {};
+  var el = document.createElement('div');
+  el.className = 'viewer-3d';
+  el.style.cssText = '--viewer-height:430px;--viewer-bg:#f1ede6;background:#f1ede6;';
+  el.setAttribute('data-view3d', '');
+  el.dataset.modelUrl = '/MaterialsVariantsShoe.glb';
+  el.dataset.viewerHeight = '430';
+  el.dataset.viewerBg = '#f1ede6';
+  el.dataset.placement = 'product';
+  el.dataset.config = JSON.stringify(Object.assign({ background: '#f1ede6', height: 430 }, cfg));
+  el.innerHTML = '<canvas class="view3d-canvas"></canvas>';
+  document.getElementById('slot').appendChild(el);
+</script>
+<script src="/viewer-3d.js" data-vendor-js="/view3d.pkgd.min.js" data-vendor-css="/view3d-bundle.min.css"></script>
+</body></html>

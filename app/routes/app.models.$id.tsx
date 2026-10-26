@@ -29,6 +29,7 @@ import { parseConfig } from "~/lib/viewer-config";
 import { hotspotsAllowed } from "~/lib/hotspots.server";
 import { HotspotsEditor, createHotspot } from "~/components/HotspotsEditor";
 import { buildEmbedSnippet, type EmbedMode } from "~/lib/embed";
+import { STOREFRONT_LOCALES } from "~/lib/storefront-strings";
 import { ViewerSettings } from "~/components/ViewerSettings";
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
@@ -36,6 +37,10 @@ import { ConfirmModal } from "~/components/polaris/ConfirmModal";
 import { useReviewPrompt } from "~/components/ReviewPrompt";
 import { evaluateReviewPrompt } from "~/lib/review-prompt.server";
 import { fieldValue, flag } from "~/components/polaris/helpers";
+import { fetchShopLocales } from "~/lib/shop-locales.server";
+import type { ShopLocale } from "~/lib/shop-locales";
+import { useT } from "~/i18n";
+import { getServerT } from "~/i18n/i18n.server";
 
 // Moved off root's global links: only the routes that mount ViewerPreview need
 // view3d's stylesheet, and it still loads with the route so the canvas is never
@@ -61,6 +66,8 @@ type LoaderData = {
   appOrigin: string;
   /** Free plan: the Hotspots panel shows a PRO lock. */
   hotspotsLocked: boolean;
+  /** Published languages, for translating hotspot text. */
+  shopLocales: ShopLocale[];
 };
 
 export const loader = async ({
@@ -74,7 +81,9 @@ export const loader = async ({
     where: { id, shop },
   });
   if (!model) {
-    throw new Response("Model not found", { status: 404 });
+    throw new Response(getServerT(request, "model")("notFound"), {
+      status: 404,
+    });
   }
 
   if (!model.fileUrl) {
@@ -106,6 +115,7 @@ export const loader = async ({
     // mismatch on hydration.
     appOrigin: resolveAppOrigin(request),
     hotspotsLocked: !(await hotspotsAllowed(admin, shop)),
+    shopLocales: await fetchShopLocales(admin),
   };
 };
 
@@ -115,9 +125,10 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   const id = String(params.id ?? "");
   const formData = await request.formData();
   const intent = String(formData.get("intent") ?? "");
+  const t = getServerT(request, "model");
 
   const existing = await prisma.model3D.findFirst({ where: { id, shop } });
-  if (!existing) return { ok: false, error: "Model not found" };
+  if (!existing) return { ok: false, error: t("notFound") };
 
   if (intent === "delete") {
     await prisma.model3D.delete({ where: { id } });
@@ -147,7 +158,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     await syncModelLibrary(admin, shop);
     return {
       ok: true,
-      message: "Saved",
+      message: t("saved"),
       // A review moment. This model is in the library, so rule 5 is met.
       reviewPrompt: await evaluateReviewPrompt(admin, shop, "settings-saved", {
         libraryCount: 1,
@@ -161,10 +172,10 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       data: { config: null },
     });
     await syncModelLibrary(admin, shop);
-    return { ok: true, message: "Settings reset to defaults" };
+    return { ok: true, message: t("resetDone") };
   }
 
-  return { ok: false, error: "Unknown intent" };
+  return { ok: false, error: t("unknownIntent") };
 };
 
 // The public page that actually renders this model (app/routes/viewer.$id.tsx).
@@ -181,9 +192,15 @@ export default function ModelDetail() {
     config: savedConfig,
     appOrigin,
     hotspotsLocked,
+    shopLocales,
   } = useLoaderData<typeof loader>();
+  const t = useT("model");
+  const tc = useT("common");
   // Hotspots: placement mode, and "preview this one" in the live preview.
   const [placingHotspot, setPlacingHotspot] = useState(false);
+  // The language the hotspot text is being edited in (null: the primary);
+  // the preview shows that language's translations too.
+  const [hotspotLocale, setHotspotLocale] = useState<string | null>(null);
   const [hotspotFocus, setHotspotFocus] = useState<{
     id: string;
     n: number;
@@ -202,6 +219,8 @@ export default function ModelDetail() {
   const [config, setConfig] = useState<ViewerConfig>(savedConfig);
   const [copying, setCopying] = useState<"id" | "link" | "embed" | null>(null);
   const [embedMode, setEmbedMode] = useState<EmbedMode>("responsive");
+  // "" lets the visitor's browser decide; a code pins the embed's language.
+  const [embedLang, setEmbedLang] = useState("");
   // Which destructive action is awaiting confirmation, if any.
   const [pending, setPending] = useState<"reset" | "delete" | null>(null);
 
@@ -233,11 +252,11 @@ export default function ModelDetail() {
 
   useEffect(() => {
     if (actionData?.ok) {
-      shopify.toast.show(actionData.message ?? "Saved");
+      shopify.toast.show(actionData.message ?? t("saved"));
     } else if (actionData?.error) {
       shopify.toast.show(actionData.error, { isError: true });
     }
-  }, [actionData, shopify]);
+  }, [actionData, shopify, t]);
 
   const dirty = useMemo(
     () =>
@@ -268,9 +287,9 @@ export default function ModelDetail() {
   }
 
   const COPY_LABELS: Record<"id" | "link" | "embed", string> = {
-    id: "Model ID copied",
-    link: "Viewer link copied",
-    embed: "Embed code copied",
+    id: t("copiedId"),
+    link: t("copiedLink"),
+    embed: t("copiedEmbed"),
   };
 
   async function handleCopy(value: string, kind: "id" | "link" | "embed") {
@@ -279,18 +298,21 @@ export default function ModelDetail() {
       await navigator.clipboard.writeText(value);
       shopify.toast.show(COPY_LABELS[kind]);
     } catch {
-      shopify.toast.show("Couldn't copy", { isError: true });
+      shopify.toast.show(tc("copyFailed"), { isError: true });
     } finally {
       setTimeout(() => setCopying(null), 700);
     }
   }
 
   const viewerUrl = buildViewerUrl(appOrigin, model.id);
-  const embedSnippet = buildEmbedSnippet(viewerUrl, config.height, embedMode);
+  const sharedUrl = embedLang
+    ? `${viewerUrl}?lang=${encodeURIComponent(embedLang)}`
+    : viewerUrl;
+  const embedSnippet = buildEmbedSnippet(sharedUrl, config.height, embedMode);
 
   return (
     <s-page heading={model.name}>
-      <BackButton to="/app/models" label="3D model library" />
+      <BackButton to="/app/models" label={t("backToLibrary")} />
 
       {/*
         The admin's own contextual save bar, not a Save button in the page
@@ -336,7 +358,7 @@ export default function ModelDetail() {
         target="_blank"
         disabled={flag(dirty)}
       >
-        Preview
+        {tc("preview")}
       </s-button>
       <s-button
         slot="secondary-actions"
@@ -344,7 +366,7 @@ export default function ModelDetail() {
         disabled={flag(submitting)}
         onClick={() => setPending("reset")}
       >
-        Reset settings
+        {t("resetSettings")}
       </s-button>
       <s-button
         slot="secondary-actions"
@@ -353,7 +375,7 @@ export default function ModelDetail() {
         disabled={flag(submitting)}
         onClick={() => setPending("delete")}
       >
-        Delete
+        {tc("delete")}
       </s-button>
       <SupportAction />
 
@@ -361,26 +383,28 @@ export default function ModelDetail() {
         id="model-confirm"
         open={pending !== null}
         heading={
-          pending === "delete" ? "Delete model?" : "Reset viewer settings?"
+          pending === "delete" ? t("deleteHeading") : t("resetHeading")
         }
-        confirmLabel={pending === "delete" ? "Delete model" : "Reset settings"}
+        confirmLabel={
+          pending === "delete" ? t("deleteConfirm") : t("resetSettings")
+        }
         loading={submitting}
         onConfirm={confirmPending}
         onCancel={() => setPending(null)}
       >
         <s-paragraph>
           {pending === "delete"
-            ? "This removes the model from your library. The .glb file itself stays in Shopify Files, and any page still embedding it will stop rendering."
-            : "Every viewer setting for this model goes back to its default. The model file and its name are untouched."}
+            ? t("deleteBody")
+            : t("resetBody")}
         </s-paragraph>
       </ConfirmModal>
 
-      <s-section slot="aside" heading="Details">
+      <s-section slot="aside" heading={t("detailsHeading")}>
         <s-stack direction="block" gap="base">
           <s-text-field
-            label="Name"
+            label={t("nameLabel")}
             value={name}
-            placeholder="My 3D model"
+            placeholder={t("namePlaceholder")}
             onInput={(e) => setName(fieldValue(e))}
           />
           {/*
@@ -402,13 +426,13 @@ export default function ModelDetail() {
             inlineSize="100%"
           >
             <s-text-field
-              label="Model ID"
+              label={t("modelIdLabel")}
               value={model.id}
               readOnly={flag(true)}
             />
             <s-button
               icon={copying === "id" ? "check" : "clipboard"}
-              accessibilityLabel="Copy model ID"
+              accessibilityLabel={t("copyModelId")}
               onClick={() => handleCopy(model.id, "id")}
             />
           </s-grid>
@@ -420,16 +444,14 @@ export default function ModelDetail() {
             instead of sitting on the input line.
           */}
           <s-paragraph color="subdued">
-            This model’s permanent identifier — the same id used in its viewer
-            link below.
+            {t("modelIdHint")}
           </s-paragraph>
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading="Share & embed">
+      <s-section slot="aside" heading={t("shareHeading")}>
         <s-paragraph color="subdued">
-          A public page that renders this model with the settings saved below.
-          Anyone with the link can view it; it isn’t indexed by search engines.
+          {t("shareIntro")}
         </s-paragraph>
 
         <s-stack direction="block" gap="base">
@@ -440,16 +462,30 @@ export default function ModelDetail() {
             inlineSize="100%"
           >
             <s-text-field
-              label="Viewer link"
-              value={viewerUrl}
+              label={t("viewerLinkLabel")}
+              value={sharedUrl}
               readOnly={flag(true)}
             />
             <s-button
               icon={copying === "link" ? "check" : "clipboard"}
-              accessibilityLabel="Copy viewer link"
-              onClick={() => handleCopy(viewerUrl, "link")}
+              accessibilityLabel={t("copyViewerLink")}
+              onClick={() => handleCopy(sharedUrl, "link")}
             />
           </s-grid>
+
+          <s-select
+            label={t("viewerLanguageLabel")}
+            details={t("viewerLanguageDetails")}
+            value={embedLang}
+            onInput={(e) => setEmbedLang(fieldValue(e))}
+          >
+            <s-option value="">{t("visitorLanguage")}</s-option>
+            {STOREFRONT_LOCALES.map((l) => (
+              <s-option key={l.code} value={l.code}>
+                {l.name}
+              </s-option>
+            ))}
+          </s-select>
 
           {/*
             A select rather than a two-option choice list. s-choice-list carries
@@ -458,12 +494,14 @@ export default function ModelDetail() {
             stringified and the control would never reflect its own state.
           */}
           <s-select
-            label="Embed size"
+            label={t("embedSizeLabel")}
             value={embedMode}
             onInput={(e) => setEmbedMode(fieldValue(e) as EmbedMode)}
           >
-            <s-option value="responsive">Responsive</s-option>
-            <s-option value="fixed">{`Fixed ${config.height}px`}</s-option>
+            <s-option value="responsive">{t("embedResponsive")}</s-option>
+            <s-option value="fixed">
+              {t("embedFixed", { height: config.height })}
+            </s-option>
           </s-select>
 
           {/*
@@ -487,16 +525,16 @@ export default function ModelDetail() {
               alignItems="center"
               inlineSize="100%"
             >
-              <s-text>Embed code</s-text>
+              <s-text>{t("embedCodeLabel")}</s-text>
               <s-button
                 variant="tertiary"
                 icon={copying === "embed" ? "check" : "clipboard"}
-                accessibilityLabel="Copy embed code"
+                accessibilityLabel={t("copyEmbedCode")}
                 onClick={() => handleCopy(embedSnippet, "embed")}
               />
             </s-grid>
             <s-text-area
-              label="Embed code"
+              label={t("embedCodeLabel")}
               labelAccessibilityVisibility="exclusive"
               value={embedSnippet}
               readOnly={flag(true)}
@@ -505,28 +543,24 @@ export default function ModelDetail() {
           </s-stack>
 
           <s-paragraph color="subdued">
-            Paste into any page that accepts HTML — a Shopify page in the{" "}
-            <s-text type="strong">&lt;/&gt;</s-text> HTML view, a theme Custom
-            Liquid section, a blog post, or a site outside Shopify.{" "}
-            <s-text type="strong">Responsive</s-text> keeps a 4:3 box at any
-            width; <s-text type="strong">Fixed</s-text> pins the saved height.
+            {t.rich("embedHelp", {
+              b: (c) => <s-text type="strong">{c}</s-text>,
+            })}
           </s-paragraph>
           <s-paragraph color="subdued">
-            Append <code>?bg=101014</code> to the URL to match a dark page (hex,
-            no <code>#</code>), or <code>?autorotate=0</code> to stop it
-            spinning — per placement, without touching the saved settings.
+            {t.rich("embedParamsHelp", { code: (c) => <code>{c}</code> })}
           </s-paragraph>
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading="Viewer settings">
+      <s-section slot="aside" heading={t("viewerSettingsHeading")}>
         <s-paragraph color="subdued">
-          Saved with this library entry, and used by the public viewer page.
+          {t("viewerSettingsIntro")}
         </s-paragraph>
         <ViewerSettings config={config} onChange={setConfig} />
       </s-section>
 
-      <s-section slot="aside" heading="Hotspots">
+      <s-section slot="aside" heading={t("hotspotsHeading")}>
         <HotspotsEditor
           config={config}
           onChange={setConfig}
@@ -536,6 +570,9 @@ export default function ModelDetail() {
             setHotspotFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
           }
           locked={hotspotsLocked}
+          shopLocales={shopLocales}
+          editLocale={hotspotLocale}
+          onEditLocaleChange={setHotspotLocale}
         />
       </s-section>
 
@@ -554,9 +591,9 @@ export default function ModelDetail() {
         at all.
       */}
       <div style={{ position: "sticky", top: 16 }}>
-        <s-section heading="Live preview">
+        <s-section heading={t("livePreviewHeading")}>
           <s-paragraph color="subdued">
-            Updates instantly. Save to persist.
+            {t("livePreviewIntro")}
           </s-paragraph>
           {model.fileUrl ? (
             <ViewerPreview
@@ -577,12 +614,12 @@ export default function ModelDetail() {
               }}
               focusHotspotId={hotspotFocus?.id ?? null}
               focusNonce={hotspotFocus?.n ?? 0}
+              locale={hotspotLocale}
             />
           ) : (
             <s-banner tone="info">
               <s-paragraph>
-                This file is still processing in Shopify Files. Refresh in a
-                moment to see the preview.
+                {t("stillProcessing")}
               </s-paragraph>
             </s-banner>
           )}

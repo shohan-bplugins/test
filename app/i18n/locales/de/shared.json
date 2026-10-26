@@ -1,0 +1,6 @@
+{
+  "backTo": "Zurück zu {label}",
+  "language": "Sprache",
+  "languageAuto": "Automatisch (wie im Shopify-Adminbereich)",
+  "languageHelp": "Die Sprache dieser App. Automatisch verwendet die Sprache deines Shopify-Adminbereichs. Dein Onlineshop ist davon nicht betroffen."
+}

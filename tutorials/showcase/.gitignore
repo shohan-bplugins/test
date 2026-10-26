@@ -1,0 +1,7 @@
+.work/
+rec/node_modules/
+rec/package-lock.json
+site/*.glb
+site/view3d*
+site/viewer-3d.*
+voice/*.raw.mp3

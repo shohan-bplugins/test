@@ -107,6 +107,9 @@ type Pages = {
   "/app/analytics": {
     params: {};
   };
+  "/app/language": {
+    params: {};
+  };
   "/app/pricing": {
     params: {};
   };
@@ -118,7 +121,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/webhooks/app/subscriptions_update" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/webhooks/compliance" | "/api/models/upload" | "/api/review-prompt" | "/api/viewer-event" | "/proxy/model/:id" | "/api/model/:id" | "/api/support" | "/proxy/track" | "/auth/login" | "/viewer/:id" | "/api/files" | "/api/media" | "/auth/*" | "/demo" | "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/select-plan" | "/app/models/:id" | "/app/onboarding" | "/app/analytics" | "/app/pricing" | "/app/setup";
+    page: "/" | "/webhooks/app/subscriptions_update" | "/webhooks/app/scopes_update" | "/webhooks/app/uninstalled" | "/webhooks/compliance" | "/api/models/upload" | "/api/review-prompt" | "/api/viewer-event" | "/proxy/model/:id" | "/api/model/:id" | "/api/support" | "/proxy/track" | "/auth/login" | "/viewer/:id" | "/api/files" | "/api/media" | "/auth/*" | "/demo" | "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/select-plan" | "/app/models/:id" | "/app/onboarding" | "/app/analytics" | "/app/language" | "/app/pricing" | "/app/setup";
   };
   "routes/webhooks.app.subscriptions_update.tsx": {
     id: "routes/webhooks.app.subscriptions_update";
@@ -194,7 +197,7 @@ type RouteFiles = {
   };
   "routes/app.tsx": {
     id: "routes/app";
-    page: "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/select-plan" | "/app/models/:id" | "/app/onboarding" | "/app/analytics" | "/app/pricing" | "/app/setup";
+    page: "/app" | "/app/products" | "/app/SuccessBilling" | "/app/documentation" | "/app/models" | "/app/products/:id" | "/app/select-plan" | "/app/models/:id" | "/app/onboarding" | "/app/analytics" | "/app/language" | "/app/pricing" | "/app/setup";
   };
   "routes/app.products._index.tsx": {
     id: "routes/app.products._index";
@@ -231,6 +234,10 @@ type RouteFiles = {
   "routes/app.analytics.tsx": {
     id: "routes/app.analytics";
     page: "/app/analytics";
+  };
+  "routes/app.language.tsx": {
+    id: "routes/app.language";
+    page: "/app/language";
   };
   "routes/app.pricing.tsx": {
     id: "routes/app.pricing";
@@ -276,6 +283,7 @@ type RouteModules = {
   "routes/app.models.$id": typeof import("./app/routes/app.models.$id.tsx");
   "routes/app.onboarding": typeof import("./app/routes/app.onboarding.tsx");
   "routes/app.analytics": typeof import("./app/routes/app.analytics.tsx");
+  "routes/app.language": typeof import("./app/routes/app.language.tsx");
   "routes/app.pricing": typeof import("./app/routes/app.pricing.tsx");
   "routes/app._index": typeof import("./app/routes/app._index.tsx");
   "routes/app.setup": typeof import("./app/routes/app.setup.tsx");

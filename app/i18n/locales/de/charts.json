@@ -1,0 +1,16 @@
+{
+  "seriesView": "Aufrufe",
+  "seriesInteract": "Interaktionen",
+  "seriesAr": "AR-Klicks",
+  "grainDay": "Täglich",
+  "grainWeek": "Wöchentlich",
+  "grainMonth": "Monatlich",
+  "chartAriaDay": "Tägliche Aufrufe, Interaktionen und AR-Klicks. Die Tabelle unten listet die Tageswerte auf.",
+  "chartAriaWeek": "Wöchentliche Aufrufe, Interaktionen und AR-Klicks. Die Tabelle unten listet die Tageswerte auf.",
+  "chartAriaMonth": "Monatliche Aufrufe, Interaktionen und AR-Klicks. Die Tabelle unten listet die Tageswerte auf.",
+  "weekOf": "Woche vom {date}",
+  "monthYearShort": "{month} ’{year}",
+  "partialDays": "{title} ({days} von {total} Tagen)",
+  "legendAria": "Datenreihen ein- oder ausblenden",
+  "lockedSeriesAria": "{label} – in kostenpflichtigen Tarifen verfügbar. Upgrade."
+}

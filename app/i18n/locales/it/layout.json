@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "Zoom avanti",
+  "control_zoomOut": "Zoom indietro",
+  "control_reset": "Ripristina vista",
+  "control_fullscreen": "Schermo intero",
+  "control_screenshot": "Screenshot",
+  "control_ar": "Guarda nella tua stanza",
+  "control_animation": "Animazione",
+  "slotTopLeft": "in alto a sinistra",
+  "slotTopCenter": "in alto al centro",
+  "slotTopRight": "in alto a destra",
+  "slotBottomLeft": "in basso a sinistra",
+  "slotBottomCenter": "in basso al centro",
+  "slotBottomRight": "in basso a destra",
+  "chipOffA11y": "{control}, disattivato. Trascinalo sul visualizzatore o premi Invio per attivarlo.",
+  "chipOnA11y": "{control}, {where}. Trascinalo o usa i tasti freccia per spostarlo; premi Canc per disattivarlo.",
+  "empty": "Vuoto",
+  "instructions": "Trascina un controllo in una posizione, oppure tra altri due per impostarne l’ordine. Trascinalo nel vassoio sottostante per nasconderlo, o fuori dal vassoio per mostrarlo.",
+  "hidden": "Nascosti",
+  "whereHidden": "nascosto",
+  "dropToHide": "Rilascia per nascondere",
+  "nothingHidden": "Nessun controllo nascosto: trascina qui un controllo per nasconderlo"
+}

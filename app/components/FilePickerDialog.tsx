@@ -10,6 +10,7 @@ import {
 
 import type { FileItem } from "~/routes/api.files";
 import { ModalAction } from "~/components/polaris/ModalAction";
+import { useT } from "~/i18n";
 
 type Props = {
   open: boolean;
@@ -56,6 +57,8 @@ export function FilePickerDialog({
   productId,
   blockAssigned = false,
 }: Props) {
+  const t = useT("media");
+  const tc = useT("common");
   const fetcher = useFetcher<{ files: FileItem[] }>();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -94,42 +97,38 @@ export function FilePickerDialog({
     <s-modal
       ref={modalRef as never}
       id="file-picker"
-      heading="Choose a 3D model from Files"
+      heading={t("filePickerHeading")}
       size="large"
-      accessibilityLabel="Choose a 3D model from Files"
+      accessibilityLabel={t("filePickerHeading")}
     >
       <s-stack direction="block" gap="base">
         <s-paragraph color="subdued">
-          Showing .glb / .gltf files from Shopify Files.
-          {blockAssigned
-            ? " Files already used on another product can't be reused — each 3D model belongs to one product."
-            : ""}
+          {t("filePickerIntro")}
+          {blockAssigned ? ` ${t("filePickerBlockedNote")}` : ""}
         </s-paragraph>
 
         <s-search-field
-          label="Search files"
+          label={t("searchFiles")}
           labelAccessibilityVisibility="exclusive"
-          placeholder="Search by filename"
+          placeholder={t("searchByFilename")}
           value={query}
           onInput={(e) => setQuery(fieldValue(e))}
         />
 
         {loading && files.length === 0 ? (
           <s-stack direction="block" gap="small" alignItems="center">
-            <s-spinner accessibilityLabel="Loading files" />
-            <s-text color="subdued">Loading files…</s-text>
+            <s-spinner accessibilityLabel={t("loadingFiles")} />
+            <s-text color="subdued">{t("loadingFilesEllipsis")}</s-text>
           </s-stack>
         ) : files.length === 0 ? (
-          <s-text color="subdued">
-            No .glb or .gltf files found in this store.
-          </s-text>
+          <s-text color="subdued">{t("noModelFiles")}</s-text>
         ) : (
           <s-table variant="auto">
             <s-table-header-row>
               <s-table-header />
-              <s-table-header listSlot="primary">File</s-table-header>
-              <s-table-header format="numeric">Size</s-table-header>
-              <s-table-header>Status</s-table-header>
+              <s-table-header listSlot="primary">{t("colFile")}</s-table-header>
+              <s-table-header format="numeric">{t("colSize")}</s-table-header>
+              <s-table-header>{t("colStatus")}</s-table-header>
             </s-table-header-row>
             <s-table-body>
               {files.map((file) => {
@@ -145,7 +144,7 @@ export function FilePickerDialog({
                         replaces the selection rather than adding to it.
                       */}
                       <s-checkbox
-                        accessibilityLabel={`Select ${file.name}`}
+                        accessibilityLabel={t("selectFile", { name: file.name })}
                         checked={flag(file.id === selectedId)}
                         disabled={flag(blocked)}
                         onInput={() =>
@@ -157,10 +156,10 @@ export function FilePickerDialog({
                     <s-table-cell>{formatBytes(file.size)}</s-table-cell>
                     <s-table-cell>
                       {isCurrent ? (
-                        <s-badge tone="info">Current</s-badge>
+                        <s-badge tone="info">{t("current")}</s-badge>
                       ) : file.assignedTo ? (
                         <s-badge tone="warning">
-                          {`In use on ${file.assignedTo.title}`}
+                          {t("inUseOn", { title: file.assignedTo.title })}
                         </s-badge>
                       ) : null}
                     </s-table-cell>
@@ -178,10 +177,10 @@ export function FilePickerDialog({
         disabled={!selected || isBlocked(selected)}
         onClick={handleConfirm}
       >
-        Assign selected
+        {t("assignSelected")}
       </ModalAction>
       <ModalAction slot="secondary-actions" onClick={() => onOpenChange(false)}>
-        Cancel
+        {tc("cancel")}
       </ModalAction>
     </s-modal>
   );

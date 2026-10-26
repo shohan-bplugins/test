@@ -1,4 +1,11 @@
-import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import {
   Await,
@@ -36,6 +43,7 @@ import { BackButton } from "~/components/BackButton";
 import { useReviewPrompt } from "~/components/ReviewPrompt";
 import { evaluateReviewPrompt } from "~/lib/review-prompt.server";
 import { fieldValue } from "~/components/polaris/helpers";
+import { useLocale, useT, type TFunction } from "~/i18n";
 
 /*
  * Storefront engagement with the 3D viewer: how often shoppers saw it, used
@@ -54,26 +62,36 @@ import { fieldValue } from "~/components/polaris/helpers";
 // "1" is Today — the default, so opening Analytics shows what is happening now.
 const PRESETS = ["1", "7", "30", "90", "365"] as const;
 const DEFAULT_RANGE = "1";
-/** The one date range the Free plan gets. */
+/** Today: open in full on every plan — every section, every placement. */
+const TODAY_RANGE = "1";
+/** The one longer range the Free plan gets, with the PRO sections locked. */
 const FREE_RANGE = "7";
 
+/** [value, message key in the "analytics" namespace] */
 const RANGE_OPTIONS: [string, string][] = [
-  ["1", "Today"],
-  ["7", "Last 7 days"],
-  ["30", "Last 30 days"],
-  ["90", "Last 90 days"],
-  ["365", "Last 12 months"],
-  ["lifetime", "Lifetime"],
-  ["custom", "Custom range"],
+  ["1", "rangeToday"],
+  ["7", "range7"],
+  ["30", "range30"],
+  ["90", "range90"],
+  ["365", "range365"],
+  ["lifetime", "rangeLifetime"],
+  ["custom", "rangeCustom"],
 ];
 const MAX_DAYS = 366;
 const DAY_MS = 86_400_000;
 
+/** Message keys in the "analytics" namespace. */
 const PLACEMENT_LABELS: Record<Placement | "all", string> = {
-  all: "All",
-  product: "Product page",
-  page: "Page section",
-  embed: "Embed link",
+  all: "placementAll",
+  product: "placementProduct",
+  page: "placementPage",
+  embed: "placementEmbed",
+};
+/** "Showing only the … viewer", per placement — whole sentences. */
+const PLACEMENT_ONLY: Record<Placement, string> = {
+  product: "showingOnlyProduct",
+  page: "showingOnlyPage",
+  embed: "showingOnlyEmbed",
 };
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -278,9 +296,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const params = new URL(request.url).searchParams;
 
   /*
-   * Every metric is shown on every plan. The Free plan is limited in what it
-   * can look at, not in what it sees: the last 7 days only, and all
-   * placements together. Enforced here, so editing the URL changes nothing.
+   * Every metric is shown on every plan. Today is open in full on the Free
+   * plan too — every section and the placement filter. Beyond today, Free is
+   * limited in what it can look at, not in what it sees: the last 7 days only,
+   * all placements together, and the PRO sections locked. Enforced here, so
+   * editing the URL changes nothing.
    * The plan comes from Shopify's live subscription (cached, see
    * shop-cache.server.ts), the same source the Pricing page trusts.
    */
@@ -290,7 +310,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     evaluateReviewPrompt(admin, shop, "views-milestone"),
   ]);
   const freePlan = subscription?.status !== "active";
-  if (freePlan) {
+  const today = (params.get("range") ?? DEFAULT_RANGE) === TODAY_RANGE;
+  // Free outside of Today: what the PRO gating below applies to.
+  const limited = freePlan && !today;
+  if (limited) {
     params.set("range", FREE_RANGE);
     params.delete("from");
     params.delete("to");
@@ -375,6 +398,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     reviewPrompt,
     lifetime,
     freePlan,
+    limited,
     range,
     from,
     to,
@@ -384,23 +408,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     totals,
     previous,
     series: [...byDay].map(([day, v]) => ({ day, ...v })) as DayPoint[],
-    // The PRO sections below are sent empty on Free: their cards show sample
-    // previews, never the store's own numbers.
-    top: freePlan ? [] : top,
-    placements: freePlan
+    // The PRO sections below are sent empty on Free outside of Today: their
+    // cards show sample previews, never the store's own numbers.
+    top: limited ? [] : top,
+    placements: limited
       ? []
       : PLACEMENTS.map((p) => ({
           placement: p,
           ...(byPlacement.get(p) ?? emptyTotals()),
         })),
     // Not awaited: streamed in after first paint (see the note at the top).
-    details: freePlan
+    details: limited
       ? Promise.resolve({} as Record<string, TargetDetail>)
       : sideCached(
           JSON.stringify(["details", shop, top.map((t) => t.target).sort()]),
           () => loadTargetDetails(admin, shop, top),
         ),
-    cart: freePlan
+    cart: limited
       ? { after3d: 0, without3d: 0, productViews: 0, productInteract: 0 }
       : {
           after3d: cur.cart_3d ?? 0,
@@ -409,11 +433,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           productInteract: productPage.interact,
         },
     dwell: { avg: avg(cur), prevAvg: avg(prev), viewers: cur.dwell_n ?? 0 },
-    features: freePlan
+    features: limited
       ? []
       : FEATURES.map((f) => ({ key: f, count: cur[f] ?? 0 })),
-    devices: freePlan ? [] : devices,
-    library: freePlan
+    devices: limited ? [] : devices,
+    library: limited
       ? Promise.resolve(null)
       : sideCached(JSON.stringify(["library", shop, from, to]), () =>
           loadLibraryStats(admin, shop, from, to),
@@ -421,53 +445,85 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-const fmt = (n: number) => n.toLocaleString("en-US");
 const pct = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 1000) / 10 : null;
-const fmtPct = (v: number | null) => (v === null ? "—" : `${v}%`);
 
-const fmtDuration = (secs: number | null) => {
-  if (secs === null) return "—";
-  if (secs < 60) return `${secs}s`;
-  const m = Math.floor(secs / 60);
-  return `${m}m ${String(secs % 60).padStart(2, "0")}s`;
-};
+/** Display formatting in the merchant's language. */
+function makeFormatters(t: TFunction, locale: string) {
+  const fmt = (n: number) => n.toLocaleString(locale);
+  const fmtPct = (v: number | null) =>
+    v === null
+      ? "—"
+      : new Intl.NumberFormat(locale, {
+          style: "percent",
+          maximumFractionDigits: 1,
+        }).format(v / 100);
 
-const fmtBytes = (bytes: number) => {
-  if (bytes <= 0) return "0 MB";
-  const mb = bytes / (1024 * 1024);
-  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
-};
+  const fmtDuration = (secs: number | null) => {
+    if (secs === null) return "—";
+    if (secs < 60) return t("durationSeconds", { s: String(secs) });
+    const m = Math.floor(secs / 60);
+    return t("durationMinutes", {
+      m: String(m),
+      s: String(secs % 60).padStart(2, "0"),
+    });
+  };
 
+  const oneDecimal = (n: number) =>
+    n.toLocaleString(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+  const fmtBytes = (bytes: number) => {
+    if (bytes <= 0) return t("sizeMb", { size: "0" });
+    const mb = bytes / (1024 * 1024);
+    return mb >= 1024
+      ? t("sizeGb", { size: oneDecimal(mb / 1024) })
+      : t("sizeMb", { size: oneDecimal(mb) });
+  };
+
+  const fmtRangeDay = (day: string, withYear: boolean) =>
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(locale, {
+      month: "short",
+      day: "numeric",
+      ...(withYear ? { year: "numeric" } : {}),
+      timeZone: "UTC",
+    });
+  const fmtRange = (from: string, to: string) =>
+    from === to
+      ? fmtRangeDay(to, true)
+      : `${fmtRangeDay(from, from.slice(0, 4) !== to.slice(0, 4))} – ${fmtRangeDay(to, true)}`;
+
+  return { fmt, fmtPct, fmtDuration, fmtBytes, fmtRangeDay, fmtRange };
+}
+
+type Formatters = ReturnType<typeof makeFormatters>;
+
+function useFormatters(): Formatters {
+  const t = useT("analytics");
+  const locale = useLocale();
+  return useMemo(() => makeFormatters(t, locale), [t, locale]);
+}
+
+/** Message keys in the "analytics" namespace. */
 const DEVICE_LABELS: Record<string, string> = {
-  desktop: "Desktop",
-  tablet: "Tablet",
-  mobile: "Mobile",
-  unknown: "Other",
+  desktop: "deviceDesktop",
+  tablet: "deviceTablet",
+  mobile: "deviceMobile",
+  unknown: "deviceOther",
 };
 
+/** Message keys in the "analytics" namespace. */
 const FEATURE_LABELS: Record<string, string> = {
-  f_zoom: "Zoom buttons",
-  f_fullscreen: "Fullscreen",
-  f_screenshot: "Screenshot",
-  f_animation: "Animation picker",
-  f_hotspot: "Hotspots opened",
+  f_zoom: "featureZoom",
+  f_fullscreen: "featureFullscreen",
+  f_screenshot: "featureScreenshot",
+  f_animation: "featureAnimation",
+  f_hotspot: "featureHotspot",
 };
 
 /** Product-page views below this give add-to-cart rates too noisy to trust. */
 const CART_MIN_VIEWS = 30;
-
-const fmtRangeDay = (day: string, withYear: boolean) =>
-  new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(withYear ? { year: "numeric" } : {}),
-    timeZone: "UTC",
-  });
-const fmtRange = (from: string, to: string) =>
-  from === to
-    ? fmtRangeDay(to, true)
-    : `${fmtRangeDay(from, from.slice(0, 4) !== to.slice(0, 4))} – ${fmtRangeDay(to, true)}`;
 
 type Badge = { label: string; tone: "success" | "critical" | "neutral" };
 
@@ -607,6 +663,7 @@ function TargetCell({
   detail: TargetDetail | null | undefined;
   isProduct: boolean;
 }) {
+  const t = useT("analytics");
   return (
     <s-stack direction="inline" gap="small" alignItems="center">
       {detail?.image ? (
@@ -620,10 +677,15 @@ function TargetCell({
         </span>
       )}
       {detail === null ? (
-        <span className="an-skeleton" role="status" aria-label="Loading" />
+        <span
+          className="an-skeleton"
+          role="status"
+          aria-label={t("loading")}
+        />
       ) : (
         <s-text>
-          {detail?.name ?? (isProduct ? "Deleted product" : "Deleted model")}
+          {detail?.name ??
+            (isProduct ? t("deletedProduct") : t("deletedModel"))}
         </s-text>
       )}
     </s-stack>
@@ -644,16 +706,16 @@ function CartImpact({
   applies: boolean;
   onShowProduct: () => void;
 }) {
+  const t = useT("analytics");
+  const { fmt, fmtPct } = useFormatters();
   if (!applies) {
     return (
       <s-stack direction="block" gap="small">
         <s-paragraph>
-          <s-text color="subdued">
-            Add to cart is measured on product pages only.
-          </s-text>
+          <s-text color="subdued">{t("cartProductOnly")}</s-text>
         </s-paragraph>
         <s-button variant="secondary" onClick={onShowProduct}>
-          Show product pages
+          {t("cartShowProduct")}
         </s-button>
       </s-stack>
     );
@@ -673,28 +735,24 @@ function CartImpact({
       <s-stack direction="inline" gap="small" alignItems="center">
         <span className="an-value">{fmt(cart.after3d)}</span>
         {lift !== null && lift > 1 ? (
-          <s-badge tone="success">{`${lift}× more likely`}</s-badge>
+          <s-badge tone="success">{t("cartLift", { lift })}</s-badge>
         ) : null}
       </s-stack>
-      <s-text color="subdued">
-        Add-to-carts by shoppers who interacted with the 3D model first
-      </s-text>
+      <s-text color="subdued">{t("cartAfter3dHint")}</s-text>
       <ShareBar
-        label="Interacted with 3D"
+        label={t("cartInteracted")}
         value={with3d ?? 0}
         of={of}
-        detail={`${fmtPct(with3d)} added to cart`}
+        detail={t("cartAddedPct", { pct: fmtPct(with3d) })}
       />
       <ShareBar
-        label="Saw 3D, didn’t interact"
+        label={t("cartNoInteract")}
         value={without ?? 0}
         of={of}
-        detail={`${fmtPct(without)} added to cart`}
+        detail={t("cartAddedPct", { pct: fmtPct(without) })}
       />
       {cart.productViews < CART_MIN_VIEWS ? (
-        <s-text color="subdued">
-          Rates settle after a few dozen product-page views.
-        </s-text>
+        <s-text color="subdued">{t("cartRatesSettle")}</s-text>
       ) : null}
     </s-stack>
   );
@@ -711,38 +769,46 @@ function LibrarySkeleton() {
 }
 
 function LibraryCard({ lib }: { lib: LibraryStats }) {
+  const t = useT("analytics");
+  const { fmt, fmtPct, fmtBytes } = useFormatters();
   return (
     <s-stack direction="block" gap="base">
       <ShareBar
-        label="Products with a 3D model"
+        label={t("libProductsWithModel")}
         value={lib.productsWithModel}
         of={lib.totalProducts}
-        detail={`${fmt(lib.productsWithModel)} of ${fmt(lib.totalProducts)} · ${fmtPct(pct(lib.productsWithModel, lib.totalProducts))}`}
+        detail={t("libCoverageDetail", {
+          count: lib.productsWithModel,
+          total: lib.totalProducts,
+          pct: fmtPct(pct(lib.productsWithModel, lib.totalProducts)),
+        })}
       />
       <div className="an-stat-rows">
         <div>
-          <s-text color="subdued">Models in library</s-text>
+          <s-text color="subdued">{t("libModels")}</s-text>
           <s-text>{fmt(lib.models)}</s-text>
         </div>
         <div>
-          <s-text color="subdued">Storage used</s-text>
+          <s-text color="subdued">{t("libStorage")}</s-text>
           <s-text>{fmtBytes(lib.storageBytes)}</s-text>
         </div>
         <div>
-          <s-text color="subdued">Not viewed in this range</s-text>
+          <s-text color="subdued">{t("libNotViewed")}</s-text>
           <s-text>{fmt(lib.unviewedCount)}</s-text>
         </div>
       </div>
       {lib.unviewed.length ? (
         <s-text color="subdued">
-          {lib.unviewed.join(", ")}
           {lib.unviewedCount > lib.unviewed.length
-            ? ` and ${fmt(lib.unviewedCount - lib.unviewed.length)} more`
-            : ""}
+            ? t("libUnviewedMore", {
+                names: lib.unviewed.join(", "),
+                count: lib.unviewedCount - lib.unviewed.length,
+              })
+            : lib.unviewed.join(", ")}
         </s-text>
       ) : null}
       <s-button variant="secondary" href="/app/models">
-        Open 3D Model Library
+        {t("libOpen")}
       </s-button>
     </s-stack>
   );
@@ -815,11 +881,13 @@ function useLiveRefresh(dataKey: unknown) {
   };
 }
 
-function updatedLabel(at: number) {
+function updatedLabel(at: number, t: TFunction) {
   const secs = Math.round((Date.now() - at) / 1000);
-  if (secs < 45) return "Updated just now";
+  if (secs < 45) return t("updatedJustNow");
   const mins = Math.round(secs / 60);
-  return mins < 60 ? `Updated ${mins} min ago` : "Updated over an hour ago";
+  return mins < 60
+    ? t("updatedMinutesAgo", { count: mins })
+    : t("updatedOverAnHour");
 }
 
 /** The paid-plan marker on Free: a small "PRO" pill. */
@@ -833,6 +901,7 @@ function ProTag() {
  * sends none for these sections), and an upgrade button over it.
  */
 function ProCard({ title, children }: { title: string; children: ReactNode }) {
+  const t = useT("analytics");
   return (
     <s-section>
       <s-stack direction="block" gap="base">
@@ -846,7 +915,7 @@ function ProCard({ title, children }: { title: string; children: ReactNode }) {
           </div>
           <div className="an-pro-overlay">
             <s-button variant="primary" icon="lock" href="/app/pricing">
-              Upgrade to unlock
+              {t("upgradeToUnlock")}
             </s-button>
           </div>
         </div>
@@ -855,51 +924,59 @@ function ProCard({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** Fixed sample figures for the blurred previews — illustrative only. */
-const SAMPLE = {
+/**
+ * Fixed sample figures for the blurred previews — illustrative only.
+ * [label message key, bar value, detail built in the merchant's language]
+ */
+type SampleRow = readonly [
+  string,
+  number,
+  (t: TFunction, f: Formatters) => string,
+];
+const SAMPLE: Record<string, readonly SampleRow[]> = {
   journey: [
-    ["Saw the 3D model", 100, "1,240"],
-    ["Interacted with it", 42, "521 · 42%"],
-    ["Opened it in AR", 9, "112 · 9%"],
+    ["journeySaw", 100, (_t, f) => f.fmt(1240)],
+    ["journeyInteracted", 42, (_t, f) => `${f.fmt(521)} · ${f.fmtPct(42)}`],
+    ["journeyAr", 9, (_t, f) => `${f.fmt(112)} · ${f.fmtPct(9)}`],
   ],
   placement: [
-    ["Product page", 100, "860 views · 44% engaged"],
-    ["Page section", 34, "290 views · 37% engaged"],
-    ["Embed link", 11, "90 views · 31% engaged"],
+    ["placementProduct", 100, (t, f) => t("placementDetail", { count: 860, pct: f.fmtPct(44) })],
+    ["placementPage", 34, (t, f) => t("placementDetail", { count: 290, pct: f.fmtPct(37) })],
+    ["placementEmbed", 11, (t, f) => t("placementDetail", { count: 90, pct: f.fmtPct(31) })],
   ],
   devices: [
-    ["Desktop", 100, "640 views · 46% engaged · 18 AR"],
-    ["Mobile", 82, "520 views · 39% engaged · 88 AR"],
-    ["Tablet", 13, "80 views · 41% engaged · 6 AR"],
+    ["deviceDesktop", 100, (t, f) => t("deviceDetail", { count: 640, pct: f.fmtPct(46), ar: 18 })],
+    ["deviceMobile", 82, (t, f) => t("deviceDetail", { count: 520, pct: f.fmtPct(39), ar: 88 })],
+    ["deviceTablet", 13, (t, f) => t("deviceDetail", { count: 80, pct: f.fmtPct(41), ar: 6 })],
   ],
   controls: [
-    ["Zoom buttons", 31, "385 · 31% of views"],
-    ["Fullscreen", 14, "174 · 14% of views"],
-    ["Screenshot", 4, "50 · 4% of views"],
-    ["Animation picker", 9, "112 · 9% of views"],
-    ["Hotspots opened", 22, "273 · 22% of views"],
+    ["featureZoom", 31, (t, f) => t("featureDetail", { count: 385, pct: f.fmtPct(31) })],
+    ["featureFullscreen", 14, (t, f) => t("featureDetail", { count: 174, pct: f.fmtPct(14) })],
+    ["featureScreenshot", 4, (t, f) => t("featureDetail", { count: 50, pct: f.fmtPct(4) })],
+    ["featureAnimation", 9, (t, f) => t("featureDetail", { count: 112, pct: f.fmtPct(9) })],
+    ["featureHotspot", 22, (t, f) => t("featureDetail", { count: 273, pct: f.fmtPct(22) })],
   ],
   cart: [
-    ["Interacted with 3D", 100, "11.8% added to cart"],
-    ["Saw 3D, didn’t interact", 45, "5.3% added to cart"],
+    ["cartInteracted", 100, (t, f) => t("cartAddedPct", { pct: f.fmtPct(11.8) })],
+    ["cartNoInteract", 45, (t, f) => t("cartAddedPct", { pct: f.fmtPct(5.3) })],
   ],
-  library: [["Products with a 3D model", 36, "18 of 50 · 36%"]],
-} as const;
+  library: [
+    ["libProductsWithModel", 36, (t, f) => t("libCoverageDetail", { count: 18, total: 50, pct: f.fmtPct(36) })],
+  ],
+};
 
-function SampleBars({
-  rows,
-}: {
-  rows: readonly (readonly [string, number, string])[];
-}) {
+function SampleBars({ rows }: { rows: readonly SampleRow[] }) {
+  const t = useT("analytics");
+  const f = useFormatters();
   return (
     <s-stack direction="block" gap="base">
       {rows.map(([label, value, detail]) => (
         <ShareBar
           key={label}
-          label={label}
+          label={t(label)}
           value={value}
           of={100}
-          detail={detail}
+          detail={detail(t, f)}
         />
       ))}
     </s-stack>
@@ -912,51 +989,53 @@ function SampleBars({
  * The loader sends no data for the locked sections.
  */
 function FreeSections({ series }: { series: DayPoint[] }) {
+  const t = useT("analytics");
+  const { fmtPct, fmtBytes } = useFormatters();
   return (
     <>
-      <s-section heading="Engagement over time">
+      <s-section heading={t("sectionEngagement")}>
         <EngagementChart data={series} />
       </s-section>
 
       <EqualRow>
-        <ProCard title="Shopper journey">
+        <ProCard title={t("sectionJourney")}>
           <SampleBars rows={SAMPLE.journey} />
         </ProCard>
-        <ProCard title="Views by placement">
+        <ProCard title={t("sectionPlacement")}>
           <SampleBars rows={SAMPLE.placement} />
         </ProCard>
       </EqualRow>
 
       <EqualRow>
-        <ProCard title="Add to cart after 3D">
+        <ProCard title={t("sectionCart")}>
           <s-stack direction="block" gap="base">
             <span className="an-value">146</span>
             <SampleBars rows={SAMPLE.cart} />
           </s-stack>
         </ProCard>
-        <ProCard title="Devices">
+        <ProCard title={t("sectionDevices")}>
           <SampleBars rows={SAMPLE.devices} />
         </ProCard>
       </EqualRow>
 
       <EqualRow>
-        <ProCard title="Controls shoppers use">
+        <ProCard title={t("sectionControls")}>
           <SampleBars rows={SAMPLE.controls} />
         </ProCard>
-        <ProCard title="Library and coverage">
+        <ProCard title={t("sectionLibrary")}>
           <s-stack direction="block" gap="base">
             <SampleBars rows={SAMPLE.library} />
             <div className="an-stat-rows">
               <div>
-                <span>Models in library</span>
+                <span>{t("libModels")}</span>
                 <span>24</span>
               </div>
               <div>
-                <span>Storage used</span>
-                <span>312.4 MB</span>
+                <span>{t("libStorage")}</span>
+                <span>{fmtBytes(312.4 * 1024 * 1024)}</span>
               </div>
               <div>
-                <span>Not viewed in this range</span>
+                <span>{t("libNotViewed")}</span>
                 <span>5</span>
               </div>
             </div>
@@ -964,27 +1043,27 @@ function FreeSections({ series }: { series: DayPoint[] }) {
         </ProCard>
       </EqualRow>
 
-      <ProCard title="Top products and models">
+      <ProCard title={t("sectionTop")}>
         <div className="an-sample-table">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="an-sample-row">
               <span className="an-thumb" />
-              <span>{`Sample product ${i}`}</span>
-              <span>{`${(6 - i) * 180} views`}</span>
-              <span>{`${44 - i * 3}%`}</span>
+              <span>{t("sampleProduct", { n: i })}</span>
+              <span>{t("viewsCount", { count: (6 - i) * 180 })}</span>
+              <span>{fmtPct(44 - i * 3)}</span>
             </div>
           ))}
         </div>
       </ProCard>
 
-      <ProCard title="Daily numbers">
+      <ProCard title={t("sectionDaily")}>
         <div className="an-sample-table">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="an-sample-row">
               <span />
-              <span>{`Day ${i}`}</span>
-              <span>{`${(6 - i) * 40} views`}</span>
-              <span>{`${(6 - i) * 15} interactions`}</span>
+              <span>{t("sampleDay", { n: i })}</span>
+              <span>{t("viewsCount", { count: (6 - i) * 40 })}</span>
+              <span>{t("interactionsCount", { count: (6 - i) * 15 })}</span>
             </div>
           ))}
         </div>
@@ -995,6 +1074,9 @@ function FreeSections({ series }: { series: DayPoint[] }) {
 
 export default function Analytics() {
   const data = useLoaderData<typeof loader>();
+  const t = useT("analytics");
+  const tc = useT("charts");
+  const { fmt, fmtPct, fmtDuration, fmtRange, fmtRangeDay } = useFormatters();
   useReviewPrompt(data.reviewPrompt);
   const live = useLiveRefresh(data);
   const [params, setParams] = useSearchParams();
@@ -1027,7 +1109,7 @@ export default function Analytics() {
               <div className="an-range">
                 <div className="an-range-select">
                   <s-select
-                    label="Date range"
+                    label={t("dateRange")}
                     labelAccessibilityVisibility="exclusive"
                     value={data.range}
                     onInput={(e) => {
@@ -1040,14 +1122,19 @@ export default function Analytics() {
                     }}
                   >
                     {RANGE_OPTIONS.map(([value, label]) => {
-                      const locked = data.freePlan && value !== FREE_RANGE;
+                      const locked =
+                        data.freePlan &&
+                        value !== TODAY_RANGE &&
+                        value !== FREE_RANGE;
                       return (
                         <s-option
                           key={value}
                           value={value}
                           disabled={locked || undefined}
                         >
-                          {locked ? `${label} · PRO` : label}
+                          {locked
+                            ? t("lockedOption", { label: t(label) })
+                            : t(label)}
                         </s-option>
                       );
                     })}
@@ -1055,14 +1142,14 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Filtering by placement is paid; Free sees All only. */}
+              {/* Filtering by placement is paid, except on Today. */}
               <div
                 className="an-segmented"
                 role="group"
-                aria-label="Viewer placement"
+                aria-label={t("viewerPlacement")}
               >
                 {(["all", ...PLACEMENTS] as const).map((p) => {
-                  const locked = data.freePlan && p !== "all";
+                  const locked = data.limited && p !== "all";
                   return (
                     <button
                       key={p}
@@ -1070,13 +1157,13 @@ export default function Analytics() {
                       aria-pressed={data.placement === p}
                       disabled={locked}
                       title={
-                        locked ? "Upgrade to filter by placement" : undefined
+                        locked ? t("upgradeToFilter") : undefined
                       }
                       onClick={() =>
                         setFilter({ placement: p === "all" ? null : p })
                       }
                     >
-                      {PLACEMENT_LABELS[p]}
+                      {t(PLACEMENT_LABELS[p])}
                       {locked ? (
                         <>
                           {" "}
@@ -1096,16 +1183,18 @@ export default function Analytics() {
                 aria-live="polite"
               >
                 <span className="an-live-dot" aria-hidden="true" />
-                {live.refreshing ? "Updating…" : updatedLabel(live.updatedAt)}
+                {live.refreshing
+                  ? t("updating")
+                  : updatedLabel(live.updatedAt, t)}
               </span>
               <s-button
                 variant="secondary"
                 icon="refresh"
-                accessibilityLabel="Refresh analytics"
+                accessibilityLabel={t("refreshAria")}
                 loading={live.refreshing || undefined}
                 onClick={live.refresh}
               >
-                Refresh
+                {t("refresh")}
               </s-button>
             </div>
           </div>
@@ -1119,9 +1208,9 @@ export default function Analytics() {
           {data.range === "custom" ? (
             <div className="an-custom-row">
               <div className="an-custom-field">
-                <span className="an-custom-label">From</span>
+                <span className="an-custom-label">{t("from")}</span>
                 <s-date-field
-                  label="From"
+                  label={t("from")}
                   labelAccessibilityVisibility="exclusive"
                   value={data.from}
                   onChange={(e) => {
@@ -1134,9 +1223,9 @@ export default function Analytics() {
                 –
               </span>
               <div className="an-custom-field">
-                <span className="an-custom-label">To</span>
+                <span className="an-custom-label">{t("to")}</span>
                 <s-date-field
-                  label="To"
+                  label={t("to")}
                   labelAccessibilityVisibility="exclusive"
                   value={data.to}
                   onChange={(e) => {
@@ -1153,8 +1242,13 @@ export default function Analytics() {
             <s-icon type="calendar" color="subdued" />
             <span className="an-sub">
               {data.lifetime
-                ? `${fmtRange(data.from, data.to)} · all time, no comparison`
-                : `${fmtRange(data.from, data.to)} · compared with ${fmtRange(data.prevFrom, data.prevTo)}`}
+                ? t("rangeSummaryLifetime", {
+                    range: fmtRange(data.from, data.to),
+                  })
+                : t("rangeSummary", {
+                    range: fmtRange(data.from, data.to),
+                    previous: fmtRange(data.prevFrom, data.prevTo),
+                  })}
             </span>
           </s-stack>
         </s-stack>
@@ -1163,9 +1257,9 @@ export default function Analytics() {
   );
 
   const page = (body: ReactNode) => (
-    <s-page heading="Analytics">
+    <s-page heading={t("heading")}>
       <style>{PAGE_CSS}</style>
-      <BackButton to="/app" label="Dashboard" />
+      <BackButton to="/app" label={t("dashboard")} />
 
       {/*
         One column, one gap. Every block on the page — filters, tiles, chart,
@@ -1182,27 +1276,21 @@ export default function Analytics() {
 
   const { totals, previous } = data;
   const hasData = totals.view + totals.interact + totals.ar > 0;
-  // The embed's AR button is not instrumented, so AR is meaningless there.
-  const showAr = data.placement !== "embed";
   const engagement = pct(totals.interact, totals.view);
   const prevEngagement = pct(previous.interact, previous.view);
   const compared = data.lifetime
-    ? "All time"
-    : `vs ${fmtRange(data.prevFrom, data.prevTo)}`;
+    ? t("allTime")
+    : t("versus", { range: fmtRange(data.prevFrom, data.prevTo) });
   const maxPlacementViews = Math.max(0, ...data.placements.map((p) => p.view));
-  const topMaxViews = Math.max(0, ...data.top.map((t) => t.view));
+  const topMaxViews = Math.max(0, ...data.top.map((row) => row.view));
 
   return page(
     <div className={loading ? "an-body an-loading" : "an-body"}>
       {data.freePlan ? (
-        <s-banner tone="info" heading="You’re on the Free plan">
-          <s-paragraph>
-            Free shows every metric for the last 7 days, across all placements.
-            Upgrade for longer date ranges and to filter by product page, page
-            section or embed.
-          </s-paragraph>
+        <s-banner tone="info" heading={t("freeBannerHeading")}>
+          <s-paragraph>{t("freeBannerBody")}</s-paragraph>
           <s-button slot="secondary-actions" href="/app/pricing">
-            View plans
+            {t("viewPlans")}
           </s-button>
         </s-banner>
       ) : null}
@@ -1210,118 +1298,112 @@ export default function Analytics() {
       <div className="an-kpis">
         <KpiTile
           icon="view"
-          label="3D views"
+          label={t("kpiViews")}
           value={fmt(totals.view)}
           badge={change(totals.view, previous.view)}
           sub={compared}
         />
         <KpiTile
           icon="cursor"
-          label="Interactions"
+          label={t("kpiInteractions")}
           value={fmt(totals.interact)}
           badge={change(totals.interact, previous.interact)}
-          sub="Rotated, zoomed or dragged"
+          sub={t("kpiInteractionsSub")}
         />
-        {showAr ? (
-          <KpiTile
-            icon="mobile"
-            label="AR Click"
-            value={fmt(totals.ar)}
-            badge={change(totals.ar, previous.ar)}
-            sub="Opened “View in your room”"
-          />
-        ) : null}
+        <KpiTile
+          icon="mobile"
+          label={t("kpiAr")}
+          value={fmt(totals.ar)}
+          badge={change(totals.ar, previous.ar)}
+          sub={t("kpiArSub")}
+        />
         <KpiTile
           icon="target"
-          label="Engagement rate"
+          label={t("kpiEngagement")}
           value={fmtPct(engagement)}
           badge={
             engagement !== null && prevEngagement !== null
               ? change(engagement, prevEngagement)
               : null
           }
-          sub="Views with an interaction"
+          sub={t("kpiEngagementSub")}
         />
-        {data.placement !== "embed" ? (
-          <KpiTile
-            icon="clock"
-            label="Avg. time with 3D"
-            value={fmtDuration(data.dwell.avg)}
-            badge={
-              data.dwell.avg !== null && data.dwell.prevAvg !== null
-                ? change(data.dwell.avg, data.dwell.prevAvg)
-                : null
-            }
-            sub="Model on screen"
-          />
-        ) : null}
+        <KpiTile
+          icon="clock"
+          label={t("kpiDwell")}
+          value={fmtDuration(data.dwell.avg)}
+          badge={
+            data.dwell.avg !== null && data.dwell.prevAvg !== null
+              ? change(data.dwell.avg, data.dwell.prevAvg)
+              : null
+          }
+          sub={t("kpiDwellSub")}
+        />
       </div>
 
-      {hasData && data.freePlan ? (
+      {hasData && data.limited ? (
         <FreeSections series={data.series} />
       ) : hasData ? (
         <>
-          <s-section heading="Engagement over time">
+          <s-section heading={t("sectionEngagement")}>
             <EngagementChart data={data.series} />
           </s-section>
 
           <EqualRow>
-            <s-section heading="Shopper journey">
+            <s-section heading={t("sectionJourney")}>
               <div data-eq-pane>
                 <s-stack direction="block" gap="base">
                   <ShareBar
-                    label="Saw the 3D model"
+                    label={t("journeySaw")}
                     value={totals.view}
                     of={totals.view}
                     detail={fmt(totals.view)}
                   />
                   <ShareBar
-                    label="Interacted with it"
+                    label={t("journeyInteracted")}
                     value={totals.interact}
                     of={totals.view}
                     detail={`${fmt(totals.interact)} · ${fmtPct(pct(totals.interact, totals.view))}`}
                   />
-                  {showAr ? (
-                    <ShareBar
-                      label="Opened it in AR"
-                      value={totals.ar}
-                      of={totals.view}
-                      detail={`${fmt(totals.ar)} · ${fmtPct(pct(totals.ar, totals.view))}`}
-                    />
-                  ) : null}
+                  <ShareBar
+                    label={t("journeyAr")}
+                    value={totals.ar}
+                    of={totals.view}
+                    detail={`${fmt(totals.ar)} · ${fmtPct(pct(totals.ar, totals.view))}`}
+                  />
                 </s-stack>
               </div>
             </s-section>
 
             {data.placement === "all" ? (
-              <s-section heading="Views by placement">
+              <s-section heading={t("sectionPlacement")}>
                 <div data-eq-pane>
                   <s-stack direction="block" gap="base">
                     {data.placements.map((p) => (
                       <ShareBar
                         key={p.placement}
-                        label={PLACEMENT_LABELS[p.placement]}
+                        label={t(PLACEMENT_LABELS[p.placement])}
                         value={p.view}
                         of={maxPlacementViews}
-                        detail={`${fmt(p.view)} views · ${fmtPct(pct(p.interact, p.view))} engaged`}
+                        detail={t("placementDetail", {
+                          count: p.view,
+                          pct: fmtPct(pct(p.interact, p.view)),
+                        })}
                       />
                     ))}
                   </s-stack>
                 </div>
               </s-section>
             ) : (
-              <s-section heading={PLACEMENT_LABELS[data.placement]}>
+              <s-section heading={t(PLACEMENT_LABELS[data.placement])}>
                 <div data-eq-pane>
                   <s-stack direction="block" gap="small">
-                    <s-paragraph>
-                      Showing only the{" "}
-                      {PLACEMENT_LABELS[data.placement].toLowerCase()} viewer.
-                    </s-paragraph>
+                    <s-paragraph>{t(PLACEMENT_ONLY[data.placement])}</s-paragraph>
                     <s-button
                       variant="secondary"
                       onClick={() => setFilter({ placement: null })}
                     >
-                      Compare all placements
+                      {t("compareAllPlacements")}
                     </s-button>
                   </s-stack>
                 </div>
@@ -1331,7 +1413,7 @@ export default function Analytics() {
 
           {/* Does 3D sell? / Who is looking. */}
           <EqualRow>
-            <s-section heading="Add to cart after 3D">
+            <s-section heading={t("sectionCart")}>
               <div data-eq-pane>
                 <CartImpact
                   cart={data.cart}
@@ -1343,16 +1425,24 @@ export default function Analytics() {
               </div>
             </s-section>
 
-            <s-section heading="Devices">
+            <s-section heading={t("sectionDevices")}>
               <div data-eq-pane>
                 <s-stack direction="block" gap="base">
                   {data.devices.map((d) => (
                     <ShareBar
                       key={d.device}
-                      label={DEVICE_LABELS[d.device] ?? d.device}
+                      label={
+                        DEVICE_LABELS[d.device]
+                          ? t(DEVICE_LABELS[d.device])
+                          : d.device
+                      }
                       value={d.view}
                       of={Math.max(0, ...data.devices.map((x) => x.view))}
-                      detail={`${fmt(d.view)} views · ${fmtPct(pct(d.interact, d.view))} engaged${showAr ? ` · ${fmt(d.ar)} AR` : ""}`}
+                      detail={t("deviceDetail", {
+                        count: d.view,
+                        pct: fmtPct(pct(d.interact, d.view)),
+                        ar: d.ar,
+                      })}
                     />
                   ))}
                 </s-stack>
@@ -1362,41 +1452,35 @@ export default function Analytics() {
 
           {/* What shoppers do with it / what the store has. */}
           <EqualRow>
-            <s-section heading="Controls shoppers use">
+            <s-section heading={t("sectionControls")}>
               <div data-eq-pane>
-                {data.placement === "embed" ? (
-                  <s-paragraph>
-                    <s-text color="subdued">
-                      Control use is measured on the storefront blocks only, not
-                      on embed links.
-                    </s-text>
-                  </s-paragraph>
-                ) : (
-                  <s-stack direction="block" gap="base">
-                    {data.features.map((f) => (
-                      <ShareBar
-                        key={f.key}
-                        label={FEATURE_LABELS[f.key] ?? f.key}
-                        value={f.count}
-                        of={totals.view}
-                        detail={`${fmt(f.count)} · ${fmtPct(pct(f.count, totals.view))} of views`}
-                      />
-                    ))}
-                  </s-stack>
-                )}
+                <s-stack direction="block" gap="base">
+                  {data.features.map((f) => (
+                    <ShareBar
+                      key={f.key}
+                      label={
+                        FEATURE_LABELS[f.key] ? t(FEATURE_LABELS[f.key]) : f.key
+                      }
+                      value={f.count}
+                      of={totals.view}
+                      detail={t("featureDetail", {
+                        count: f.count,
+                        pct: fmtPct(pct(f.count, totals.view)),
+                      })}
+                    />
+                  ))}
+                </s-stack>
               </div>
             </s-section>
 
-            <s-section heading="Library and coverage">
+            <s-section heading={t("sectionLibrary")}>
               <div data-eq-pane>
                 <Suspense fallback={<LibrarySkeleton />}>
                   <Await
                     resolve={data.library}
                     errorElement={
                       <s-paragraph>
-                        <s-text color="subdued">
-                          Couldn’t load library stats. Refresh to try again.
-                        </s-text>
+                        <s-text color="subdued">{t("libLoadFailed")}</s-text>
                       </s-paragraph>
                     }
                   >
@@ -1407,24 +1491,30 @@ export default function Analytics() {
             </s-section>
           </EqualRow>
 
-          <s-section heading="Top products and models">
+          <s-section heading={t("sectionTop")}>
             {data.top.length ? (
               <s-table>
                 <s-table-header-row>
-                  <s-table-header listSlot="primary">Item</s-table-header>
-                  <s-table-header>Placement</s-table-header>
-                  <s-table-header format="numeric">Views</s-table-header>
-                  <s-table-header format="numeric">Interactions</s-table-header>
-                  {showAr ? (
-                    <s-table-header format="numeric">AR</s-table-header>
-                  ) : null}
-                  <s-table-header format="numeric">Engagement</s-table-header>
+                  <s-table-header listSlot="primary">
+                    {t("colItem")}
+                  </s-table-header>
+                  <s-table-header>{t("colPlacement")}</s-table-header>
+                  <s-table-header format="numeric">
+                    {t("colViews")}
+                  </s-table-header>
+                  <s-table-header format="numeric">
+                    {t("colInteractions")}
+                  </s-table-header>
+                  <s-table-header format="numeric">{t("colAr")}</s-table-header>
+                  <s-table-header format="numeric">
+                    {t("colEngagement")}
+                  </s-table-header>
                 </s-table-header-row>
                 <s-table-body>
-                  {data.top.map((t) => {
-                    const isProduct = t.target.startsWith("product:");
+                  {data.top.map((row) => {
+                    const isProduct = row.target.startsWith("product:");
                     return (
-                      <s-table-row key={`${t.placement}|${t.target}`}>
+                      <s-table-row key={`${row.placement}|${row.target}`}>
                         <s-table-cell>
                           <Suspense
                             fallback={
@@ -1442,7 +1532,7 @@ export default function Analytics() {
                             >
                               {(details) => (
                                 <TargetCell
-                                  detail={details[t.target]}
+                                  detail={details[row.target]}
                                   isProduct={isProduct}
                                 />
                               )}
@@ -1451,8 +1541,9 @@ export default function Analytics() {
                         </s-table-cell>
                         <s-table-cell>
                           <s-badge>
-                            {PLACEMENT_LABELS[t.placement as Placement] ??
-                              t.placement}
+                            {PLACEMENT_LABELS[row.placement as Placement]
+                              ? t(PLACEMENT_LABELS[row.placement as Placement])
+                              : row.placement}
                           </s-badge>
                         </s-table-cell>
                         <s-table-cell>
@@ -1460,19 +1551,17 @@ export default function Analytics() {
                             <span
                               className="an-mini-bar"
                               style={{
-                                width: `${topMaxViews > 0 ? Math.max(2, (t.view / topMaxViews) * 48) : 0}px`,
+                                width: `${topMaxViews > 0 ? Math.max(2, (row.view / topMaxViews) * 48) : 0}px`,
                               }}
                               aria-hidden="true"
                             />
-                            {fmt(t.view)}
+                            {fmt(row.view)}
                           </span>
                         </s-table-cell>
-                        <s-table-cell>{fmt(t.interact)}</s-table-cell>
-                        {showAr ? (
-                          <s-table-cell>{fmt(t.ar)}</s-table-cell>
-                        ) : null}
+                        <s-table-cell>{fmt(row.interact)}</s-table-cell>
+                        <s-table-cell>{fmt(row.ar)}</s-table-cell>
                         <s-table-cell>
-                          {fmtPct(pct(t.interact, t.view))}
+                          {fmtPct(pct(row.interact, row.view))}
                         </s-table-cell>
                       </s-table-row>
                     );
@@ -1481,26 +1570,25 @@ export default function Analytics() {
               </s-table>
             ) : (
               <s-paragraph>
-                <s-text color="subdued">
-                  Views from viewers set up with a pasted file URL can’t be tied
-                  to a product or model, so they count toward the totals only.
-                </s-text>
+                <s-text color="subdued">{t("topEmpty")}</s-text>
               </s-paragraph>
             )}
           </s-section>
 
           {/* The chart's numbers as a table — for screen readers and for
                 anyone who wants exact values without hovering. */}
-          <s-section heading="Daily numbers">
+          <s-section heading={t("sectionDaily")}>
             <details className="an-details">
-              <summary>Show the table</summary>
+              <summary>{t("showTable")}</summary>
               <div style={{ marginTop: 12 }}>
                 <s-table>
                   <s-table-header-row>
-                    <s-table-header listSlot="primary">Day</s-table-header>
-                    {SERIES.filter((s) => showAr || s.key !== "ar").map((s) => (
+                    <s-table-header listSlot="primary">
+                      {t("colDay")}
+                    </s-table-header>
+                    {SERIES.map((s) => (
                       <s-table-header key={s.key} format="numeric">
-                        {s.label}
+                        {tc(s.label)}
                       </s-table-header>
                     ))}
                   </s-table-header-row>
@@ -1510,9 +1598,7 @@ export default function Analytics() {
                         <s-table-cell>{fmtRangeDay(d.day, true)}</s-table-cell>
                         <s-table-cell>{fmt(d.view)}</s-table-cell>
                         <s-table-cell>{fmt(d.interact)}</s-table-cell>
-                        {showAr ? (
-                          <s-table-cell>{fmt(d.ar)}</s-table-cell>
-                        ) : null}
+                        <s-table-cell>{fmt(d.ar)}</s-table-cell>
                       </s-table-row>
                     ))}
                   </s-table-body>
@@ -1527,19 +1613,15 @@ export default function Analytics() {
             <span className="an-empty-icon" aria-hidden="true">
               <s-icon type="chart-line" color="subdued" />
             </span>
-            <s-heading>No shopper activity in this range yet</s-heading>
-            <s-paragraph>
-              Numbers appear here as shoppers view your 3D models. Make sure the
-              3D Viewer block is on your live theme — visits from the theme
-              editor are never counted.
-            </s-paragraph>
+            <s-heading>{t("emptyHeading")}</s-heading>
+            <s-paragraph>{t("emptyBody")}</s-paragraph>
             <s-stack direction="inline" gap="small" justifyContent="center">
               <s-button
                 variant="primary"
                 href="shopify://admin/themes/current/editor?template=product"
                 target="_top"
               >
-                Open theme editor
+                {t("openThemeEditor")}
               </s-button>
               {data.range !== "90" && !data.lifetime && !data.freePlan ? (
                 <s-button
@@ -1547,7 +1629,7 @@ export default function Analytics() {
                     setFilter({ range: "90", from: null, to: null })
                   }
                 >
-                  Try the last 90 days
+                  {t("tryLast90")}
                 </s-button>
               ) : null}
             </s-stack>
@@ -1605,7 +1687,7 @@ const PAGE_CSS = `
 }
 /*
  * Laptop and up: every tile on one line, as many equal columns as there are
- * tiles (five, or four when AR is hidden for embed links). Column flow rather
+ * tiles (five). Column flow rather
  * than a fixed count, so the number of tiles can change without touching this.
  * 900px is the app frame's width, not the window's — the admin's sidebar
  * already takes its share on a laptop.

@@ -1,0 +1,16 @@
+{
+  "seriesView": "Visualizzazioni",
+  "seriesInteract": "Interazioni",
+  "seriesAr": "Clic AR",
+  "grainDay": "Giornaliero",
+  "grainWeek": "Settimanale",
+  "grainMonth": "Mensile",
+  "chartAriaDay": "Visualizzazioni, interazioni e clic AR giornalieri. La tabella sotto elenca i dati giornalieri.",
+  "chartAriaWeek": "Visualizzazioni, interazioni e clic AR settimanali. La tabella sotto elenca i dati giornalieri.",
+  "chartAriaMonth": "Visualizzazioni, interazioni e clic AR mensili. La tabella sotto elenca i dati giornalieri.",
+  "weekOf": "Settimana del {date}",
+  "monthYearShort": "{month} ’{year}",
+  "partialDays": "{title} ({days} giorni su {total})",
+  "legendAria": "Mostra o nascondi serie",
+  "lockedSeriesAria": "{label}: disponibile con i piani a pagamento. Passa a un piano superiore."
+}

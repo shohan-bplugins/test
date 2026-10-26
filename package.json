@@ -17,7 +17,9 @@
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "check-locales": "node scripts/check-locales.mjs",
+    "check-admin-i18n": "node scripts/check-admin-i18n.mjs"
   },
   "type": "module",
   "engines": {
@@ -51,6 +53,7 @@
     "draco3dgltf": "^1.5.7",
     "isbot": "^5.1.31",
     "lucide-react": "^1.16.0",
+    "mediabunny": "1.61.3",
     "prisma": "^6.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

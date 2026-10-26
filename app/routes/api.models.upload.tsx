@@ -6,6 +6,7 @@ import {
   modelQuotaError,
   uploadModelToLibrary,
 } from "~/lib/model-upload.server";
+import { getServerT } from "~/i18n/i18n.server";
 
 /**
  * An "uploading" job this old is taken to be dead — the process handling it
@@ -125,14 +126,16 @@ async function handleUpload({ request }: ActionFunctionArgs) {
   const name = (formData.get("name") as string | null)?.trim() || file?.name;
   const reply = (body: UploadResponse) => Response.json(body);
   const optimize = formData.get("optimize") !== "0";
+  const tf = getServerT(request, "files");
+  const unlimited = getServerT(request, "common")("unlimited");
 
   if (!KEY_PATTERN.test(key)) return reply({ ok: false, error: "Missing upload key" });
 
   const table = jobTable();
   if (!table) {
-    const quotaError = await modelQuotaError(admin, shop);
+    const quotaError = await modelQuotaError(admin, shop, tf, unlimited);
     if (quotaError) return reply({ ok: false, error: quotaError });
-    return reply(await uploadModelToLibrary(admin, shop, file, name, optimize));
+    return reply(await uploadModelToLibrary(admin, shop, file, name, optimize, tf));
   }
 
   void table
@@ -175,9 +178,9 @@ async function handleUpload({ request }: ActionFunctionArgs) {
   };
 
   try {
-    const quotaError = await modelQuotaError(admin, shop);
+    const quotaError = await modelQuotaError(admin, shop, tf, unlimited);
     if (quotaError) return finish({ ok: false, error: quotaError });
-    const result = await uploadModelToLibrary(admin, shop, file, name, optimize);
+    const result = await uploadModelToLibrary(admin, shop, file, name, optimize, tf);
     return finish(result);
   } catch (err) {
     console.error("[upload] failed", err);

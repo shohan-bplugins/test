@@ -12,8 +12,9 @@ export const UNLIMITED = 1_000_000;
 
 export const isUnlimited = (limit: number) => limit >= UNLIMITED;
 
-export const formatLimit = (limit: number) =>
-  isUnlimited(limit) ? "Unlimited" : String(limit);
+/** `unlimited` is the caller's translation of common:unlimited. */
+export const formatLimit = (limit: number, unlimited = "Unlimited") =>
+  isUnlimited(limit) ? unlimited : String(limit);
 
 /** Every plan allows exactly one 3D model per product. */
 export const MODELS_PER_PRODUCT = 1;

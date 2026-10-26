@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { Await, useNavigate } from "react-router";
 
+import { useLocale, useT } from "~/i18n";
 import type { AnalyticsOverview } from "~/lib/viewer-stats";
 
 /*
@@ -13,7 +14,7 @@ import type { AnalyticsOverview } from "~/lib/viewer-stats";
  * page's first paint.
  */
 
-const fmt = (n: number) => n.toLocaleString("en-US");
+const fmt = (n: number, locale: string) => n.toLocaleString(locale);
 
 function change(now: number, before: number) {
   if (before === 0) return null;
@@ -87,6 +88,7 @@ function Tile({
   locked?: boolean;
   className?: string;
 }) {
+  const t = useT("analytics");
   return (
     <div className={className ? `ao-stat ${className}` : "ao-stat"}>
       <span className="ao-label" title={label}>
@@ -95,7 +97,7 @@ function Tile({
       <div className="ao-value-row">
         <span
           className={locked ? "ao-value ao-locked" : "ao-value"}
-          aria-label={locked ? "Locked" : undefined}
+          aria-label={locked ? t("locked") : undefined}
         >
           {value}
         </span>
@@ -113,6 +115,8 @@ function badge(now: number | null, before: number | null) {
 }
 
 export function AnalyticsOverviewBody({ o }: { o: AnalyticsOverview }) {
+  const t = useT("analytics");
+  const locale = useLocale();
   const engagement =
     o.interact !== null && o.views > 0
       ? Math.round((o.interact / o.views) * 1000) / 10
@@ -130,13 +134,15 @@ export function AnalyticsOverviewBody({ o }: { o: AnalyticsOverview }) {
   ) => (
     <Tile
       label={label}
-      value={value === null ? "—" : `${fmt(value)}${suffix}`}
+      value={value === null ? "—" : `${fmt(value, locale)}${suffix}`}
       tag={badge(value, before)}
       footer={
         before === null || before === 0 ? (
-          <span className="ao-sub">No earlier data</span>
+          <span className="ao-sub">{t("overviewNoEarlier")}</span>
         ) : (
-          <span className="ao-sub">{`vs previous ${o.days} days`}</span>
+          <span className="ao-sub">
+            {t("overviewVsPrevious", { count: o.days })}
+          </span>
         )
       }
     />
@@ -146,21 +152,22 @@ export function AnalyticsOverviewBody({ o }: { o: AnalyticsOverview }) {
     <div className="ao-grid">
       <Tile
         className="ao-stat-views"
-        label="3D views"
-        value={fmt(o.views)}
+        label={t("kpiViews")}
+        value={fmt(o.views, locale)}
         tag={badge(o.views, o.viewsPrev)}
         footer={<Sparkline values={o.daily} />}
       />
-      {metric("Interactions", o.interact, o.interactPrev)}
-      {metric("AR Click", o.ar, o.arPrev)}
-      {metric("Engagement rate", engagement, prevEngagement, "%")}
+      {metric(t("kpiInteractions"), o.interact, o.interactPrev)}
+      {metric(t("kpiAr"), o.ar, o.arPrev)}
+      {metric(t("kpiEngagement"), engagement, prevEngagement, "%")}
     </div>
   );
 }
 
 function Skeleton() {
+  const t = useT("analytics");
   return (
-    <div className="ao-grid" role="status" aria-label="Loading analytics">
+    <div className="ao-grid" role="status" aria-label={t("overviewLoading")}>
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="ao-stat">
           <span className="ao-skel" style={{ width: "50%" }} />
@@ -177,24 +184,27 @@ export function AnalyticsOverviewCard({
   overview: Promise<AnalyticsOverview>;
 }) {
   const navigate = useNavigate();
+  const t = useT("analytics");
   return (
     <s-section>
       <style>{AO_CSS}</style>
       <s-stack direction="block" gap="base">
         <div className="ao-head">
           <s-stack direction="inline" gap="small" alignItems="center">
-            <s-heading>Analytics</s-heading>
-            <s-badge tone="info">New</s-badge>
+            <s-heading>{t("heading")}</s-heading>
+            <s-badge tone="info">{t("overviewNew")}</s-badge>
             {/* The period depends on the plan, which arrives with the data. */}
             <Suspense fallback={null}>
               <Await resolve={overview} errorElement={null}>
                 {(o) => (
                   <span className="ao-sub">
-                    {`Last ${o.days} days`}
+                    {t("overviewLastDays", { count: o.days })}
                     {o.paid ? null : (
                       <>
                         {" · "}
-                        <s-link href="/app/pricing">Upgrade for 30 days</s-link>
+                        <s-link href="/app/pricing">
+                          {t("overviewUpgrade30")}
+                        </s-link>
                       </>
                     )}
                   </span>
@@ -207,7 +217,7 @@ export function AnalyticsOverviewCard({
             icon="chart-line"
             onClick={() => navigate("/app/analytics")}
           >
-            View analytics
+            {t("overviewViewAnalytics")}
           </s-button>
         </div>
         <div className="ao-wrap">
@@ -217,8 +227,9 @@ export function AnalyticsOverviewCard({
               errorElement={
                 <s-paragraph>
                   <s-text color="subdued">
-                    Couldn’t load analytics right now.{" "}
-                    <s-link href="/app/analytics">Open Analytics</s-link>
+                    {t.rich("overviewLoadFailed", {
+                      link: (c) => <s-link href="/app/analytics">{c}</s-link>,
+                    })}
                   </s-text>
                 </s-paragraph>
               }

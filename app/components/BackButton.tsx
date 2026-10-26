@@ -1,4 +1,5 @@
 import { useRouteNav } from "~/components/polaris/helpers";
+import { useT } from "~/i18n";
 
 /**
  * The page's breadcrumb: a link back to its parent, labelled with the parent's
@@ -38,13 +39,14 @@ export function BackButton({
   showLabel?: boolean;
 }) {
   const routeTo = useRouteNav();
+  const t = useT("shared");
   return (
     <s-link
       slot="breadcrumb-actions"
       // A real href, so middle-click and "copy link address" behave; the
       // handler keeps an ordinary click inside the client-side router.
       href={to}
-      accessibilityLabel={`Back to ${label}`}
+      accessibilityLabel={t("backTo", { label })}
       onClick={routeTo(to)}
     >
       {showLabel ? label : <s-icon type="arrow-left" />}

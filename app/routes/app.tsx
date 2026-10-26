@@ -1,6 +1,7 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useEffect } from "react";
 import {
+  data,
   Outlet,
   useLoaderData,
   useLocation,
@@ -20,6 +21,13 @@ import { WebVitals } from "~/components/WebVitals";
 import { CrispChat } from "~/components/CrispChat";
 import { ReviewPromptTest } from "~/components/ReviewPrompt";
 import { reviewDebugAllowed } from "~/lib/review-prompt.server";
+import { I18nProvider, useT } from "~/i18n";
+import {
+  catalogFor,
+  languageChoice,
+  localeCookieHeaders,
+  resolveAdminLocale,
+} from "~/i18n/i18n.server";
 
 /*
  * Pages a shop can open before it has picked a plan: the plan picker, and the
@@ -77,7 +85,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  return {
+  /*
+   * The merchant's admin language, for every page below this layout. Only a
+   * non-English catalog is sent: English is bundled with the app. Cookies
+   * remember ?locale= / ?lang= for requests that don't carry them (see
+   * resolveAdminLocale).
+   */
+  const locale = resolveAdminLocale(request);
+  const headers = new Headers();
+  for (const cookie of localeCookieHeaders(request)) {
+    headers.append("Set-Cookie", cookie);
+  }
+
+  return data({
+    locale,
+    messages: locale === "en" ? null : catalogFor(locale),
+    languageChoice: languageChoice(request),
     apiKey: process.env.SHOPIFY_API_KEY || "",
     // Tags the analytics session with the store, so funnels and Clarity
     // recordings can be traced back to a merchant.
@@ -91,11 +114,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     newNav: NAV_ITEMS.filter(
       (i) => i.newUntil && new Date().toISOString().slice(0, 10) <= i.newUntil,
     ).map((i) => i.href),
-  };
+  }, { headers });
 };
 
 type NavItem = {
   href: string;
+  /** Key in the "nav" namespace. */
   label: string;
   exact?: boolean;
   home?: boolean;
@@ -109,17 +133,17 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/app", label: "Home", exact: true, home: true },
+  { href: "/app", label: "home", exact: true, home: true },
   // Always present. This used to be hidden once `onboardingDone` was set, but
   // that flag is also set by the dismiss-X on the dashboard's inline checklist,
   // so dismissing a card deleted the only route into the wizard.
-  { href: "/app/onboarding", label: "Get started" },
-  { href: "/app/products", label: "Product 3D Models" },
-  { href: "/app/models", label: "3D Model Library" },
-  { href: "/app/analytics", label: "Analytics", newUntil: "2026-12-31" },
-  { href: "/app/documentation", label: "Documentation" },
-  { href: "/app/pricing", label: "Pricing" },
-  { href: "/app/setup", label: "Setup" },
+  { href: "/app/onboarding", label: "getStarted" },
+  { href: "/app/products", label: "products" },
+  { href: "/app/models", label: "models" },
+  { href: "/app/analytics", label: "analytics", newUntil: "2026-12-31" },
+  { href: "/app/documentation", label: "documentation" },
+  { href: "/app/pricing", label: "pricing" },
+  { href: "/app/setup", label: "setup" },
 ];
 
 function isActivePath(pathname: string, item: NavItem): boolean {
@@ -156,8 +180,26 @@ function NavigationLoading() {
 }
 
 export default function App() {
-  const { apiKey, shop, planChosen, newNav, reviewDebug } =
+  const { locale, messages, languageChoice, ...rest } =
     useLoaderData<typeof loader>();
+  return (
+    <I18nProvider locale={locale} messages={messages} choice={languageChoice}>
+      <AppLayout {...rest} />
+    </I18nProvider>
+  );
+}
+
+function AppLayout({
+  apiKey,
+  shop,
+  planChosen,
+  newNav,
+  reviewDebug,
+}: Omit<
+  ReturnType<typeof useLoaderData<typeof loader>>,
+  "locale" | "messages" | "languageChoice"
+>) {
+  const t = useT("nav");
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
@@ -203,7 +245,9 @@ export default function App() {
               onClick={clickHandler}
               {...homeAttrs}
             >
-              {newNav.includes(item.href) ? `${item.label} ( New )` : item.label}
+              {newNav.includes(item.href)
+                ? t("withNew", { label: t(item.label) })
+                : t(item.label)}
             </s-link>
           );
         })}

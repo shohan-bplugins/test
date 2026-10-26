@@ -38,7 +38,6 @@ import {
   FREE_MODEL_LIMIT,
   FREE_PLAN_NAME,
   FREE_PRODUCT_LIMIT,
-  formatLimit,
   formatMoney,
   isUnlimited,
 } from "~/lib/billing-constants";
@@ -59,7 +58,10 @@ import {
   FeatureRequestModal,
   SupportAction,
 } from "~/components/SupportAction";
+import { LanguagePicker } from "~/components/LanguagePicker";
 import { ModalAction } from "~/components/polaris/ModalAction";
+import { useLocale, useT, type TFunction } from "~/i18n";
+import { getServerT, resolveAdminLocale } from "~/i18n/i18n.server";
 
 /*
  * The merchant community group. Peer help, not a support channel: it sits below
@@ -251,6 +253,8 @@ export const loader = async ({
   }
 
   const now = new Date();
+  // The labels below are read by the merchant, so in their admin language.
+  const locale = resolveAdminLocale(request);
   const inMonth = (d: Date, year: number, month: number) =>
     d.getFullYear() === year && d.getMonth() === month;
   const uploadsThisMonth = models.filter((m) =>
@@ -261,7 +265,7 @@ export const loader = async ({
   const uploadsLastMonth = models.filter((m) =>
     inMonth(m.createdAt, prevMonth.getFullYear(), prevMonth.getMonth()),
   ).length;
-  const lastMonthLabel = prevMonth.toLocaleDateString(undefined, {
+  const lastMonthLabel = prevMonth.toLocaleDateString(locale, {
     month: "long",
   });
   // Formatted here rather than in the component: the count above is bucketed by
@@ -273,7 +277,7 @@ export const loader = async ({
     now.getFullYear(),
     now.getMonth(),
     1,
-  ).toLocaleDateString(undefined, { month: "long", day: "numeric" });
+  ).toLocaleDateString(locale, { month: "long", day: "numeric" });
 
   const extCounts = new Map<string, number>();
   for (const m of models) {
@@ -359,7 +363,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       (template !== "product" && template !== "page") ||
       (blockHandle !== "product_viewer" && blockHandle !== "page_viewer")
     ) {
-      return { ok: false, error: "Missing or invalid block details." };
+      const t = getServerT(request, "dashboard");
+      return { ok: false, error: t("errors.invalidBlock") };
     }
     const templateKey =
       template === "product" ? "templates/product.json" : "templates/page.json";
@@ -385,9 +390,9 @@ function formatBytes(n: number) {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function formatDate(iso: string) {
+function formatDate(iso: string, locale: string) {
   try {
-    return new Date(iso).toLocaleDateString();
+    return new Date(iso).toLocaleDateString(locale);
   } catch {
     return "";
   }
@@ -474,13 +479,15 @@ type Bucket = {
   count: number;
 };
 
-const GRANULARITY_CONFIG: Record<
-  Granularity,
-  { periods: number; periodLabel: string }
-> = {
-  day: { periods: 14, periodLabel: "14 days" },
-  week: { periods: 8, periodLabel: "8 weeks" },
-  month: { periods: 6, periodLabel: "6 months" },
+/*
+ * The period is named in whole sentences per granularity (chart.summary.day,
+ * chart.empty.week, …) rather than a "14 days" fragment, since other languages
+ * inflect it differently in each sentence.
+ */
+const GRANULARITY_CONFIG: Record<Granularity, { periods: number }> = {
+  day: { periods: 14 },
+  week: { periods: 8 },
+  month: { periods: 6 },
 };
 
 function startOfDay(d: Date): Date {
@@ -493,6 +500,8 @@ function buildBuckets(
   granularity: Granularity,
   dates: Date[],
   now: Date,
+  locale: string,
+  t: TFunction,
 ): Bucket[] {
   const { periods } = GRANULARITY_CONFIG[granularity];
   const buckets: Bucket[] = [];
@@ -506,11 +515,11 @@ function buildBuckets(
       end.setDate(end.getDate() + 1);
       const count = dates.filter((d) => d >= start && d < end).length;
       buckets.push({
-        label: start.toLocaleDateString(undefined, {
+        label: start.toLocaleDateString(locale, {
           month: "numeric",
           day: "numeric",
         }),
-        full: start.toLocaleDateString(undefined, {
+        full: start.toLocaleDateString(locale, {
           weekday: "short",
           month: "short",
           day: "numeric",
@@ -528,11 +537,16 @@ function buildBuckets(
       start.setDate(start.getDate() - 7);
       const count = dates.filter((d) => d >= start && d < end).length;
       buckets.push({
-        label: start.toLocaleDateString(undefined, {
+        label: start.toLocaleDateString(locale, {
           month: "numeric",
           day: "numeric",
         }),
-        full: `Week of ${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
+        full: t("chart.weekOf", {
+          date: start.toLocaleDateString(locale, {
+            month: "short",
+            day: "numeric",
+          }),
+        }),
         count,
       });
     }
@@ -542,8 +556,8 @@ function buildBuckets(
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       const count = dates.filter((d) => d >= start && d < end).length;
       buckets.push({
-        label: start.toLocaleDateString(undefined, { month: "short" }),
-        full: start.toLocaleDateString(undefined, {
+        label: start.toLocaleDateString(locale, { month: "short" }),
+        full: start.toLocaleDateString(locale, {
           month: "long",
           year: "numeric",
         }),
@@ -556,18 +570,20 @@ function buildBuckets(
 }
 
 function UploadsChart({ dates }: { dates: string[] }) {
+  const t = useT("dashboard");
+  const locale = useLocale();
   const [granularity, setGranularity] = useState<Granularity>("week");
   const now = useMemo(() => new Date(), []);
   const parsedDates = useMemo(() => dates.map((d) => new Date(d)), [dates]);
   const buckets = useMemo(
-    () => buildBuckets(granularity, parsedDates, now),
-    [granularity, parsedDates, now],
+    () => buildBuckets(granularity, parsedDates, now, locale, t),
+    [granularity, parsedDates, now, locale, t],
   );
 
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const total = buckets.reduce((sum, b) => sum + b.count, 0);
   const hasActivity = total > 0;
-  const periodLabel = GRANULARITY_CONFIG[granularity].periodLabel;
+  const { periods } = GRANULARITY_CONFIG[granularity];
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -586,7 +602,7 @@ function UploadsChart({ dates }: { dates: string[] }) {
         inlineSize="100%"
       >
         <s-text color="subdued">
-          {total} upload{total === 1 ? "" : "s"} in the last {periodLabel}
+          {t(`chart.summary.${granularity}`, { count: total, periods })}
         </s-text>
         <s-stack direction="inline" gap="small-500">
           {(Object.keys(GRANULARITY_CONFIG) as Granularity[]).map((g) => (
@@ -595,7 +611,7 @@ function UploadsChart({ dates }: { dates: string[] }) {
               variant={granularity === g ? "secondary" : "tertiary"}
               onClick={() => setGranularity(g)}
             >
-              {g[0].toUpperCase() + g.slice(1)}
+              {t(`chart.granularity.${g}`)}
             </s-button>
           ))}
         </s-stack>
@@ -612,7 +628,7 @@ function UploadsChart({ dates }: { dates: string[] }) {
         */
         <div
           role="img"
-          aria-label={`Uploads per ${granularity} over the last ${periodLabel}`}
+          aria-label={t(`chart.aria.${granularity}`, { periods })}
           style={{
             display: "flex",
             alignItems: "flex-end",
@@ -679,7 +695,9 @@ function UploadsChart({ dates }: { dates: string[] }) {
       ) : (
         <s-stack direction="block" gap="small" alignItems="center">
           <s-icon type="three-d-environment" color="subdued" />
-          <s-text color="subdued">No uploads in the last {periodLabel}.</s-text>
+          <s-text color="subdued">
+            {t(`chart.empty.${granularity}`, { periods })}
+          </s-text>
         </s-stack>
       )}
     </s-stack>
@@ -729,6 +747,7 @@ function VideoLightbox({
   onOpenChange: (open: boolean) => void;
 }) {
   const ref = useOverlay<OverlayElement>(open, () => onOpenChange(false));
+  const tc = useT("common");
 
   return (
     <s-modal
@@ -765,14 +784,15 @@ function VideoLightbox({
         variant="primary"
         onClick={() => onOpenChange(false)}
       >
-        Close
+        {tc("close")}
       </ModalAction>
     </s-modal>
   );
 }
 
 const TUTORIAL_VIDEO_ID = "7WIAhqRQ3hM";
-const TUTORIAL_TITLE = "3D Viewer setup walkthrough";
+/** Message key in the dashboard namespace. */
+const TUTORIAL_TITLE = "tutorialTitle";
 
 type QuickLink = {
   icon: string;
@@ -811,6 +831,7 @@ function QuickLinkRow({
   external,
   comingSoon,
 }: QuickLink & { onNavigate?: (href: string) => void }) {
+  const t = useT("dashboard");
   const body = (
     /*
       A two-track grid, not a flex row with space-between.
@@ -842,7 +863,7 @@ function QuickLinkRow({
       </s-stack>
 
       {comingSoon ? (
-        <s-badge>Coming soon</s-badge>
+        <s-badge>{t("comingSoon")}</s-badge>
       ) : (
         <s-icon
           type={external ? "external" : "chevron-right"}
@@ -1019,12 +1040,17 @@ export default function Dashboard() {
   // reachable from the header, and a second entry point (a Help & feedback row)
   // would drive the same lightbox.
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const t = useT("dashboard");
+  const tc = useT("common");
+  const locale = useLocale();
+  const limitText = (limit: number) =>
+    isUnlimited(limit) ? t("usage.unlimited") : String(limit);
 
   useEffect(() => {
     if (actionData?.ok) {
-      shopify.toast.show("Onboarding dismissed");
+      shopify.toast.show(t("toast.onboardingDismissed"));
     }
-  }, [actionData, shopify]);
+  }, [actionData, shopify, t]);
 
   const totalInUse = distinctModelsUsed;
   const usageRatio = modelLimit > 0 ? totalInUse / modelLimit : 0;
@@ -1034,7 +1060,7 @@ export default function Dashboard() {
   const uploadDelta = uploadsThisMonth - uploadsLastMonth;
 
   return (
-    <s-page heading="Dashboard">
+    <s-page heading={t("heading")}>
       {/*
         The page's one primary action, in the primary-action slot rather than
         styled primary inside the secondary group — a page gets a single primary
@@ -1051,9 +1077,9 @@ export default function Dashboard() {
         icon="plus"
         href="/app/models"
         onClick={routeTo("/app/models")}
-        accessibilityLabel="Add New 3d Model"
+        accessibilityLabel={t("actions.addModel")}
       >
-        Add new 3D model
+        {t("actions.addModel")}
       </s-button>
       <s-button
         slot="primary-action"
@@ -1061,9 +1087,9 @@ export default function Dashboard() {
         icon="plus"
         href="/app/products"
         onClick={routeTo("/app/products")}
-        accessibilityLabel="assign model to a product"
+        accessibilityLabel={t("actions.assignModel")}
       >
-        Assign model to a product
+        {t("actions.assignModel")}
       </s-button>
       {planTitle === FREE_PLAN_NAME ? (
         <s-button
@@ -1071,23 +1097,28 @@ export default function Dashboard() {
           href="/app/pricing"
           onClick={routeTo("/app/pricing")}
         >
-          Upgrade
+          {tc("upgrade")}
         </s-button>
       ) : null}
       <SupportAction />
 
       <s-section>
-        <s-stack direction="inline" gap="small" alignItems="center">
-          <s-text color="subdued">{shop}</s-text>
-          <s-badge icon="wand">{`${planTitle} plan`}</s-badge>
-        </s-stack>
+        <s-grid
+          gridTemplateColumns="1fr auto"
+          gap="small"
+          alignItems="center"
+        >
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-text color="subdued">{shop}</s-text>
+            <s-badge icon="wand">{t("planBadge", { plan: planTitle })}</s-badge>
+          </s-stack>
+          <LanguagePicker compact />
+        </s-grid>
       </s-section>
 
       {!onboardingDone ? (
-        <s-section heading="Getting started">
-          <s-paragraph color="subdued">
-            Three quick steps to publish 3D models on your storefront.
-          </s-paragraph>
+        <s-section heading={t("gettingStarted.heading")}>
+          <s-paragraph color="subdued">{t("gettingStarted.body")}</s-paragraph>
 
           {/*
             A dismiss X is the lowest-emphasis control on the card, not its
@@ -1099,7 +1130,7 @@ export default function Dashboard() {
           <s-button
             slot="secondary-actions"
             icon="x"
-            accessibilityLabel="Dismiss getting started"
+            accessibilityLabel={t("gettingStarted.dismiss")}
             onClick={() =>
               submit({ intent: "dismiss_onboarding" }, { method: "post" })
             }
@@ -1108,53 +1139,59 @@ export default function Dashboard() {
           <s-stack direction="block" gap="base">
             <OnboardingStep
               done={metafieldDefsReady}
-              title="Set up metafield definitions"
-              description="Create custom.model_3d (file) and custom.viewer_3d_config (JSON) with storefront read access."
-              cta={{ label: "Open Setup", href: "/app/setup" }}
+              title={t("gettingStarted.defs.title")}
+              description={t("gettingStarted.defs.description")}
+              cta={{ label: t("gettingStarted.defs.cta"), href: "/app/setup" }}
               onNavigate={navigate}
             />
             <s-divider />
             <OnboardingStep
               done={assigned > 0}
-              title="Upload your first model"
-              description="Pick a product and upload a .glb file. The block automatically reads it on the storefront."
-              cta={{ label: "Open products", href: "/app/products" }}
+              title={t("gettingStarted.upload.title")}
+              description={t("gettingStarted.upload.description")}
+              cta={{
+                label: t("gettingStarted.upload.cta"),
+                href: "/app/products",
+              }}
               onNavigate={navigate}
             />
             <s-divider />
             <OnboardingStep
               done={themeBlocks.productBlockAdded}
-              title="Add the theme block"
-              description='In Online Store → Themes → Customize → Product template, add "3D Viewer — Product" under Apps.'
+              title={t("gettingStarted.block.title")}
+              description={t("gettingStarted.block.description")}
               onNavigate={navigate}
             />
           </s-stack>
         </s-section>
       ) : null}
 
-      <s-section heading="Usage">
+      <s-section heading={t("usage.heading")}>
         <s-grid
           gridTemplateColumns="repeat(auto-fit, minmax(min(100%, 220px), 1fr))"
           gap="base"
         >
           <StatTile
             icon="package"
-            label="Products with a model"
-            value={`${assigned} / ${formatLimit(productLimit)}`}
+            label={t("usage.products")}
+            value={`${assigned} / ${limitText(productLimit)}`}
             meta={
               isUnlimited(productLimit)
-                ? "Unlimited"
+                ? t("usage.unlimited")
                 : productUsageRatio >= 1
-                  ? "Limit reached"
-                  : `${productLimit - assigned} left`
+                  ? t("usage.limitReached")
+                  : t("usage.left", { count: productLimit - assigned })
             }
             metaTone={
               isUnlimited(productLimit) ? "good" : usageTone(productUsageRatio)
             }
             sub={
               totalProducts > 0
-                ? `${coveragePct}% of your ${totalProducts} products`
-                : "No products in this store yet"
+                ? t("usage.coverage", {
+                    percent: coveragePct,
+                    count: totalProducts,
+                  })
+                : t("usage.noProducts")
             }
           />
           {/*
@@ -1165,21 +1202,21 @@ export default function Dashboard() {
           */}
           <StatTile
             icon="three-d-environment"
-            label="Models in use"
-            value={`${totalInUse} / ${formatLimit(modelLimit)}`}
+            label={t("usage.models")}
+            value={`${totalInUse} / ${limitText(modelLimit)}`}
             meta={
               isUnlimited(modelLimit)
-                ? "Unlimited"
+                ? t("usage.unlimited")
                 : usageRatio >= 1
-                  ? "Limit reached"
-                  : `${modelLimit - totalInUse} left`
+                  ? t("usage.limitReached")
+                  : t("usage.left", { count: modelLimit - totalInUse })
             }
             metaTone={isUnlimited(modelLimit) ? "good" : usageTone(usageRatio)}
-            sub="Library files and product assignments, counted once"
+            sub={t("usage.modelsSub")}
           />
           <StatTile
             icon="upload"
-            label="Uploads this month"
+            label={t("usage.uploads")}
             value={String(uploadsThisMonth)}
             meta={
               uploadDelta === 0
@@ -1187,41 +1224,49 @@ export default function Dashboard() {
                 : `${uploadDelta > 0 ? "+" : "−"}${Math.abs(uploadDelta)}`
             }
             metaTone={uploadDelta > 0 ? "good" : "muted"}
-            sub={`Since ${monthStartLabel}`}
+            sub={t("usage.since", { date: monthStartLabel })}
             footer={
               <s-text color="subdued">
-                {lastMonthLabel}: {uploadsLastMonth}
+                {t("usage.lastMonth", {
+                  month: lastMonthLabel,
+                  uploads: uploadsLastMonth,
+                })}
               </s-text>
             }
           />
           <StatTile
             icon="credit-card"
-            label="Plan"
+            label={t("plan.label")}
             value={planTitle}
             meta={
               subscription
-                ? subscription.status.charAt(0).toUpperCase() +
-                  subscription.status.slice(1)
+                ? subscription.status === "active"
+                  ? t("plan.statusActive")
+                  : subscription.status.charAt(0).toUpperCase() +
+                    subscription.status.slice(1)
                 : undefined
             }
             metaTone={subscription?.status === "active" ? "good" : "muted"}
             sub={
               subscription
-                ? `$${formatMoney(subscription.price)} / month${
-                    subscription.trialDays
-                      ? ` · ${subscription.trialDays}-day trial`
-                      : ""
-                  }`
-                : "No charge on this plan"
+                ? subscription.trialDays
+                  ? t("plan.priceWithTrial", {
+                      price: formatMoney(subscription.price),
+                      count: subscription.trialDays,
+                    })
+                  : t("plan.price", { price: formatMoney(subscription.price) })
+                : t("plan.noCharge")
             }
             footer={
               <s-button
                 icon="credit-card"
                 href="/app/pricing"
                 onClick={routeTo("/app/pricing")}
-                accessibilityLabel={subscription ? "Manage plan" : "View plans"}
+                accessibilityLabel={
+                  subscription ? t("plan.manage") : t("plan.viewPlans")
+                }
               >
-                {subscription ? "Manage plan" : "View plans"}
+                {subscription ? t("plan.manage") : t("plan.viewPlans")}
               </s-button>
             }
           />
@@ -1230,30 +1275,30 @@ export default function Dashboard() {
 
       <AnalyticsOverviewCard overview={analytics} />
 
-      <s-section heading="Recently added models">
-        <s-paragraph color="subdued">
-          The last models uploaded to your library.
-        </s-paragraph>
+      <s-section heading={t("recent.heading")}>
+        <s-paragraph color="subdued">{t("recent.body")}</s-paragraph>
         <s-button
           slot="primary-action"
           variant="primary"
           href="/app/models"
           onClick={routeTo("/app/models")}
         >
-          View all
+          {t("recent.viewAll")}
         </s-button>
 
         {recentModels.length === 0 ? (
           <s-stack direction="block" gap="small" alignItems="center">
             <s-icon type="three-d-environment" color="subdued" />
-            <s-text color="subdued">No models uploaded yet.</s-text>
+            <s-text color="subdued">{t("recent.empty")}</s-text>
           </s-stack>
         ) : (
           <s-table variant="auto">
             <s-table-header-row>
-              <s-table-header listSlot="primary">Model</s-table-header>
-              <s-table-header format="numeric">Size</s-table-header>
-              <s-table-header>Added</s-table-header>
+              <s-table-header listSlot="primary">
+                {t("recent.model")}
+              </s-table-header>
+              <s-table-header format="numeric">{t("recent.size")}</s-table-header>
+              <s-table-header>{t("recent.added")}</s-table-header>
             </s-table-header-row>
             <s-table-body>
               {recentModels.map((m) => (
@@ -1267,7 +1312,7 @@ export default function Dashboard() {
                     </s-link>
                   </s-table-cell>
                   <s-table-cell>{formatBytes(m.fileSize ?? 0)}</s-table-cell>
-                  <s-table-cell>{formatDate(m.createdAt)}</s-table-cell>
+                  <s-table-cell>{formatDate(m.createdAt, locale)}</s-table-cell>
                 </s-table-row>
               ))}
             </s-table-body>
@@ -1275,43 +1320,41 @@ export default function Dashboard() {
         )}
       </s-section>
 
-      <s-section heading="Upload activity">
-        <s-paragraph color="subdued">
-          Models added to your library, by day, week, or month.
-        </s-paragraph>
+      <s-section heading={t("activity.heading")}>
+        <s-paragraph color="subdued">{t("activity.body")}</s-paragraph>
         <UploadsChart dates={uploadDates} />
       </s-section>
 
-      <s-section slot="aside" heading="Quick links">
+      <s-section slot="aside" heading={t("links.heading")}>
         <QuickLinkList
           onNavigate={navigate}
           items={[
             {
               href: "/app/products",
               icon: "product",
-              label: "Product 3D models",
+              label: t("links.products"),
             },
             {
               href: "/app/models",
               icon: "three-d-environment",
-              label: "3D model library",
+              label: t("links.models"),
             },
             {
               href: "/app/analytics",
               icon: "chart-line",
-              label: "Analytics",
+              label: t("links.analytics"),
             },
             {
               href: "/app/setup",
               icon: "settings",
-              label: "Setup",
+              label: t("links.setup"),
             },
             ...(planTitle === FREE_PLAN_NAME
               ? [
                   {
                     href: "/app/pricing",
                     icon: "credit-card",
-                    label: "Pricing",
+                    label: t("links.pricing"),
                   },
                 ]
               : []),
@@ -1319,46 +1362,44 @@ export default function Dashboard() {
         />
       </s-section>
 
-      <s-section slot="aside" heading="Help & feedback">
-        <s-paragraph color="subdued">
-          Docs, a hand when you need one, and a say in what ships next.
-        </s-paragraph>
+      <s-section slot="aside" heading={t("help.heading")}>
+        <s-paragraph color="subdued">{t("help.body")}</s-paragraph>
         <QuickLinkList
           onNavigate={navigate}
           items={[
             {
               href: "/app/documentation",
               icon: "book",
-              label: "Documentation",
+              label: t("help.documentation"),
             },
             // Sits with the docs because it is the same errand — learning how
             // the app works — rather than in the page header beside the actions.
             {
               icon: "play-circle",
-              label: "Watch video tutorial",
+              label: t("help.tutorial"),
               onSelect: () => setTutorialOpen(true),
             },
             {
               icon: "question-circle",
-              label: "Get support",
+              label: t("help.support"),
               // Opens the same ticket form as the Support button in the header.
               commandFor: "support-form",
             },
             {
               href: COMMUNITY_URL,
               icon: "chat",
-              label: "Join the community",
+              label: t("help.community"),
               external: true,
             },
             {
               icon: "lightbulb",
-              label: "Feature requests",
+              label: t("help.featureRequests"),
               // The support form, in its feature-request version.
               commandFor: FEATURE_FORM_ID,
             },
             {
               icon: "star",
-              label: "Leave a review",
+              label: t("help.review"),
               href: APP_STORE_REVIEW_URL,
               external: true,
             },
@@ -1369,10 +1410,8 @@ export default function Dashboard() {
       <FeatureRequestModal />
 
       {fileTypes.length > 0 ? (
-        <s-section slot="aside" heading="File types">
-          <s-paragraph color="subdued">
-            Breakdown of formats in your library.
-          </s-paragraph>
+        <s-section slot="aside" heading={t("fileTypes.heading")}>
+          <s-paragraph color="subdued">{t("fileTypes.body")}</s-paragraph>
           <FileTypeBars data={fileTypes} />
         </s-section>
       ) : null}
@@ -1383,7 +1422,7 @@ export default function Dashboard() {
       */}
       <VideoLightbox
         videoId={TUTORIAL_VIDEO_ID}
-        title={TUTORIAL_TITLE}
+        title={t(TUTORIAL_TITLE)}
         open={tutorialOpen}
         onOpenChange={setTutorialOpen}
       />

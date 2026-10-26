@@ -1,4 +1,9 @@
-import { formatFileSize, validateModelFile } from "./files";
+import {
+  englishFiles,
+  formatFileSize,
+  validateModelFile,
+  type FilesT,
+} from "./files";
 import {
   deleteUploads,
   loadUploads,
@@ -174,6 +179,13 @@ export async function restoreUploads(shop: string) {
 }
 
 /**
+ * The queue's own messages, in the language of the page that last added
+ * files (enqueueUploads takes its "files" translator). Module state like the
+ * queue itself, since the queue outlives any one render.
+ */
+let messages: FilesT = englishFiles;
+
+/**
  * Add dropped files. Ones that can't be added — wrong type, too big, or past
  * the `room` the plan has left — fail straight away without a request.
  */
@@ -183,7 +195,9 @@ export function enqueueUploads(
   room: number,
   limitMessage: string,
   optimize = true,
+  t: FilesT = englishFiles,
 ) {
+  messages = t;
   let left = room - items.filter(isActive).length;
   const now = Date.now();
   const added: UploadItem[] = files.map((file, i) => {
@@ -197,7 +211,7 @@ export function enqueueUploads(
       addedAt: now + i / 1000,
       optimize,
     };
-    const fileError = validateModelFile(file, optimize);
+    const fileError = validateModelFile(file, optimize, t);
     if (fileError) return { ...base, file: null, status: "error", error: fileError };
     if (left <= 0) {
       return { ...base, file: null, status: "error", error: limitMessage };
@@ -288,7 +302,7 @@ type Outcome = "done" | "error" | "waiting";
 
 async function sendOne(item: UploadItem): Promise<Outcome> {
   if (!item.file) {
-    patch(item.key, { status: "error", error: "The file is no longer available. Add it again." });
+    patch(item.key, { status: "error", error: messages("fileGone") });
     return "error";
   }
   patch(item.key, { status: "uploading", loaded: 0 });
@@ -320,7 +334,7 @@ async function sendOne(item: UploadItem): Promise<Outcome> {
   } catch (err) {
     patch(item.key, {
       status: "error",
-      error: err instanceof Error ? err.message : "Upload failed",
+      error: err instanceof Error ? err.message : messages("uploadFailed"),
     });
     return "error";
   }
@@ -377,7 +391,7 @@ async function drain() {
             markDone(u.key, u.size, job.modelId);
             summary.added++;
           } else if (job?.status === "error") {
-            patch(u.key, { status: "error", error: job.error ?? "Upload failed" });
+            patch(u.key, { status: "error", error: job.error ?? messages("uploadFailed") });
             summary.failed++;
           } else if (!job || job.stale) {
             // Never reached the server, or died there: send it again.

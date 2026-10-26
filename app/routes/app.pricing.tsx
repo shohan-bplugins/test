@@ -42,6 +42,7 @@ import {
   isUnlimited,
   annualPrice,
   ANNUAL_MONTHS_CHARGED,
+  STARTER_PLAN_NAME,
 } from "~/lib/billing-constants";
 import { fetchShopInfo, notifySwipeone } from "~/lib/swipeone.server";
 import { couponToDiscount, findCoupon } from "~/lib/coupons.server";
@@ -53,6 +54,8 @@ import {
 } from "~/lib/launch-offer";
 import { MAX_MODEL_FILE_SIZE_MB } from "~/lib/files";
 import { adminAppUrl, BILLING_TEST_MODE } from "~/lib/app-config";
+import { useLocale, useT, type TFunction } from "~/i18n";
+import { getServerT } from "~/i18n/i18n.server";
 
 import { BackButton } from "~/components/BackButton";
 import { ConfirmModal } from "~/components/polaris/ConfirmModal";
@@ -205,13 +208,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
   const user = await getOrCreateUser(shop);
+  const t = getServerT(request, "pricing");
 
   // Checked before a plan is chosen, so the merchant sees what a code is worth
   // rather than discovering it on Shopify's approval screen.
   if (intent === "validate_coupon") {
     const coupon = findCoupon(String(form.get("coupon") ?? ""));
     if (!coupon) {
-      return { ok: false, error: "That coupon code isn't valid." };
+      return { ok: false, error: t("couponInvalid") };
     }
     return {
       ok: true,
@@ -252,7 +256,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // not a discount, so an invented code buys nothing.
     const coupon = findCoupon(String(form.get("coupon") ?? ""));
     const plan = await getPlanById(planId);
-    if (!plan) return { ok: false, error: "Plan not found" };
+    if (!plan) return { ok: false, error: t("planNotFound") };
 
     /*
      * The launch discount, applied without anyone entering a code.
@@ -380,7 +384,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       live?.id ||
       (user.chargeId ? `gid://shopify/AppSubscription/${user.chargeId}` : "");
     if (!subscriptionGid) {
-      return { ok: false, error: "No active subscription" };
+      return { ok: false, error: t("noActiveSubscription") };
     }
     // The numeric half, for the local Charge rows, which are keyed by it.
     const chargeId = subscriptionGid.split("/").pop() ?? "";
@@ -429,7 +433,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true, cancelled: true };
   }
 
-  return { ok: false, error: "Unknown intent" };
+  return { ok: false, error: t("unknownIntent") };
 };
 
 /**
@@ -457,48 +461,94 @@ const SHOW_BILLING_OPTIONS = false;
 const INCLUDED_FEATURES: { icon: string; title: string; body: string }[] = [
   {
     icon: "three-d-environment",
-    title: "GLB & glTF models",
-    body: `Upload up to ${MAX_MODEL_FILE_SIZE_MB} MB per file, served from Shopify's CDN.`,
+    title: "featureModelsTitle",
+    body: "featureModelsBody",
   },
   {
     icon: "mobile",
-    title: "Augmented reality",
-    body: "Quick Look on iOS, Scene Viewer on Android, WebXR in the browser — no app to install.",
+    title: "featureArTitle",
+    body: "featureArBody",
   },
   {
     icon: "layout-section",
-    title: "Theme app blocks",
-    body: "Drop a viewer onto product templates or any page, plus an iframe snippet for everywhere else.",
+    title: "featureBlocksTitle",
+    body: "featureBlocksBody",
   },
   {
     icon: "adjust",
-    title: "Full viewer control",
-    body: "Camera angle, field of view, zoom, auto-rotate, drag and scroll behaviour, control bar buttons.",
+    title: "featureControlTitle",
+    body: "featureControlBody",
   },
   {
     icon: "sun",
-    title: "Studio lighting",
-    body: "HDR skybox and environment maps, exposure, tone mapping and contact shadows.",
+    title: "featureLightingTitle",
+    body: "featureLightingBody",
   },
   {
     icon: "play",
-    title: "Animation playback",
-    body: "Play embedded clips with a switcher and loop, play-once or off repeat modes.",
+    title: "featureAnimationTitle",
+    body: "featureAnimationBody",
   },
   {
     icon: "color",
-    title: "Material variants",
-    body: "Show a specific glTF material variant, so one file can cover a colourway.",
+    title: "featureVariantsTitle",
+    body: "featureVariantsBody",
   },
   {
     icon: "maximize",
-    title: "Live admin preview",
-    body: "Every setting renders in the same viewer your customers see before you save.",
+    title: "featurePreviewTitle",
+    body: "featurePreviewBody",
   },
 ];
 
-function formatPrice(p: PlanRow) {
-  if (Number(p.price) <= 0) return "Free";
+/*
+ * Plan names, descriptions and feature rows come from the Plan table in
+ * English (seeded in lib/billing.server.ts, and the title is also the name of
+ * the Shopify charge), so they are translated here at render time. A known
+ * plan or row maps to a message; anything else is shown as stored.
+ */
+const PLAN_KEYS: Record<string, string> = {
+  [FREE_PLAN_NAME]: "planFree",
+  [STARTER_PLAN_NAME]: "planStarter",
+  [GROWTH_PLAN_NAME]: "planGrowth",
+  [ADVANCE_PLAN_NAME]: "planAdvance",
+};
+
+const FEATURE_ROWS: [RegExp, string][] = [
+  [/^Unlimited products with a 3D model$/, "featureProductsUnlimited"],
+  [/^(\d+) products? with a 3D model$/, "featureProducts"],
+  [/^Unlimited models in your library$/, "featureModelsUnlimited"],
+  [/^(\d+) models? in your library$/, "featureModels"],
+  [/^1 model per product$/, "featureOneModelPerProduct"],
+  [/^Every viewer feature included$/, "featureEverything"],
+  [/^Standard email support$/, "featureStandardSupport"],
+  [/^Priority email support$/, "featurePrioritySupport"],
+  [/^Premium priority support$/, "featurePremiumSupport"],
+];
+
+function planTitle(tb: TFunction, plan: { name: string; title: string }) {
+  const key = PLAN_KEYS[plan.name];
+  return key ? tb(key) : plan.title;
+}
+
+function planDescription(
+  tb: TFunction,
+  plan: { name: string; description: string | null },
+) {
+  const key = PLAN_KEYS[plan.name];
+  return key && plan.description ? tb(`${key}Description`) : plan.description;
+}
+
+function planFeature(tb: TFunction, feature: string) {
+  for (const [re, key] of FEATURE_ROWS) {
+    const m = re.exec(feature);
+    if (m) return m[1] ? tb(key, { count: Number(m[1]) }) : tb(key);
+  }
+  return feature;
+}
+
+function formatPrice(p: PlanRow, free: string) {
+  if (Number(p.price) <= 0) return free;
   return `$${formatMoney(p.price)}`;
 }
 
@@ -510,6 +560,21 @@ export default function Pricing() {
   const submit = useSubmit();
   const shopify = useAppBridge();
   const submitting = navigation.state === "submitting";
+  const t = useT("pricing");
+  const tb = useT("billing");
+  const tc = useT("common");
+  const locale = useLocale();
+  // Unlimited is stored as a large number; see formatLimit.
+  const limitText = (limit: number) =>
+    isUnlimited(limit) ? tb("unlimited") : formatLimit(limit);
+  const productsText = (limit: number) =>
+    isUnlimited(limit)
+      ? tb("unlimitedProducts")
+      : tb("productCount", { count: limit });
+  const modelsText = (limit: number) =>
+    isUnlimited(limit)
+      ? tb("unlimitedModels")
+      : tb("modelCount", { count: limit });
 
   useEffect(() => {
     if (actionData?.ok && (actionData as any).confirmationUrl) {
@@ -522,7 +587,7 @@ export default function Pricing() {
         }
       }
     } else if (actionData?.ok && (actionData as any).cancelled) {
-      shopify.toast.show("Subscription cancelled");
+      shopify.toast.show(t("subscriptionCancelled"));
     } else if (actionData && !actionData.ok && actionData.error) {
       shopify.toast.show(actionData.error, { isError: true });
     }
@@ -540,7 +605,7 @@ export default function Pricing() {
       ) as OverlayElement | null;
       dialog?.hideOverlay?.();
     }
-  }, [actionData, shopify]);
+  }, [actionData, shopify, t]);
 
   /*
    * Which plan's button was pressed.
@@ -590,11 +655,21 @@ export default function Pricing() {
    * If these two disagreed, the card would quote a price the charge did not
    * honour.
    */
+  // LAUNCH_OFFER.endsLabel, in the merchant's language. endsAt is UTC midnight
+  // on the closing day, so it is formatted in UTC to name that same day.
+  const offerEnds = new Intl.DateTimeFormat(locale, {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(LAUNCH_OFFER.endsAt);
   const launchDiscount =
     offerActive && !yearly
       ? {
           code: LAUNCH_OFFER.code,
-          description: `${LAUNCH_OFFER_PERCENT_LABEL} off your first ${LAUNCH_OFFER.months} months on any paid plan. Applied automatically, with no code needed, when you subscribe before ${LAUNCH_OFFER.endsLabel}.`,
+          description: t("launchOfferDescription", {
+            percent: LAUNCH_OFFER_PERCENT_LABEL,
+            count: LAUNCH_OFFER.months,
+            date: offerEnds,
+          }),
           percentage: LAUNCH_OFFER.percentOff,
           durationLimitInIntervals: LAUNCH_OFFER.months,
         }
@@ -629,9 +704,9 @@ export default function Pricing() {
       setCouponOpen(false);
     } else {
       setCoupon(null);
-      setCouponError(data.error ?? "That coupon code isn't valid.");
+      setCouponError(data.error ?? t("couponInvalid"));
     }
-  }, [couponCheck.data]);
+  }, [couponCheck.data, t]);
 
   function applyCoupon() {
     const fd = new FormData();
@@ -662,11 +737,17 @@ export default function Pricing() {
     null;
   const currentDescription = currentPlan
     ? currentPlanName === ADVANCE_PLAN_NAME
-      ? "You're on the Advance plan — unlimited products and 3D models, one model per product."
-      : `You're on the ${currentPlan.title} plan: up to ${formatLimit(currentPlan.productLimit)} products and ${formatLimit(currentPlan.modelLimit)} 3D models, one model per product.` +
-        (currentPlanName === FREE_PLAN_NAME
-          ? " Upgrade to lift the limit."
-          : "")
+      ? t("currentAdvance", { plan: planTitle(tb, currentPlan) })
+      : t(
+          currentPlanName === FREE_PLAN_NAME
+            ? "currentLimitsFree"
+            : "currentLimits",
+          {
+            plan: planTitle(tb, currentPlan),
+            products: limitText(currentPlan.productLimit),
+            models: limitText(currentPlan.modelLimit),
+          },
+        )
     : "";
 
   const subscriptionActive = subscription?.status === "active";
@@ -680,8 +761,8 @@ export default function Pricing() {
   const currentPrice = Number(currentPlan?.price ?? 0);
 
   return (
-    <s-page heading="Pricing">
-      <BackButton to="/app" label="Dashboard" />
+    <s-page heading={t("heading")}>
+      <BackButton to="/app" label={t("dashboard")} />
       <SupportAction />
 
       {/*
@@ -691,12 +772,12 @@ export default function Pricing() {
         able to read it twice or quote it to support.
       */}
       {actionData && !actionData.ok && actionData.error ? (
-        <s-banner tone="critical" heading="Couldn’t change your plan">
+        <s-banner tone="critical" heading={t("changeFailed")}>
           <s-paragraph>{actionData.error}</s-paragraph>
         </s-banner>
       ) : null}
 
-      <s-section heading="Your current plan">
+      <s-section heading={t("currentPlanHeading")}>
         <s-stack direction="block" gap="base">
           <s-paragraph>{currentDescription}</s-paragraph>
 
@@ -715,7 +796,10 @@ export default function Pricing() {
                   : "neutral"
               }
             >
-              {`${usage.products} of ${formatLimit(currentPlan?.productLimit ?? 0)} products in use`}
+              {t("productsInUse", {
+                used: usage.products,
+                limit: limitText(currentPlan?.productLimit ?? 0),
+              })}
             </s-badge>
             <s-badge
               tone={
@@ -726,7 +810,10 @@ export default function Pricing() {
                   : "neutral"
               }
             >
-              {`${usage.models} of ${formatLimit(currentPlan?.modelLimit ?? 0)} models in use`}
+              {t("modelsInUse", {
+                used: usage.models,
+                limit: limitText(currentPlan?.modelLimit ?? 0),
+              })}
             </s-badge>
           </s-stack>
 
@@ -745,7 +832,7 @@ export default function Pricing() {
           {subscriptionActive ? (
             <s-stack direction="block" gap="small-500">
               <s-text color="subdued">
-                You keep access until the end of the current billing period.
+                {t("keepAccess")}
               </s-text>
               <s-stack direction="inline" gap="small">
                 <s-button
@@ -755,7 +842,7 @@ export default function Pricing() {
                   commandFor="cancel-subscription"
                   command="--show"
                 >
-                  Cancel subscription
+                  {t("cancelSubscription")}
                 </s-button>
               </s-stack>
             </s-stack>
@@ -766,9 +853,11 @@ export default function Pricing() {
       <ConfirmModal
         id="confirm-downgrade"
         open={downgradeTo !== null}
-        heading={`Switch to ${downgradeTo?.title ?? ""}?`}
-        confirmLabel="Switch anyway"
-        cancelLabel="Keep my plan"
+        heading={t("downgradeHeading", {
+          plan: downgradeTo ? planTitle(tb, downgradeTo) : "",
+        })}
+        confirmLabel={t("switchAnyway")}
+        cancelLabel={t("keepMyPlan")}
         loading={submitting}
         onConfirm={() => {
           if (downgradeTo) startSubscription(downgradeTo.id);
@@ -777,27 +866,24 @@ export default function Pricing() {
         onCancel={() => setDowngradeTo(null)}
       >
         <s-paragraph>
-          You’re publishing {usage.products} product
-          {usage.products === 1 ? "" : "s"} and {usage.models} model
-          {usage.models === 1 ? "" : "s"}. {downgradeTo?.title} allows{" "}
-          {formatLimit(downgradeTo?.productLimit ?? 0)} products and{" "}
-          {formatLimit(downgradeTo?.modelLimit ?? 0)} models.
+          {t("downgradeUsage", {
+            products: tb("productCount", { count: usage.products }),
+            models: tb("modelCount", { count: usage.models }),
+            plan: downgradeTo ? planTitle(tb, downgradeTo) : "",
+            productLimit: productsText(downgradeTo?.productLimit ?? 0),
+            modelLimit: modelsText(downgradeTo?.modelLimit ?? 0),
+          })}
         </s-paragraph>
-        <s-paragraph>
-          Anything over the new limit stays in your library, but stops rendering
-          on your storefront until you remove enough to fit or move back up.
-        </s-paragraph>
+        <s-paragraph>{t("downgradeOverLimit")}</s-paragraph>
       </ConfirmModal>
 
       <s-modal
         id="cancel-subscription"
-        heading="Cancel subscription?"
-        accessibilityLabel="Cancel subscription?"
+        heading={t("cancelHeading")}
+        accessibilityLabel={t("cancelHeading")}
       >
         <s-paragraph>
-          Your store drops to the {FREE_PLAN_NAME} plan at the end of the
-          current billing period. Models and products over the free limit stay
-          in your library but stop rendering on your storefront.
+          {t("cancelBody", { plan: tb("planFree") })}
         </s-paragraph>
         {/*
           ModalAction, not a bare s-button with onClick: s-modal lifts its
@@ -811,14 +897,14 @@ export default function Pricing() {
           loading={submitting}
           onClick={cancelSubscription}
         >
-          Cancel subscription
+          {t("cancelSubscription")}
         </ModalAction>
         <s-button
           slot="secondary-actions"
           commandFor="cancel-subscription"
           command="--hide"
         >
-          Keep my plan
+          {t("keepMyPlan")}
         </s-button>
       </s-modal>
 
@@ -859,7 +945,7 @@ export default function Pricing() {
             inlineSize="100%"
           >
             <s-switch
-              label={`Pay yearly — ${12 - ANNUAL_MONTHS_CHARGED} months free`}
+              label={t("payYearly", { count: 12 - ANNUAL_MONTHS_CHARGED })}
               checked={flag(yearly)}
               onInput={(e) => setYearly(fieldChecked(e))}
             />
@@ -904,8 +990,8 @@ export default function Pricing() {
                     inlineSize="100%"
                   >
                     <s-text-field
-                      label="Coupon code"
-                      placeholder="Enter a code"
+                      label={t("couponLabel")}
+                      placeholder={t("couponPlaceholder")}
                       value={couponInput}
                       error={couponError ?? undefined}
                       onInput={(e) => {
@@ -919,11 +1005,11 @@ export default function Pricing() {
                       disabled={flag(!couponInput.trim())}
                       onClick={applyCoupon}
                     >
-                      Apply
+                      {t("apply")}
                     </s-button>
                     <s-button
                       variant="tertiary"
-                      accessibilityLabel="Cancel entering a coupon code"
+                      accessibilityLabel={t("couponDismiss")}
                       icon="x"
                       onClick={() => {
                         setCouponOpen(false);
@@ -940,7 +1026,7 @@ export default function Pricing() {
                   variant="tertiary"
                   onClick={() => setCouponOpen(true)}
                 >
-                  Have a coupon code?
+                  {t("haveCoupon")}
                 </s-button>
               </div>
             )}
@@ -961,8 +1047,11 @@ export default function Pricing() {
           tone="success"
           heading={
             showingLaunchOffer
-              ? `Launch offer — ${LAUNCH_OFFER_PERCENT_LABEL} off, ends ${LAUNCH_OFFER.endsLabel}`
-              : `Coupon ${appliedDiscount.code} applied`
+              ? t("launchOfferHeading", {
+                  percent: LAUNCH_OFFER_PERCENT_LABEL,
+                  date: offerEnds,
+                })
+              : t("couponApplied", { code: appliedDiscount.code })
           }
         >
           <s-paragraph>{appliedDiscount.description}</s-paragraph>
@@ -975,7 +1064,7 @@ export default function Pricing() {
                 setCouponError(null);
               }}
             >
-              Remove
+              {tc("remove")}
             </s-button>
           )}
         </s-banner>
@@ -1006,10 +1095,10 @@ export default function Pricing() {
           // Says what the button does, rather than assuming every move is up.
           const changeLabel =
             price > currentPrice
-              ? "Upgrade"
+              ? tc("upgrade")
               : price < currentPrice
-                ? "Downgrade"
-                : "Switch to this plan";
+                ? t("downgrade")
+                : t("switchToPlan");
 
           /*
            * What this plan costs, before and after any coupon.
@@ -1040,9 +1129,9 @@ export default function Pricing() {
            * what to buy.
            */
           const badgeLabel = isActive
-            ? "Current"
+            ? t("badgeCurrent")
             : isPopular
-              ? "Recommended"
+              ? tb("recommended")
               : null;
           const badgeTone = isActive ? "success" : "info";
 
@@ -1066,14 +1155,14 @@ export default function Pricing() {
            */
           const includes = [
             ...(trialDays > 0 && !isActive
-              ? [`${trialDays}-day free trial`]
+              ? [tb("trialDays", { count: trialDays })]
               : []),
             ...(plan.features.length > 0
-              ? plan.features
+              ? plan.features.map((f) => planFeature(tb, f))
               : [
-                  `${formatLimit(plan.productLimit)} products`,
-                  `${formatLimit(plan.modelLimit)} 3D models`,
-                  "One model per product",
+                  productsText(plan.productLimit),
+                  modelsText(plan.modelLimit),
+                  tb("featureOneModelPerProduct"),
                 ]),
           ];
 
@@ -1160,7 +1249,7 @@ export default function Pricing() {
                       alignItems="baseline"
                       inlineSize="100%"
                     >
-                      <s-heading>{plan.title}</s-heading>
+                      <s-heading>{planTitle(tb, plan)}</s-heading>
                       <s-stack
                         direction="inline"
                         gap="small-500"
@@ -1200,11 +1289,11 @@ export default function Pricing() {
                         >
                           {isPaid
                             ? `$${formatMoney(payPrice)}`
-                            : formatPrice(plan)}
+                            : formatPrice(plan, tb("free"))}
                         </span>
                         {isPaid ? (
                           <s-text color="subdued">
-                            {yearly ? "/yr" : "/mo"}
+                            {yearly ? t("perYear") : t("perMonth")}
                           </s-text>
                         ) : null}
                       </s-stack>
@@ -1216,12 +1305,16 @@ export default function Pricing() {
                     render — an empty stack would still occupy a row's gap.
                   */}
                     {plan.description ? (
-                      <s-text color="subdued">{plan.description}</s-text>
+                      <s-text color="subdued">
+                        {planDescription(tb, plan)}
+                      </s-text>
                     ) : null}
 
                     {isPaid && yearly ? (
                       <s-text color="subdued">
-                        {`Works out at $${formatMoney(payPrice / 12)} a month`}
+                        {t("worksOutAt", {
+                          price: `$${formatMoney(payPrice / 12)}`,
+                        })}
                       </s-text>
                     ) : null}
                     {/*
@@ -1231,14 +1324,18 @@ export default function Pricing() {
                   */}
                     {discounted && appliedDiscount?.durationLimitInIntervals ? (
                       <s-text color="subdued">
-                        {`For the first ${appliedDiscount.durationLimitInIntervals} ${
-                          yearly ? "years" : "months"
-                        }, then $${formatMoney(listPrice)}`}
+                        {t(
+                          yearly ? "discountForYears" : "discountForMonths",
+                          {
+                            count: appliedDiscount.durationLimitInIntervals,
+                            price: `$${formatMoney(listPrice)}`,
+                          },
+                        )}
                       </s-text>
                     ) : null}
                     {tooSmall && !isActive ? (
                       <s-text tone="warning">
-                        Below what you’re publishing today
+                        {t("belowUsage")}
                       </s-text>
                     ) : null}
                   </s-stack>
@@ -1273,11 +1370,11 @@ export default function Pricing() {
                         disabled={flag(submitting && pendingPlanId !== plan.id)}
                         onClick={() => startSubscription(plan.id)}
                       >
-                        Apply discount
+                        {t("applyDiscount")}
                       </s-button>
                     ) : (
                       <s-button {...BUTTON_FILL} disabled={flag(true)}>
-                        Current plan
+                        {t("currentPlanButton")}
                       </s-button>
                     )
                   ) : isPaid ? (
@@ -1310,7 +1407,7 @@ export default function Pricing() {
                       commandFor="cancel-subscription"
                       command="--show"
                     >
-                      Downgrade to Free
+                      {t("downgradeTo", { plan: tb("planFree") })}
                     </s-button>
                   )}
 
@@ -1337,11 +1434,8 @@ export default function Pricing() {
       </div>
 
       <div style={{ margin: "20px 0" }}>
-        <s-section heading="Every plan includes every feature">
-          <s-paragraph color="subdued">
-            Plans differ only in how many products and models you can publish —
-            nothing below is locked behind a tier, not even on Free.
-          </s-paragraph>
+        <s-section heading={t("includedHeading")}>
+          <s-paragraph color="subdued">{t("includedBody")}</s-paragraph>
 
           <s-grid
             gridTemplateColumns="repeat(auto-fit, minmax(min(100%, 240px), 1fr))"
@@ -1356,8 +1450,10 @@ export default function Pricing() {
               >
                 <s-icon type={f.icon as any} tone="info" />
                 <s-stack direction="block" gap="small-500">
-                  <s-text type="strong">{f.title}</s-text>
-                  <s-text color="subdued">{f.body}</s-text>
+                  <s-text type="strong">{t(f.title)}</s-text>
+                  <s-text color="subdued">
+                    {t(f.body, { size: MAX_MODEL_FILE_SIZE_MB })}
+                  </s-text>
                 </s-stack>
               </s-stack>
             ))}

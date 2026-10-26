@@ -2,7 +2,7 @@ import prisma from "../db.server";
 import { countDistinctModels, getAssignedModelGids, getPlanLimitForShop } from "./billing.server";
 import { formatLimit } from "./billing-constants";
 import { stagedUploadAndCreate } from "./files.server";
-import { finalSizeError, validateModelFile } from "./files";
+import { englishFiles, finalSizeError, validateModelFile, type FilesT } from "./files";
 import { syncModelLibrary } from "./model-library.server";
 import { optimizeModelFile } from "./optimize-model.server";
 
@@ -16,6 +16,8 @@ import { optimizeModelFile } from "./optimize-model.server";
 export async function modelQuotaError(
   admin: any,
   shop: string,
+  t: FilesT = englishFiles,
+  unlimited = "Unlimited",
 ): Promise<string | null> {
   const [planInfo, libraryGids, assignedModels] = await Promise.all([
     getPlanLimitForShop(shop),
@@ -27,7 +29,10 @@ export async function modelQuotaError(
     assignedModels.gids,
   );
   if (totalInUse < planInfo.modelLimit) return null;
-  return `You've reached your ${planInfo.planName} plan limit of ${formatLimit(planInfo.modelLimit)} 3D models. Upgrade your plan to add more.`;
+  return t("quota", {
+    plan: planInfo.planName,
+    limit: formatLimit(planInfo.modelLimit, unlimited),
+  });
 }
 
 export type ModelUploadResult =
@@ -52,18 +57,19 @@ export async function uploadModelToLibrary(
   file: File | null,
   name?: string | null,
   optimize = true,
+  t: FilesT = englishFiles,
 ): Promise<ModelUploadResult> {
   if (!file || file.size === 0) {
-    return { ok: false, error: "Please choose a .glb or .gltf file" };
+    return { ok: false, error: t("chooseFile") };
   }
-  const fileError = validateModelFile(file, optimize);
+  const fileError = validateModelFile(file, optimize, t);
   if (fileError) return { ok: false, error: fileError };
 
   const optimized = optimize
     ? (await optimizeModelFile(file)).file
     : file;
   // The size limit is on what gets stored, so it is judged after compression.
-  const sizeError = finalSizeError(optimized.size, file.size);
+  const sizeError = finalSizeError(optimized.size, file.size, t);
   if (sizeError) return { ok: false, error: sizeError };
 
   const result = await stagedUploadAndCreate(

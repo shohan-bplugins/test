@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "Somente arquivos .glb ou .gltf são compatíveis",
+  "chooseFile": "Escolha um arquivo .glb ou .gltf",
+  "tooBigRaw": "O arquivo tem {size}. Máximo de {max} MB antes da otimização.",
+  "tooBig": "O arquivo tem {size}. O tamanho máximo aceito é {max} MB — ative “Otimizar para carregamento mais rápido” para enviar arquivos maiores.",
+  "stillTooBig": "Ainda com {size} após a otimização (antes {original}). Máximo de {max} MB.",
+  "cantShrink": "O arquivo tem {size} e não foi possível reduzi-lo mais. Máximo de {max} MB.",
+  "saving": "Otimizado: {from} → {to} ({pct}% menor)",
+  "quota": "Você atingiu o limite de {limit} modelos 3D do plano {plan}. Faça upgrade do plano para adicionar mais.",
+  "fileGone": "O arquivo não está mais disponível. Adicione-o novamente.",
+  "uploadFailed": "Falha no envio"
+}

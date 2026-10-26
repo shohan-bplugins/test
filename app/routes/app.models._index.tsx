@@ -36,17 +36,16 @@ import {
   needsOptimizationToFit,
   validateModelFile,
 } from "~/lib/files";
-import {
-  OPTIMIZE_DETAILS,
-  useOptimizePreference,
-} from "~/components/useOptimizePreference";
+import { useOptimizePreference } from "~/components/useOptimizePreference";
 import { buildEmbedSnippet } from "~/lib/embed";
 import {
   countDistinctModels,
   getAssignedModelGidsCached,
   getPlanLimitForShop,
 } from "~/lib/billing.server";
-import { formatLimit } from "~/lib/billing-constants";
+import { isUnlimited } from "~/lib/billing-constants";
+import { useT } from "~/i18n";
+import { getServerT, resolveAdminLocale } from "~/i18n/i18n.server";
 
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
@@ -78,10 +77,11 @@ import {
 // theme block can't reach.
 type CopyKind = "id" | "url" | "embed";
 
-const COPY_LABELS: Record<CopyKind, string> = {
-  id: "Model ID",
-  url: "File URL",
-  embed: "Embed code",
+// Message keys (models namespace) for the toast after each kind of copy.
+const COPY_LABELS: Record<CopyKind, { copied: string; failed: string }> = {
+  id: { copied: "copiedId", failed: "copyFailedId" },
+  url: { copied: "copiedUrl", failed: "copyFailedUrl" },
+  embed: { copied: "copiedEmbed", failed: "copyFailedEmbed" },
 };
 
 /**
@@ -94,11 +94,11 @@ const UPLOAD_STATUS: Record<
   UploadItem["status"],
   { label: string; tone: "neutral" | "info" | "success" | "critical" }
 > = {
-  queued: { label: "Waiting", tone: "neutral" },
-  uploading: { label: "Uploading", tone: "info" },
-  processing: { label: "Processing", tone: "info" },
-  done: { label: "Added", tone: "success" },
-  error: { label: "Failed", tone: "critical" },
+  queued: { label: "statusQueued", tone: "neutral" },
+  uploading: { label: "statusUploading", tone: "info" },
+  processing: { label: "statusProcessing", tone: "info" },
+  done: { label: "statusDone", tone: "success" },
+  error: { label: "statusError", tone: "critical" },
 };
 
 type ModelRow = {
@@ -148,6 +148,7 @@ export const loader = async ({
     getPlanLimitForShop(shop),
     getAssignedModelGidsCached(admin, shop),
   ]);
+  const locale = resolveAdminLocale(request);
   const distinctModelsUsed = countDistinctModels(
     models.map((m) => m.fileGid),
     assignedModels.gids,
@@ -228,7 +229,7 @@ export const loader = async ({
       fileUrl: m.fileUrl,
       fileSize: m.fileSize ?? null,
       createdAt: m.createdAt.toISOString(),
-      createdAtLabel: formatDateTime(m.createdAt),
+      createdAtLabel: formatDateTime(m.createdAt, locale),
     })),
     totalCount: models.length,
     planName: planInfo.planName,
@@ -245,13 +246,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session?.shop ?? "";
   const formData = await request.formData();
   const intent = String(formData.get("intent") ?? "");
+  const t = getServerT(request, "models");
+  const tf = getServerT(request, "files");
+  const unlimited = getServerT(request, "common")("unlimited");
 
   if (intent === "delete") {
     const id = String(formData.get("id") ?? "");
-    if (!id) return { ok: false, error: "Missing model id" };
+    if (!id) return { ok: false, error: t("missingId") };
     await prisma.model3D.delete({ where: { id } });
     await syncModelLibrary(admin, shop);
-    return { ok: true, message: "Model deleted from library" };
+    return { ok: true, message: t("deleted") };
   }
 
   if (intent === "bulk_delete") {
@@ -261,7 +265,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .map((s) => s.trim())
       .filter(Boolean);
     if (ids.length === 0) {
-      return { ok: false, error: "Nothing selected" };
+      return { ok: false, error: t("nothingSelected") };
     }
     const result = await prisma.model3D.deleteMany({
       where: { shop, id: { in: ids } },
@@ -269,24 +273,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await syncModelLibrary(admin, shop);
     return {
       ok: true,
-      message: `${result.count} model${result.count === 1 ? "" : "s"} deleted`,
+      message: t("bulkDeleted", { count: result.count }),
     };
   }
 
-  const quotaError = await modelQuotaError(admin, shop);
+  const quotaError = await modelQuotaError(admin, shop, tf, unlimited);
   if (quotaError) return { ok: false, error: quotaError };
 
   if (intent === "assign_existing") {
     const fileGid = String(formData.get("fileGid") ?? "");
     const name = String(formData.get("name") ?? "").trim();
     if (!fileGid.startsWith("gid://shopify/")) {
-      return { ok: false, error: "Invalid file id" };
+      return { ok: false, error: t("invalidFileId") };
     }
     // resolveFile, not resolveFileUrl: this path stored no size at all, so
     // every model imported from Shopify Files showed a dash in the Size column
     // while uploaded ones showed a real figure.
     const resolved = await resolveFile(admin, fileGid);
-    if (!resolved) return { ok: false, error: "Could not resolve file URL" };
+    if (!resolved) return { ok: false, error: t("unresolvedFile") };
     const { url: fileUrl, size: fileSize } = resolved;
     const finalName =
       name ||
@@ -295,7 +299,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       data: { shop, name: finalName, fileGid, fileUrl, fileSize },
     });
     await syncModelLibrary(admin, shop);
-    return { ok: true, message: "Model added to library", id: created.id };
+    return { ok: true, message: t("added"), id: created.id };
   }
 
   // Uploads go through /api/models/upload, one request per file, so this route
@@ -305,9 +309,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     shop,
     formData.get("file") as File | null,
     formData.get("name") as string | null,
+    true,
+    tf,
   );
   if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, message: "Model uploaded to library", id: result.id };
+  return { ok: true, message: t("uploaded"), id: result.id };
 };
 
 function formatBytes(n: number | null) {
@@ -331,9 +337,9 @@ function formatBytes(n: number | null) {
  * That is the same choice the dashboard's month labels already make, for the
  * same reason, and it is at least consistent between the two.
  */
-function formatDateTime(value: Date) {
+function formatDateTime(value: Date, locale?: string) {
   try {
-    return value.toLocaleString(undefined, {
+    return value.toLocaleString(locale, {
       dateStyle: "medium",
       timeStyle: "short",
     });
@@ -371,6 +377,9 @@ export default function ModelsIndex() {
     appOrigin,
     shop,
   } = useLoaderData<typeof loader>();
+  const t = useT("models");
+  const tc = useT("common");
+  const tf = useT("files");
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -423,15 +432,16 @@ export default function ModelsIndex() {
 
   useEffect(() => {
     if (actionData?.ok) {
-      shopify.toast.show(actionData.message ?? "Done");
+      shopify.toast.show(actionData.message ?? tc("done"));
       setSelected(new Set());
     } else if (actionData?.error) {
       shopify.toast.show(actionData.error, { isError: true });
     }
-  }, [actionData, shopify]);
+  }, [actionData, shopify, tc]);
 
   const totalInUse = distinctModelsUsed;
   const limitReached = totalInUse >= planLimit;
+  const limitLabel = isUnlimited(planLimit) ? t("unlimited") : String(planLimit);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -467,7 +477,7 @@ export default function ModelsIndex() {
    */
   const [staged, setStaged] = useState<{ key: string; file: File }[]>([]);
   const [optimize, setOptimize] = useOptimizePreference();
-  const limitMessage = `Over your ${planName} plan limit of ${formatLimit(planLimit)} models.`;
+  const limitMessage = t("overLimit", { plan: planName, limit: limitLabel });
   // Room left on the plan, net of files already queued or uploading.
   const room =
     planLimit -
@@ -481,13 +491,13 @@ export default function ModelsIndex() {
   const stagedRows = useMemo(() => {
     let left = room;
     return staged.map((s) => {
-      const fileError = validateModelFile(s.file, optimize);
+      const fileError = validateModelFile(s.file, optimize, tf);
       if (fileError) return { ...s, error: fileError };
       if (left <= 0) return { ...s, error: limitMessage };
       left--;
       return { ...s, error: null };
     });
-  }, [staged, room, limitMessage, optimize]);
+  }, [staged, room, limitMessage, optimize, tf]);
   const stagedErrors = stagedRows.filter((r) => r.error).length;
   const stagedBlocked = stagedRows.length === 0 || stagedErrors > 0;
 
@@ -509,7 +519,7 @@ export default function ModelsIndex() {
     if (
       staged.length === 0 &&
       files.length === 1 &&
-      !validateModelFile(files[0], optimize) &&
+      !validateModelFile(files[0], optimize, tf) &&
       room > 0
     ) {
       enqueueUploads(
@@ -518,6 +528,7 @@ export default function ModelsIndex() {
         planLimit - totalInUse,
         limitMessage,
         optimize,
+        tf,
       );
       return;
     }
@@ -535,6 +546,7 @@ export default function ModelsIndex() {
       planLimit - totalInUse,
       limitMessage,
       optimize,
+      tf,
     );
     setStaged([]);
   }
@@ -564,9 +576,9 @@ export default function ModelsIndex() {
     setCopying({ id, kind });
     try {
       await navigator.clipboard.writeText(value);
-      shopify.toast.show(`${COPY_LABELS[kind]} copied`);
+      shopify.toast.show(t(COPY_LABELS[kind].copied));
     } catch {
-      shopify.toast.show(`Couldn't copy ${COPY_LABELS[kind].toLowerCase()}`, {
+      shopify.toast.show(t(COPY_LABELS[kind].failed), {
         isError: true,
       });
     } finally {
@@ -622,35 +634,35 @@ export default function ModelsIndex() {
         <s-button
           variant="tertiary"
           icon="menu-horizontal"
-          accessibilityLabel={`Actions for ${m.name}`}
+          accessibilityLabel={t("actionsFor", { name: m.name })}
           commandFor={menuId}
           command="--show"
         />
-        <s-menu id={menuId} accessibilityLabel={`Actions for ${m.name}`}>
+        <s-menu id={menuId} accessibilityLabel={t("actionsFor", { name: m.name })}>
           <s-button
             icon={copied("id") ? "check" : "clipboard"}
             onClick={() => handleCopy(m.id, "id", m.id)}
           >
-            Copy model ID
+            {t("copyModelId")}
           </s-button>
           <s-button
             icon={copied("embed") ? "check" : "code"}
             onClick={() => handleCopy(m.id, "embed", embedFor(m.id))}
           >
-            Copy embed code
+            {t("copyEmbedCode")}
           </s-button>
           <s-button
             icon={copied("url") ? "check" : "link"}
             onClick={() => handleCopy(m.id, "url", m.fileUrl)}
           >
-            Copy file URL
+            {t("copyFileUrl")}
           </s-button>
           <s-button
             icon="settings"
             href={`/app/models/${m.id}`}
             onClick={routeTo(`/app/models/${m.id}`)}
           >
-            Customize
+            {t("customize")}
           </s-button>
           {/*
             Two steps, and both are needed.
@@ -672,7 +684,7 @@ export default function ModelsIndex() {
             command="--hide"
             onClick={() => requestAnimationFrame(() => setPendingDelete(m.id))}
           >
-            Delete
+            {tc("delete")}
           </s-button>
         </s-menu>
       </>
@@ -682,8 +694,8 @@ export default function ModelsIndex() {
   const deletingCount = pendingDelete === "bulk" ? selected.size : 1;
 
   return (
-    <s-page heading="3D model library">
-      <BackButton to="/app" label="Dashboard" />
+    <s-page heading={t("heading")}>
+      <BackButton to="/app" label={t("backToDashboard")} />
 
       <s-button
         slot="primary-action"
@@ -691,9 +703,9 @@ export default function ModelsIndex() {
         icon="folder"
         disabled={flag(submitting || limitReached)}
         onClick={() => setPickerOpen(true)}
-        accessibilityLabel="Open file picker to choose a 3D model from Shopify Files"
+        accessibilityLabel={t("chooseFromFilesLabel")}
       >
-        Choose from Files
+        {t("chooseFromFiles")}
       </s-button>
       <SupportAction />
 
@@ -708,46 +720,41 @@ export default function ModelsIndex() {
         id="delete-models"
         open={pendingDelete !== null}
         heading={
-          deletingCount === 1
-            ? "Delete model?"
-            : `Delete ${deletingCount} models?`
+          t("deleteHeading", { count: deletingCount })
         }
-        confirmLabel={deletingCount === 1 ? "Delete model" : "Delete models"}
+        confirmLabel={t("deleteConfirm", { count: deletingCount })}
         loading={submitting}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       >
         <s-paragraph>
-          {deletingCount === 1
-            ? "This removes the model from your library."
-            : `This removes ${deletingCount} models from your library.`}{" "}
-          The .glb file itself stays in Shopify Files, and any page still
-          embedding the model will stop rendering it.
+          {t("deleteBody", { count: deletingCount })}
         </s-paragraph>
       </ConfirmModal>
 
       <s-section>
         <s-stack direction="block" gap="base">
           <s-paragraph color="subdued">
-            Manage standalone 3D models you embed with the “3D Viewer — Any
-            Model” theme block.
+            {t("intro")}
           </s-paragraph>
           <s-stack direction="inline" gap="small" alignItems="center">
-            <s-badge icon="three-d-environment">{`${planName} plan`}</s-badge>
+            <s-badge icon="three-d-environment">
+              {t("planBadge", { plan: planName })}
+            </s-badge>
             <s-badge tone={limitReached ? "critical" : "neutral"}>
-              {`${totalInUse} / ${formatLimit(planLimit)} models`}
+              {t("usageBadge", { used: totalInUse, limit: limitLabel })}
             </s-badge>
           </s-stack>
         </s-stack>
       </s-section>
 
       {limitReached ? (
-        <s-banner tone="warning" heading="Plan limit reached">
+        <s-banner tone="warning" heading={t("limitReachedHeading")}>
           <s-paragraph>
-            {totalCount} model{totalCount === 1 ? "" : "s"} in your library,{" "}
-            {productModelCount} product assignment
-            {productModelCount === 1 ? "" : "s"} (files used in both count
-            once).
+            {t("limitSummary", {
+              models: t("libraryCount", { count: totalCount }),
+              assignments: t("assignmentCount", { count: productModelCount }),
+            })}
           </s-paragraph>
           <s-button
             slot="primary-action"
@@ -755,12 +762,12 @@ export default function ModelsIndex() {
             href="/app/pricing"
             onClick={routeTo("/app/pricing")}
           >
-            Upgrade plan
+            {t("upgradePlan")}
           </s-button>
         </s-banner>
       ) : null}
 
-      <s-section heading="Add a model">
+      <s-section heading={t("addHeading")}>
         {/*
           Polaris's own drop zone, rather than a div with drag handlers. It
           brings the admin's drag-over and rejected-file states with it, and
@@ -777,35 +784,32 @@ export default function ModelsIndex() {
           listing each refused file with its reason before anything is sent.
         */}
         <s-drop-zone
-          label="Drop .glb or .gltf files here, or click to choose"
+          label={t("dropLabel")}
           multiple
           disabled={flag(limitReached || submitting)}
           onInput={handleFiles}
         />
         <s-paragraph color="subdued">
-          Add several at once. Each stored file can be up to{" "}
-          {MAX_MODEL_FILE_SIZE_MB} MB.
+          {t("addHint", { max: MAX_MODEL_FILE_SIZE_MB })}
           {optimize
-            ? ` With optimization on you can upload up to ${MAX_RAW_UPLOAD_MB} MB; the size is checked after compression.`
+            ? ` ${t("addHintOptimize", { max: MAX_RAW_UPLOAD_MB })}`
             : ""}
         </s-paragraph>
         <s-checkbox
-          label="Optimize for faster loading"
-          details={OPTIMIZE_DETAILS}
+          label={t("optimizeLabel")}
+          details={t("optimizeDetails")}
           checked={flag(optimize)}
           onInput={(e) => setOptimize(fieldChecked(e))}
         />
         {stagedRows.length > 0 ? (
           <s-stack direction="block" gap="small">
             <s-text type="strong">
-              {`${stagedRows.length} file${stagedRows.length === 1 ? "" : "s"} ready to upload`}
+              {t("stagedReady", { count: stagedRows.length })}
             </s-text>
             {stagedErrors > 0 ? (
               <s-banner tone="critical">
                 <s-paragraph>
-                  {stagedErrors === 1
-                    ? "1 file can't be added. Remove it to continue."
-                    : `${stagedErrors} files can't be added. Remove them to continue.`}
+                  {t("stagedErrors", { count: stagedErrors })}
                 </s-paragraph>
               </s-banner>
             ) : null}
@@ -829,7 +833,10 @@ export default function ModelsIndex() {
                     ) : (
                       <s-text color="subdued">
                         {needsOptimizationToFit(r.file)
-                          ? `${formatBytes(r.file.size)} · must optimize to ${MAX_MODEL_FILE_SIZE_MB} MB or less`
+                          ? t("mustOptimize", {
+                              size: formatBytes(r.file.size),
+                              max: MAX_MODEL_FILE_SIZE_MB,
+                            })
                           : formatBytes(r.file.size)}
                       </s-text>
                     )}
@@ -838,12 +845,12 @@ export default function ModelsIndex() {
                     variant="tertiary"
                     tone={r.error ? "critical" : undefined}
                     icon="x"
-                    accessibilityLabel={`Remove ${r.file.name}`}
+                    accessibilityLabel={t("removeFile", { name: r.file.name })}
                     onClick={() =>
                       setStaged((prev) => prev.filter((p) => p.key !== r.key))
                     }
                   >
-                    Remove
+                    {tc("remove")}
                   </s-button>
                 </s-stack>
               </s-box>
@@ -855,9 +862,9 @@ export default function ModelsIndex() {
                 disabled={flag(stagedBlocked)}
                 onClick={confirmStaged}
               >
-                {`Upload ${stagedRows.length} file${stagedRows.length === 1 ? "" : "s"}`}
+                {t("uploadFiles", { count: stagedRows.length })}
               </s-button>
-              <s-button onClick={() => setStaged([])}>Cancel</s-button>
+              <s-button onClick={() => setStaged([])}>{tc("cancel")}</s-button>
             </s-stack>
           </s-stack>
         ) : null}
@@ -871,10 +878,16 @@ export default function ModelsIndex() {
             >
               <s-text type="strong">
                 {uploading
-                  ? `Uploading ${uploadsDone + uploadsFailed + 1} of ${uploads.length}…`
+                  ? t("uploadingNofM", {
+                      n: uploadsDone + uploadsFailed + 1,
+                      total: uploads.length,
+                    })
                   : uploadsFailed
-                    ? `${uploadsFailed} file${uploadsFailed === 1 ? "" : "s"} couldn't be added`
-                    : `${uploadsDone} of ${uploads.length} added`}
+                    ? t("uploadsFailed", { count: uploadsFailed })
+                    : t("uploadsAdded", {
+                        n: uploadsDone,
+                        total: uploads.length,
+                      })}
               </s-text>
               <s-button-group>
                 {uploading ? (
@@ -883,7 +896,7 @@ export default function ModelsIndex() {
                     variant="tertiary"
                     onClick={cancelQueuedUploads}
                   >
-                    Cancel remaining
+                    {t("cancelRemaining")}
                   </s-button>
                 ) : null}
                 {!uploading && uploadsRetryable ? (
@@ -892,7 +905,7 @@ export default function ModelsIndex() {
                     variant="tertiary"
                     onClick={retryFailedUploads}
                   >
-                    Retry failed
+                    {t("retryFailed")}
                   </s-button>
                 ) : null}
                 {!uploading ? (
@@ -901,7 +914,7 @@ export default function ModelsIndex() {
                     variant="tertiary"
                     onClick={clearFinishedUploads}
                   >
-                    Clear
+                    {t("clear")}
                   </s-button>
                 ) : null}
               </s-button-group>
@@ -910,7 +923,7 @@ export default function ModelsIndex() {
               <div
                 className="upload-progress"
                 role="progressbar"
-                aria-label="Upload progress"
+                aria-label={t("uploadProgress")}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(uploadProgress * 100)}
@@ -920,9 +933,7 @@ export default function ModelsIndex() {
             ) : null}
             {uploading ? (
               <s-text color="subdued">
-                You can reload or leave this page — uploads continue in the
-                background and pick up where they left off. If you close the
-                app, they resume the next time you open this page.
+                {t("uploadsContinue")}
               </s-text>
             ) : null}
             {uploads.map((u) => (
@@ -943,24 +954,31 @@ export default function ModelsIndex() {
                     <s-text color="subdued">
                       {u.error ??
                         (u.status === "uploading"
-                          ? `${formatBytes(u.loaded ?? 0)} of ${formatBytes(u.size)} · ${Math.round(((u.loaded ?? 0) / Math.max(u.size, 1)) * 100)}%`
+                          ? t("bytesProgress", {
+                              loaded: formatBytes(u.loaded ?? 0),
+                              total: formatBytes(u.size),
+                              percent: Math.round(
+                                ((u.loaded ?? 0) / Math.max(u.size, 1)) * 100,
+                              ),
+                            })
                           : u.status === "processing"
                             ? u.optimize === false
-                              ? "Saving to Shopify Files…"
-                              : "Optimizing and saving to Shopify Files…"
+                              ? t("savingToFiles")
+                              : t("optimizingAndSaving")
                             : u.status === "done" &&
                                 u.originalSize &&
                                 u.uploadedSize
                               ? (describeSaving(
                                   u.originalSize,
                                   u.uploadedSize,
+                                  tf,
                                 ) ?? formatBytes(u.uploadedSize))
                               : formatBytes(u.size))}
                     </s-text>
                   </s-stack>
                   <s-stack direction="inline" gap="small" alignItems="center">
                     <s-badge tone={UPLOAD_STATUS[u.status].tone}>
-                      {UPLOAD_STATUS[u.status].label}
+                      {t(UPLOAD_STATUS[u.status].label)}
                     </s-badge>
                     {/*
                       On every failed row: a file refused for its format, its
@@ -973,10 +991,10 @@ export default function ModelsIndex() {
                         variant="tertiary"
                         tone="critical"
                         icon="x"
-                        accessibilityLabel={`Remove ${u.name}`}
+                        accessibilityLabel={t("removeFile", { name: u.name })}
                         onClick={() => removeUpload(u.key)}
                       >
-                        Remove
+                        {tc("remove")}
                       </s-button>
                     ) : null}
                   </s-stack>
@@ -1008,9 +1026,9 @@ export default function ModelsIndex() {
           */}
           <div className="model-toolbar">
             <s-search-field
-              label="Search models"
+              label={t("searchLabel")}
               labelAccessibilityVisibility="exclusive"
-              placeholder="Search models by name"
+              placeholder={t("searchPlaceholder")}
               value={query}
               onInput={(e) => setQuery(fieldValue(e))}
             />
@@ -1026,26 +1044,26 @@ export default function ModelsIndex() {
               alignItems="end"
             >
               <s-select
-                label="Sort"
+                label={t("sortLabel")}
                 labelAccessibilityVisibility="exclusive"
                 value={sort}
                 onInput={(e) => setSort(fieldValue(e) as SortKey)}
               >
-                <s-option value="newest">Newest first</s-option>
-                <s-option value="oldest">Oldest first</s-option>
-                <s-option value="name">Name (A→Z)</s-option>
-                <s-option value="size">Largest first</s-option>
+                <s-option value="newest">{t("sortNewest")}</s-option>
+                <s-option value="oldest">{t("sortOldest")}</s-option>
+                <s-option value="name">{t("sortName")}</s-option>
+                <s-option value="size">{t("sortSize")}</s-option>
               </s-select>
               <s-button
                 variant={viewMode === "list" ? "secondary" : "tertiary"}
                 icon="list-bulleted"
-                accessibilityLabel="List view"
+                accessibilityLabel={t("listView")}
                 onClick={() => setViewMode("list")}
               />
               <s-button
                 variant={viewMode === "grid" ? "secondary" : "tertiary"}
                 icon="grid"
-                accessibilityLabel="Grid view"
+                accessibilityLabel={t("gridView")}
                 onClick={() => setViewMode("grid")}
               />
             </s-grid>
@@ -1063,7 +1081,7 @@ export default function ModelsIndex() {
                 alignItems="center"
                 justifyContent="space-between"
               >
-                <s-text>{selected.size} selected</s-text>
+                <s-text>{t("selectedCount", { count: selected.size })}</s-text>
                 <s-stack direction="inline" gap="small" alignItems="center">
                   <s-button
                     variant="primary"
@@ -1072,10 +1090,10 @@ export default function ModelsIndex() {
                     disabled={flag(submitting)}
                     onClick={() => setPendingDelete("bulk")}
                   >
-                    Delete selected
+                    {t("deleteSelected")}
                   </s-button>
                   <s-button onClick={() => setSelected(new Set())}>
-                    Clear
+                    {t("clear")}
                   </s-button>
                 </s-stack>
               </s-stack>
@@ -1085,22 +1103,22 @@ export default function ModelsIndex() {
           {totalCount === 0 ? (
             <s-stack direction="block" gap="small" alignItems="center">
               <s-icon type="three-d-environment" color="subdued" />
-              <s-text color="subdued">No models in your library yet.</s-text>
+              <s-text color="subdued">{t("emptyTitle")}</s-text>
               <s-text color="subdued">
-                Drop .glb files above or import an existing one.
+                {t("emptyHint")}
               </s-text>
             </s-stack>
           ) : filtered.length === 0 ? (
             <s-stack direction="block" gap="small" alignItems="center">
               <s-icon type="search" color="subdued" />
-              <s-text color="subdued">No models match “{query}”.</s-text>
+              <s-text color="subdued">{t("noMatches", { query })}</s-text>
             </s-stack>
           ) : viewMode === "list" ? (
             <s-table variant="auto">
               <s-table-header-row>
                 <s-table-header>
                   <s-checkbox
-                    accessibilityLabel="Select all models"
+                    accessibilityLabel={t("selectAll")}
                     checked={flag(allSelected)}
                     onInput={() =>
                       setSelected(
@@ -1111,17 +1129,19 @@ export default function ModelsIndex() {
                     }
                   />
                 </s-table-header>
-                <s-table-header listSlot="primary">Model</s-table-header>
-                <s-table-header format="numeric">Size</s-table-header>
-                <s-table-header>Added</s-table-header>
-                <s-table-header>Actions</s-table-header>
+                <s-table-header listSlot="primary">
+                  {t("colModel")}
+                </s-table-header>
+                <s-table-header format="numeric">{t("colSize")}</s-table-header>
+                <s-table-header>{t("colAdded")}</s-table-header>
+                <s-table-header>{t("colActions")}</s-table-header>
               </s-table-header-row>
               <s-table-body>
                 {filtered.map((m) => (
                   <s-table-row key={m.id}>
                     <s-table-cell>
                       <s-checkbox
-                        accessibilityLabel={`Select ${m.name}`}
+                        accessibilityLabel={t("selectModel", { name: m.name })}
                         checked={flag(selected.has(m.id))}
                         onInput={() => toggleOne(m.id)}
                       />
@@ -1164,7 +1184,7 @@ export default function ModelsIndex() {
                       inlineSize="100%"
                     >
                       <s-checkbox
-                        accessibilityLabel={`Select ${m.name}`}
+                        accessibilityLabel={t("selectModel", { name: m.name })}
                         checked={flag(selected.has(m.id))}
                         onInput={() => toggleOne(m.id)}
                       />

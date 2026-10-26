@@ -35,10 +35,7 @@ import {
   validateModelFile,
 } from "~/lib/files";
 import { optimizeModelFile } from "~/lib/optimize-model.server";
-import {
-  OPTIMIZE_DETAILS,
-  useOptimizePreference,
-} from "~/components/useOptimizePreference";
+import { useOptimizePreference } from "~/components/useOptimizePreference";
 
 import { FilePickerDialog } from "~/components/FilePickerDialog";
 import { ViewerPreview, type ViewerConfig } from "~/components/ViewerPreview";
@@ -53,6 +50,10 @@ import { ConfirmModal } from "~/components/polaris/ConfirmModal";
 import { useReviewPrompt } from "~/components/ReviewPrompt";
 import { evaluateReviewPrompt } from "~/lib/review-prompt.server";
 import { flag, fieldChecked } from "~/components/polaris/helpers";
+import { fetchShopLocales } from "~/lib/shop-locales.server";
+import type { ShopLocale } from "~/lib/shop-locales";
+import { useT } from "~/i18n";
+import { getServerT } from "~/i18n/i18n.server";
 
 // Moved off root's global links: only the routes that mount ViewerPreview need
 // view3d's stylesheet, and it still loads with the route so the canvas is never
@@ -92,6 +93,8 @@ type LoaderData = {
   shopDomain: string | null;
   /** Free plan: the Hotspots panel shows a PRO lock. */
   hotspotsLocked: boolean;
+  /** Published languages, for translating hotspot text. */
+  shopLocales: ShopLocale[];
 };
 
 export const loader = async ({
@@ -103,6 +106,7 @@ export const loader = async ({
 
   // Alongside the product read, never after it: cached, and independent.
   const allowedP = hotspotsAllowed(admin, session?.shop ?? "");
+  const localesP = fetchShopLocales(admin);
   const res = await admin.graphql(
     `#graphql
       query ProductDetail($id: ID!) {
@@ -144,6 +148,7 @@ export const loader = async ({
     config: parseConfig(product?.configField?.value),
     shopDomain,
     hotspotsLocked: !(await allowedP),
+    shopLocales: await localesP,
   };
 };
 
@@ -197,6 +202,9 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   const productGid = `gid://shopify/Product/${params.id}`;
   const formData = await request.formData();
   const intent = formData.get("intent");
+  const t = getServerT(request, "product");
+  const tf = getServerT(request, "files");
+  const unlimited = getServerT(request, "common")("unlimited");
 
   if (intent === "save_config") {
     const rawConfig = String(formData.get("config") ?? "");
@@ -249,7 +257,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
     return {
       ok: true,
-      message: "Viewer settings saved",
+      message: t("settingsSaved"),
       reviewPrompt: await evaluateReviewPrompt(
         admin,
         session?.shop ?? "",
@@ -279,7 +287,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     const errs = delJson?.data?.metafieldsDelete?.userErrors ?? [];
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
-    return { ok: true, message: "Settings reset to defaults" };
+    return { ok: true, message: t("settingsReset") };
   }
 
   /**
@@ -318,7 +326,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       if (owner) {
         return {
           ok: false,
-          error: `That 3D model is already assigned to "${owner.title}". Each model can only be used on one product — remove it from that product first, or upload a separate copy of the file.`,
+          error: t("errorAlreadyAssigned", { title: owner.title }),
         };
       }
     }
@@ -333,7 +341,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     if (assignedModels.count >= productLimit) {
       return {
         ok: false,
-        error: `You've reached your ${planName} plan limit of ${formatLimit(productLimit)} products with a 3D model. Upgrade your plan to add more.`,
+        error: t("errorProductLimit", { plan: planName, limit: formatLimit(productLimit, unlimited) }),
       };
     }
     const used = countDistinctModels(
@@ -343,7 +351,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     if (used >= modelLimit) {
       return {
         ok: false,
-        error: `You've reached your ${planName} plan limit of ${formatLimit(modelLimit)} 3D models. Upgrade your plan to add more.`,
+        error: t("errorModelLimit", { plan: planName, limit: formatLimit(modelLimit, unlimited) }),
       };
     }
     return null;
@@ -362,7 +370,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   if (intent === "assign_existing") {
     const fileGid = String(formData.get("fileGid") ?? "");
     if (!fileGid.startsWith("gid://shopify/")) {
-      return { ok: false, error: "Invalid file id" };
+      return { ok: false, error: t("errorInvalidFileId") };
     }
     const guardErr = await checkAssignOrError(fileGid);
     if (guardErr) return guardErr;
@@ -399,7 +407,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     invalidateAssignedModels(session?.shop ?? "");
     return {
       ok: true,
-      message: "3D model assigned from Files",
+      message: t("assignedFromFiles"),
       reviewPrompt: await reviewCheck(),
     };
   }
@@ -424,14 +432,14 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
     invalidateAssignedModels(session?.shop ?? "");
-    return { ok: true, message: "3D model removed" };
+    return { ok: true, message: t("modelRemoved") };
   }
 
   const file = formData.get("file") as File | null;
   if (!file || file.size === 0)
-    return { ok: false, error: "Please choose a .glb or .gltf file" };
+    return { ok: false, error: t("errorChooseFile") };
   const optimizeUpload = formData.get("optimize") !== "0";
-  const fileError = validateModelFile(file, optimizeUpload);
+  const fileError = validateModelFile(file, optimizeUpload, tf);
   if (fileError) return { ok: false, error: fileError };
 
   const guardErr = await checkAssignOrError(null);
@@ -443,10 +451,10 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     ? await optimizeModelFile(file)
     : { file, originalSize: file.size, optimized: false };
   // The size limit is on what gets stored, so it is judged after compression.
-  const sizeError = finalSizeError(optimized.file.size, file.size);
+  const sizeError = finalSizeError(optimized.file.size, file.size, tf);
   if (sizeError) return { ok: false, error: sizeError };
   const staged = await stagedUpload(admin, optimized.file);
-  if (!staged) return { ok: false, error: "Failed to upload file to Shopify" };
+  if (!staged) return { ok: false, error: t("errorUploadFailed") };
 
   const fileCreateRes = await admin.graphql(
     `#graphql
@@ -473,7 +481,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   if (fileErrs.length)
     return { ok: false, error: fileErrs.map((e: any) => e.message).join("; ") };
   const fileGid = fileJson?.data?.fileCreate?.files?.[0]?.id;
-  if (!fileGid) return { ok: false, error: "Shopify did not return a file id" };
+  if (!fileGid) return { ok: false, error: t("errorNoFileId") };
 
   const metaRes = await admin.graphql(
     `#graphql
@@ -503,12 +511,12 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     return { ok: false, error: metaErrs.map((e: any) => e.message).join("; ") };
 
   invalidateAssignedModels(session?.shop ?? "");
-  const saving = describeSaving(optimized.originalSize, optimized.file.size);
+  const saving = describeSaving(optimized.originalSize, optimized.file.size, tf);
   return {
     ok: true,
     message: saving
-      ? `3D model uploaded and assigned · ${saving}`
-      : "3D model uploaded and assigned",
+      ? t("uploadedWithSaving", { saving })
+      : t("uploaded"),
     reviewPrompt: await reviewCheck(),
   };
 };
@@ -554,9 +562,13 @@ export default function ProductDetail() {
     config: savedConfig,
     shopDomain,
     hotspotsLocked,
+    shopLocales,
   } = useLoaderData<typeof loader>();
   // Hotspots: placement mode, and "preview this one" in the live preview.
   const [placingHotspot, setPlacingHotspot] = useState(false);
+  // The language the hotspot text is being edited in (null: the primary);
+  // the preview shows that language's translations too.
+  const [hotspotLocale, setHotspotLocale] = useState<string | null>(null);
   const [hotspotFocus, setHotspotFocus] = useState<{
     id: string;
     n: number;
@@ -571,6 +583,9 @@ export default function ProductDetail() {
   const shopify = useAppBridge();
   const navigate = useNavigate();
   const submitting = navigation.state === "submitting";
+  const t = useT("product");
+  const tc = useT("common");
+  const tf = useT("files");
 
   const [config, setConfig] = useState<ViewerConfig>(savedConfig);
   const [showProductImage, setShowProductImage] = useState(false);
@@ -595,7 +610,7 @@ export default function ProductDetail() {
     };
     const file = input.files?.[0];
     if (!file) return;
-    const fileError = validateModelFile(file, optimize);
+    const fileError = validateModelFile(file, optimize, tf);
     if (fileError) {
       shopify.toast.show(fileError, { isError: true });
       return;
@@ -628,7 +643,7 @@ export default function ProductDetail() {
   useEffect(() => {
     if (actionData?.ok) {
       lastSaveTimeRef.current = Date.now();
-      shopify.toast.show(actionData.message ?? "Saved");
+      shopify.toast.show(actionData.message ?? t("saved"));
 
       const base =
         product?.onlineStoreUrl ??
@@ -669,18 +684,18 @@ export default function ProductDetail() {
         }
       }
     }
-  }, [actionData, shopify, product, shopDomain]);
+    }, [actionData, shopify, product, shopDomain, t]);
 
   if (!product) {
     return (
-      <s-page heading="Product not found">
-        <BackButton to="/app/products" label="Product 3D models" />
+      <s-page heading={t("notFoundHeading")}>
+        <BackButton to="/app/products" label={t("backProducts")} />
         <SupportAction />
 
         <s-section>
           <s-banner tone="critical">
             <s-paragraph>
-              The requested product could not be loaded.
+              {t("notFoundBody")}
             </s-paragraph>
           </s-banner>
           <s-button
@@ -692,7 +707,7 @@ export default function ProductDetail() {
               navigate("/app/products");
             }}
           >
-            Back to products
+            {t("backToProducts")}
           </s-button>
         </s-section>
       </s-page>
@@ -795,7 +810,7 @@ export default function ProductDetail() {
       const w = window.open("about:blank", name);
       if (!w) return;
       w.focus();
-      writeInterstitial(w, "Publishing changes to the storefront…");
+      writeInterstitial(w, t("interstitialPublishing"));
       window.setTimeout(
         () => {
           try {
@@ -812,14 +827,14 @@ export default function ProductDetail() {
     const w = window.open("about:blank", name);
     if (!w) return;
     w.focus();
-    writeInterstitial(w, "Saving and publishing changes…");
+    writeInterstitial(w, t("interstitialSaving"));
     pendingSaveViewWindowRef.current = w;
     handleSaveConfig();
   }
 
   return (
     <s-page heading={product.title}>
-      <BackButton to="/app/products" label="Product 3D models" />
+      <BackButton to="/app/products" label={t("backProducts")} />
 
       {/*
         The admin's contextual save bar owns saving, so the page header carries
@@ -843,7 +858,7 @@ export default function ProductDetail() {
           href={previewUrl}
           target="_blank"
         >
-          Preview
+          {tc("preview")}
         </s-button>
       ) : null}
       {storefrontBase ? (
@@ -853,7 +868,7 @@ export default function ProductDetail() {
           disabled={flag(submitting)}
           onClick={handleSaveAndView}
         >
-          Save and view
+          {t("saveAndView")}
         </s-button>
       ) : null}
       {configCustomized ? (
@@ -863,7 +878,7 @@ export default function ProductDetail() {
           disabled={flag(submitting)}
           onClick={() => setPending("reset")}
         >
-          Reset to defaults
+          {t("resetToDefaults")}
         </s-button>
       ) : null}
       <SupportAction />
@@ -881,17 +896,17 @@ export default function ProductDetail() {
         id="product-confirm"
         open={pending !== null}
         heading={
-          pending === "remove" ? "Remove 3D model?" : "Reset viewer settings?"
+          pending === "remove" ? t("confirmRemoveHeading") : t("confirmResetHeading")
         }
-        confirmLabel={pending === "remove" ? "Remove model" : "Reset settings"}
+        confirmLabel={pending === "remove" ? t("confirmRemoveLabel") : t("confirmResetLabel")}
         loading={submitting}
         onConfirm={confirmPending}
         onCancel={() => setPending(null)}
       >
         <s-paragraph>
           {pending === "remove"
-            ? "The product stops showing a 3D model on your storefront. The .glb file itself stays in Shopify Files and can be reassigned later."
-            : "Every viewer setting for this product goes back to its default. The assigned model file is untouched."}
+            ? t("confirmRemoveBody")
+            : t("confirmResetBody")}
         </s-paragraph>
       </ConfirmModal>
 
@@ -907,19 +922,19 @@ export default function ProductDetail() {
             />
           ) : null}
           <s-text color="subdued">
-            {has ? "3D model assigned" : "No model assigned"}
+            {has ? t("modelAssigned") : t("noModelAssigned")}
           </s-text>
-          {configCustomized ? <s-badge tone="info">Customized</s-badge> : null}
+          {configCustomized ? <s-badge tone="info">{t("customized")}</s-badge> : null}
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading="Model file">
+      <s-section slot="aside" heading={t("modelFileHeading")}>
         <s-paragraph color="subdued">
-          Upload a .glb or .gltf model. The stored file can be up to{" "}
-          {MAX_MODEL_FILE_SIZE_MB} MB; with optimization on, you can upload up
-          to {MAX_RAW_UPLOAD_MB} MB and it must compress to{" "}
-          {MAX_MODEL_FILE_SIZE_MB} MB or less. Stored in Shopify Files, linked
-          via <code>custom.model_3d</code>.
+          {t.rich(
+            "modelFileHelp",
+            { code: (c) => <code>{c}</code> },
+            { max: MAX_MODEL_FILE_SIZE_MB, raw: MAX_RAW_UPLOAD_MB },
+          )}
         </s-paragraph>
 
         <s-stack direction="block" gap="base">
@@ -942,15 +957,15 @@ export default function ProductDetail() {
             accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
             label={
               has
-                ? "Drop a replacement .glb or .gltf here, or click to choose"
-                : "Drop a .glb or .gltf file here, or click to choose"
+                ? t("dropReplacement")
+                : t("dropNew")
             }
             disabled={flag(submitting)}
             onInput={handleFileChosen}
           />
           <s-checkbox
-            label="Optimize for faster loading"
-            details={OPTIMIZE_DETAILS}
+            label={t("optimizeLabel")}
+            details={t("optimizeDetails")}
             checked={flag(optimize)}
             onInput={(e) => setOptimize(fieldChecked(e))}
           />
@@ -960,9 +975,9 @@ export default function ProductDetail() {
               icon="folder"
               disabled={flag(submitting)}
               onClick={() => setFilePickerOpen(true)}
-              accessibilityLabel="Choose a 3D model from Shopify Files"
+              accessibilityLabel={t("chooseFromFilesA11y")}
             >
-              Choose from Files
+              {t("chooseFromFiles")}
             </s-button>
             {has ? (
               <s-button
@@ -971,17 +986,16 @@ export default function ProductDetail() {
                 disabled={flag(submitting)}
                 onClick={() => setPending("remove")}
               >
-                Remove
+                {tc("remove")}
               </s-button>
             ) : null}
           </s-stack>
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading="Viewer settings">
+      <s-section slot="aside" heading={t("viewerSettingsHeading")}>
         <s-paragraph color="subdued">
-          Saved to <code>custom.viewer_3d_config</code>. The storefront viewer
-          uses these instead of the theme block defaults.
+          {t.rich("viewerSettingsHelp", { code: (c) => <code>{c}</code> })}
         </s-paragraph>
         {/*
           The shared panel, not a second copy. This screen used to inline all
@@ -992,7 +1006,7 @@ export default function ProductDetail() {
         <ViewerSettings config={config} onChange={setConfig} />
       </s-section>
 
-      <s-section slot="aside" heading="Hotspots">
+      <s-section slot="aside" heading={t("hotspotsHeading")}>
         <HotspotsEditor
           config={config}
           onChange={setConfig}
@@ -1002,6 +1016,9 @@ export default function ProductDetail() {
             setHotspotFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
           }
           locked={hotspotsLocked}
+          shopLocales={shopLocales}
+          editLocale={hotspotLocale}
+          onEditLocaleChange={setHotspotLocale}
         />
       </s-section>
 
@@ -1028,9 +1045,9 @@ export default function ProductDetail() {
         at all.
       */}
       <div style={{ position: "sticky", top: 16 }}>
-        <s-section heading="Live preview">
+        <s-section heading={t("livePreviewHeading")}>
           <s-paragraph color="subdued">
-            Updates instantly. Save to persist.
+            {t("livePreviewHelp")}
           </s-paragraph>
           <ViewerPreview
             modelUrl={modelUrl}
@@ -1050,6 +1067,7 @@ export default function ProductDetail() {
             }}
             focusHotspotId={hotspotFocus?.id ?? null}
             focusNonce={hotspotFocus?.n ?? 0}
+            locale={hotspotLocale}
           />
         </s-section>
       </div>

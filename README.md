@@ -52,6 +52,8 @@ write_files       # upload .glb to Shopify Files via fileCreate
 write_themes      # read the published theme's product/page template and insert
                   # the app block into it (the one-click "Add block" action);
                   # implies read_themes, which the block-status check needs
+read_locales      # list the shop's published languages, so the hotspot editor
+                  # can offer translations for each one
 ```
 
 Nothing else is requested. `write_themes` is the only one that needs justifying

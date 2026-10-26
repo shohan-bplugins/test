@@ -24,6 +24,7 @@ import {
   type ControlSlot,
 } from "~/lib/viewer-config";
 import type { ViewerConfig } from "~/components/ViewerPreview";
+import { useT } from "~/i18n";
 
 const ICONS: Record<ControlItemId, LucideIcon> = {
   zoomIn: ZoomIn,
@@ -35,8 +36,9 @@ const ICONS: Record<ControlItemId, LucideIcon> = {
   animation: Film,
 };
 
+// Message keys (namespace "layout"), translated at render.
 const LABELS = Object.fromEntries(
-  CONTROL_ITEMS.map((i) => [i.id, i.label]),
+  CONTROL_ITEMS.map((i) => [i.id, `control_${i.id}`]),
 ) as Record<ControlItemId, string>;
 
 const SLOT_CLASSES: Record<ControlSlot, string> = {
@@ -49,12 +51,12 @@ const SLOT_CLASSES: Record<ControlSlot, string> = {
 };
 
 const SLOT_LABELS: Record<ControlSlot, string> = {
-  "top-left": "top left",
-  "top-center": "top center",
-  "top-right": "top right",
-  "bottom-left": "bottom left",
-  "bottom-center": "bottom center",
-  "bottom-right": "bottom right",
+  "top-left": "slotTopLeft",
+  "top-center": "slotTopCenter",
+  "top-right": "slotTopRight",
+  "bottom-left": "slotBottomLeft",
+  "bottom-center": "slotBottomCenter",
+  "bottom-right": "slotBottomRight",
 };
 
 /** Corner spots stack their controls in a column, the middle ones in a row. */
@@ -134,6 +136,8 @@ export function ControlLayoutEditor({
   const areaRef = useRef<HTMLDivElement>(null);
   const trayRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  const t = useT("layout");
+  const tc = useT("common");
 
   const layout = config.controlsLayout;
   const enabled = (id: ControlItemId) => isControlEnabled(config, id);
@@ -176,16 +180,16 @@ export function ControlLayoutEditor({
   }
 
   function onPointerDown(id: ControlItemId, e: PointerEvent<HTMLButtonElement>) {
-    const t = aim(id, e.clientX, e.clientY);
-    if (!t) return;
+    const hit = aim(id, e.clientX, e.clientY);
+    if (!hit) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({ id, ...t });
+    setDrag({ id, ...hit });
   }
 
   function onPointerMove(e: PointerEvent<HTMLButtonElement>) {
     if (!drag) return;
-    const t = aim(drag.id, e.clientX, e.clientY);
-    if (t) setDrag({ ...drag, ...t });
+    const hit = aim(drag.id, e.clientX, e.clientY);
+    if (hit) setDrag({ ...drag, ...hit });
   }
 
   function onPointerUp() {
@@ -254,8 +258,8 @@ export function ControlLayoutEditor({
         data-chip={dragging || off ? undefined : id}
         aria-label={
           off
-            ? `${LABELS[id]}, switched off. Drag onto the viewer, or press Enter, to turn it on.`
-            : `${LABELS[id]}, ${where}. Drag, or use the arrow keys, to move; Delete to switch off.`
+            ? t("chipOffA11y", { control: t(LABELS[id]) })
+            : t("chipOnA11y", { control: t(LABELS[id]), where })
         }
         onPointerDown={(e) => onPointerDown(id, e)}
         onPointerMove={onPointerMove}
@@ -272,7 +276,7 @@ export function ControlLayoutEditor({
       >
         <GripVertical className="size-3.5 shrink-0 text-black/30" />
         <Icon className="size-3.5 shrink-0" />
-        {LABELS[id]}
+        {t(LABELS[id])}
       </button>
     );
   }
@@ -305,7 +309,7 @@ export function ControlLayoutEditor({
               )}
             >
               {visible.length === 0 && !isTarget ? (
-                <span className="m-auto text-[11px] text-black/40">Empty</span>
+                <span className="m-auto text-[11px] text-black/40">{t("empty")}</span>
               ) : null}
               {visible.map((id) => (
                 <div
@@ -315,7 +319,7 @@ export function ControlLayoutEditor({
                   {isTarget && drag && drag.index !== null && layout[slot][drag.index] === id && drag.id !== id
                     ? marker(slot)
                     : null}
-                  {chip(id, SLOT_LABELS[slot])}
+                  {chip(id, t(SLOT_LABELS[slot]))}
                 </div>
               ))}
               {isTarget && drag && drag.index === null ? marker(slot) : null}
@@ -326,16 +330,14 @@ export function ControlLayoutEditor({
         <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center px-4">
           <div className="pointer-events-auto flex max-w-xs flex-col items-center gap-2 border bg-white/95 px-4 py-3 text-center shadow-md">
             <p className="text-xs text-black/70">
-              Drag any control to a spot, or between two others to set the
-              order. Drag one to the tray below to hide it, or out of the tray
-              to show it.
+              {t("instructions")}
             </p>
             <button
               type="button"
               onClick={onDone}
               className="bg-primary px-3 py-1.5 text-xs font-medium text-white outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-black/30"
             >
-              Done
+              {tc("done")}
             </button>
           </div>
         </div>
@@ -351,14 +353,14 @@ export function ControlLayoutEditor({
       >
         <span className="mr-1 flex items-center gap-1 text-[11px] font-medium text-black/50">
           <EyeOff className="size-3.5" />
-          Hidden
+          {t("hidden")}
         </span>
         {hidden.length === 0 ? (
           <span className="text-[11px] text-black/40">
-            {trayTarget ? "Drop to hide" : "Nothing hidden — drag a control here to hide it"}
+            {trayTarget ? t("dropToHide") : t("nothingHidden")}
           </span>
         ) : (
-          hidden.map((id) => <span key={id}>{chip(id, "hidden")}</span>)
+          hidden.map((id) => <span key={id}>{chip(id, t("whereHidden"))}</span>)
         )}
       </div>
 
@@ -372,7 +374,7 @@ export function ControlLayoutEditor({
             const Icon = ICONS[drag.id];
             return <Icon className="size-3.5 shrink-0 text-primary" />;
           })()}
-          {LABELS[drag.id]}
+          {t(LABELS[drag.id])}
         </div>
       ) : null}
     </div>

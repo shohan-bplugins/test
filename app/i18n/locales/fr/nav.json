@@ -1,0 +1,11 @@
+{
+  "home": "Accueil",
+  "getStarted": "Premiers pas",
+  "products": "Modèles 3D des produits",
+  "models": "Bibliothèque de modèles 3D",
+  "analytics": "Statistiques",
+  "documentation": "Documentation",
+  "pricing": "Tarifs",
+  "setup": "Configuration",
+  "withNew": "{label} ( Nouveau )"
+}

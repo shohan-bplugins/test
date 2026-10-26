@@ -4,15 +4,20 @@ import type {
   MetaFunction,
   HeadersFunction,
 } from "react-router";
-import { useEffect, useRef } from "react";
 import { useLoaderData } from "react-router";
 
 import { ViewerPreview } from "~/components/ViewerPreview";
+import { useEmbedStats } from "~/lib/embed-stats";
 import view3dStylesUrl from "@egjs/view3d/css/view3d-bundle.min.css?url";
 import appStylesUrl from "~/app.css?url";
 import prisma from "../db.server";
 import { parseConfig } from "~/lib/viewer-config";
 import { applyViewerOverrides } from "~/lib/viewer-overrides";
+import { resolveAppOrigin } from "~/lib/app-origin.server";
+import {
+  getStorefrontStrings,
+  resolveStorefrontLocale,
+} from "~/lib/storefront-i18n.server";
 
 // Moved off root's global links: only the routes that mount ViewerPreview need
 // view3d's stylesheet, and it still loads with the route so the canvas is never
@@ -54,7 +59,38 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
   if (!model) throw new Response("Model not found", { status: 404 });
 
+  /*
+   * Where a desktop visitor's phone should go for AR: this page, standalone.
+   * ViewerPreview's own default reads window.location, and gives up when the
+   * page is framed — right for the Shopify admin, whose address no phone can
+   * open, but every embed code is a frame too, so on a desktop embed the AR
+   * button (a QR code there) vanished. This page needs no login and opens on
+   * any phone, so it is always the answer here. The public origin, not the
+   * request's (behind the VPS proxy that is an internal address); ?bg= and
+   * ?autorotate= kept so the phone shows the same look.
+   */
+  const requestUrl = new URL(request.url);
+  /*
+   * The shopper's language: ?lang= from the embed code when the embedding site
+   * knows it, else the browser's Accept-Language, else English. Toolbar,
+   * loading and AR text come from the theme extension's locale files, and
+   * hotspots show the merchant's translation for it where there is one.
+   */
+  const locale = resolveStorefrontLocale(
+    requestUrl.searchParams.get("lang"),
+    request.headers.get("Accept-Language"),
+  );
+  const share = new URL(`/viewer/${encodeURIComponent(model.id)}`, resolveAppOrigin(request));
+  // ?lang= too, so the phone opens in the same language as the desktop page.
+  for (const key of ["bg", "autorotate", "lang"]) {
+    const value = requestUrl.searchParams.get(key);
+    if (value !== null) share.searchParams.set(key, value);
+  }
+
   return {
+    locale,
+    strings: getStorefrontStrings(locale),
+    arShareUrl: share.href,
     model: { id: model.id, name: model.name, fileUrl: model.fileUrl },
     config: applyViewerOverrides(
       parseConfig(model.config),
@@ -68,6 +104,9 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 // stale-while-revalidate rather than no-store.
 export const headers: HeadersFunction = () => ({
   "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+  // Without ?lang= the language comes from Accept-Language, so a shared cache
+  // must not hand one visitor's French page to the next visitor.
+  Vary: "Accept-Language",
 });
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
@@ -79,68 +118,25 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
   ];
 };
 
-/*
- * Counts this embed in the merchant's Analytics: one view per page load, and
- * one interaction on the first press, drag or scroll on the viewer. Sent as
- * beacons so they never delay or break the page. See api.viewer-event.tsx.
- */
-/** Same classes as the storefront script: coarse pointer → touch device. */
-function deviceClass(): string {
-  try {
-    if (!window.matchMedia("(pointer: coarse)").matches) return "desktop";
-    return Math.min(screen.width, screen.height) >= 768 ? "tablet" : "mobile";
-  } catch {
-    return "unknown";
-  }
-}
-
-function useEmbedStats(modelId: string) {
-  const ref = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const send = (e: "view" | "interact") => {
-      try {
-        navigator.sendBeacon?.(
-          "/api/viewer-event",
-          JSON.stringify({ m: modelId, e, d: deviceClass() }),
-        );
-      } catch {
-        // Analytics must never break the viewer.
-      }
-    };
-    send("view");
-    const el = ref.current;
-    if (!el) return;
-    // Capture phase: the canvas library stops some events from bubbling.
-    const TYPES = ["pointerdown", "wheel", "touchstart"] as const;
-    const detach = () => {
-      for (const t of TYPES) el.removeEventListener(t, onFirst, true);
-    };
-    const onFirst = () => {
-      detach();
-      send("interact");
-    };
-    for (const t of TYPES) {
-      el.addEventListener(t, onFirst, { passive: true, capture: true });
-    }
-    return detach;
-  }, [modelId]);
-  return ref;
-}
-
 export default function PublicViewer() {
-  const { model, config } = useLoaderData<typeof loader>();
-  const statsRef = useEmbedStats(model.id);
+  const { model, config, arShareUrl, locale, strings } =
+    useLoaderData<typeof loader>();
+  const stats = useEmbedStats(model.id);
 
   return (
     // h-dvh, not h-screen: on mobile browsers the dynamic viewport unit accounts
     // for the collapsing address bar, so the viewer isn't cropped on load.
-    <main ref={statsRef} className="h-dvh w-full overflow-hidden bg-background">
+    <main ref={stats.ref} className="h-dvh w-full overflow-hidden bg-background">
       <ViewerPreview
         modelUrl={model.fileUrl}
         config={config}
         // Fills the window, or the <iframe> when embedded, instead of the
         // configured height — the container decides the size here.
         fill
+        onTrack={stats.track}
+        arShareUrl={arShareUrl}
+        strings={strings}
+        locale={locale}
         // A refusal on this page means a document *around* this one didn't grant
         // fullscreen, which is a different cause from the admin's. Named as the
         // whole chain rather than just the embedding page because the permission

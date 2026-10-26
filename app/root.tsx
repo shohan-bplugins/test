@@ -7,6 +7,7 @@ import {
   ScrollRestoration,
   useLoaderData,
   useLocation,
+  useMatches,
   useNavigation,
 } from "react-router";
 
@@ -17,6 +18,7 @@ import {
 } from "~/components/Analytics";
 import { BootSplash } from "~/components/BootSplash";
 import { getAnalyticsConfig } from "~/lib/analytics.server";
+import { localeDir } from "~/i18n/config";
 
 // Only the app shell's own chrome is global. Both view3d's stylesheet and
 // app.css — Tailwind plus the viewer's styling — are render-blocking requests
@@ -54,9 +56,16 @@ export default function App() {
   // only the embedded admin shell has.
   const isAdminRoute = pathname === "/app" || pathname.startsWith("/app/");
   useAnalyticsPageViews(isAdminRoute);
+  // A route that renders for shoppers in their language (the public
+  // /viewer/:id page) returns `locale` from its loader; everything else is the
+  // English admin.
+  const lang = useMatches().reduce<string>((found, m) => {
+    const data = m.data as { locale?: unknown } | undefined;
+    return typeof data?.locale === "string" ? data.locale : found;
+  }, "en");
 
   return (
-    <html lang="en">
+    <html lang={lang} dir={localeDir(lang)}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />

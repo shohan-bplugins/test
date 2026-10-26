@@ -1,0 +1,39 @@
+{
+  "viewer_3d": {
+    "no_model_page": "Ajoutez un ID de modèle ou une URL de modèle dans les paramètres du bloc pour afficher un modèle 3D.",
+    "ui": {
+      "zoom_in": "Zoom avant",
+      "zoom_out": "Zoom arrière",
+      "reset": "Réinitialiser la vue",
+      "fullscreen": "Plein écran",
+      "exit_fullscreen": "Quitter le plein écran",
+      "capture": "Capturer et télécharger l’image",
+      "choose_animation": "Choisir une animation",
+      "animation_none": "Aucune",
+      "loading": "Chargement du modèle…",
+      "load_failed": "Impossible de charger le modèle",
+      "ar_view_in_room": "Voir dans votre pièce",
+      "ar_view_on_phone": "Voir dans votre pièce sur votre téléphone",
+      "ar_scan_qr": "Scannez avec l’appareil photo de votre téléphone pour voir ce produit en réalité augmentée.",
+      "qr_code": "Code QR",
+      "close": "Fermer",
+      "hotspot": "Point d’intérêt",
+      "hotspot_n": "Point d’intérêt {n}",
+      "hotspot_pin": "Point d’intérêt {n} : {title}",
+      "learn_more": "En savoir plus",
+      "play_video": "Lire la vidéo",
+      "video": "Vidéo",
+      "add_to_cart": "Ajouter au panier",
+      "buy_now": "Acheter maintenant",
+      "view_product": "Voir le produit →",
+      "option_n": "Option {n}",
+      "sold_out": "Épuisé",
+      "unavailable": "Indisponible",
+      "adding": "Ajout…",
+      "added": "Ajouté ✓",
+      "added_to_cart": "Ajouté à votre panier",
+      "view_cart": "Voir le panier",
+      "add_failed": "Impossible d’ajouter au panier"
+    }
+  }
+}

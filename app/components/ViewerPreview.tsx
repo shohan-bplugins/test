@@ -1,7 +1,10 @@
 import {
   buildHotspotElement,
   fitHotspotCard,
+  localizeHotspot,
+  primeHotspotVideoFrames,
   resetHotspotVideos,
+  resetViewOnHotspotClose,
   wireHotspotHover,
   type Hotspot,
   type HotspotLabel,
@@ -32,8 +35,14 @@ import {
   ZoomOut,
 } from "lucide-react";
 
+import view3dStylesUrl from "@egjs/view3d/css/view3d-bundle.min.css?url";
+import appStylesUrl from "~/app.css?url";
 import { isPreviewableModelUrl } from "~/lib/files";
 import { qrSvgPath } from "~/lib/qr";
+import {
+  DEFAULT_STOREFRONT_STRINGS,
+  type StorefrontStrings,
+} from "~/lib/storefront-strings";
 import {
   CONTROL_SLOTS,
   fullscreenCloseSlot,
@@ -43,7 +52,9 @@ import {
   type ControlSlot,
 } from "~/lib/viewer-config";
 import { cn } from "~/lib/utils";
+import type { FEATURES } from "~/lib/viewer-stats";
 import { ControlLayoutEditor } from "~/components/ControlLayoutEditor";
+import { useT } from "~/i18n";
 import {
   Tooltip,
   TooltipContent,
@@ -198,6 +209,12 @@ type Props = {
   // to be saved with the other settings.
   onLayoutChange?: (patch: Partial<ViewerConfig>) => void;
   /**
+   * Called when the visitor uses AR or a control — the same events the
+   * storefront widget counts for Analytics. Only the public /viewer/:id embed
+   * passes it; the admin's previews are not visitors.
+   */
+  onTrack?: (event: ViewerTrackEvent) => void;
+  /**
    * Hotspot placement mode: the next click on the model (a click, not a drag)
    * reports where it landed — mesh face, barycentric weights and the camera
    * pose to use as the hotspot's focus — instead of doing anything else.
@@ -207,7 +224,20 @@ type Props = {
   /** Opens this hotspot (camera turn and card) whenever `focusNonce` changes. */
   focusHotspotId?: string | null;
   focusNonce?: number;
+  /**
+   * The shopper-facing labels (toolbar, AR, loading, hotspot cards), from
+   * getStorefrontStrings. English when left out, as in the admin.
+   */
+  strings?: StorefrontStrings;
+  /**
+   * Shows each hotspot's translation for this locale, where the merchant has
+   * written one: the /viewer/:id page's language, or the language being
+   * edited in the hotspot editor.
+   */
+  locale?: string | null;
 };
+
+export type ViewerTrackEvent = "ar" | (typeof FEATURES)[number];
 
 export type HotspotAnchor = Pick<
   Hotspot,
@@ -358,6 +388,44 @@ function detachGizmoHitTargets(root: HTMLElement | null) {
     .forEach((node) => node.remove());
 }
 
+/*
+ * A home for view3d's hotspot elements that App Bridge cannot see.
+ *
+ * The same App Bridge observer as above (detachGizmoHitTargets) re-sends the
+ * page's header buttons on any mutation inside <s-page>. view3d writes every
+ * annotation's `style` and `class` on every rendered frame, so with hotspots on
+ * a model and autoRotate on, that was ~700 mutation records a second: Preview,
+ * Reset settings, Delete and Support rebuilt faster than a click could land.
+ *
+ * Unlike the gizmo's hit targets, the pins have to stay on screen, so they
+ * cannot be detached. A shadow root is the other kind of place a write makes no
+ * record: an observer on `document` with `subtree: true` does not reach into
+ * shadow trees. The pins keep their exact position — the host sits where view3d
+ * would have appended its own wrapper, inside the viewer root, so fullscreen
+ * still includes them.
+ *
+ * Shadow trees don't inherit the page's stylesheets, so the same two the route
+ * loads are linked inside it. They are cached by then, and the hotspot rules in
+ * app.css use only the pins' own classes, so they match unchanged in here.
+ */
+function createAnnotationLayer(root: HTMLElement) {
+  const host = document.createElement("div");
+  host.className = "view3d-annotation-host";
+  host.style.cssText = "position:absolute;inset:0;pointer-events:none;";
+  const shadow = host.attachShadow({ mode: "open" });
+  for (const href of [view3dStylesUrl, appStylesUrl]) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    shadow.appendChild(link);
+  }
+  const wrapper = document.createElement("div");
+  wrapper.className = "view3d-annotation-wrapper";
+  shadow.appendChild(wrapper);
+  root.appendChild(host);
+  return { host, wrapper };
+}
+
 // Duration of the clip crossfade / fade-out, in ms. Mirrors FADE_MS in
 // extensions/viewer-3d/assets/viewer-3d.js.
 const FADE_MS = 320;
@@ -415,8 +483,8 @@ function nativeFullscreenAllowed(el: HTMLElement | null): boolean {
   return !!(anyEl.requestFullscreen || anyEl.webkitRequestFullscreen);
 }
 
-const FULLSCREEN_UNAVAILABLE_MESSAGE =
-  "Fullscreen only works on your storefront. Shopify's admin blocks it inside this preview.";
+// Message key (namespace "preview") for the default fullscreen notice.
+const FULLSCREEN_UNAVAILABLE_MESSAGE = "fullscreenUnavailable";
 
 // view3d's crossFade() blends via three's crossFadeTo with the `warp` flag on,
 // which morphs the two clips' playback speeds toward each other for the length
@@ -672,26 +740,45 @@ export function ViewerPreview({
   config,
   className,
   fill = false,
-  fullscreenUnavailableMessage = FULLSCREEN_UNAVAILABLE_MESSAGE,
+  fullscreenUnavailableMessage: fullscreenUnavailableMessageProp,
   arShareUrl,
   onLayoutChange,
+  onTrack,
   placingHotspot = false,
   onPlaceHotspot,
   focusHotspotId = null,
   focusNonce = 0,
+  strings = DEFAULT_STOREFRONT_STRINGS,
+  locale = null,
 }: Props) {
+  // Merchant-facing text only; shopper-facing labels come from `strings`.
+  const t = useT("preview");
+  const fullscreenUnavailableMessage =
+    fullscreenUnavailableMessageProp ?? t(FULLSCREEN_UNAVAILABLE_MESSAGE);
   // "Move controls" mode — see ControlLayoutEditor. Only offered where the
   // page can save the result (onLayoutChange), i.e. the admin's settings pages.
   const [arranging, setArranging] = useState(false);
   const closeSlot = fullscreenCloseSlot(config.controlsLayout);
   const elRef = useRef<HTMLDivElement>(null);
   const view3dRef = useRef<any>(null);
+  // Latest onTrack, readable from view3d's event handlers without re-binding.
+  const onTrackRef = useRef(onTrack);
+  onTrackRef.current = onTrack;
+  const track = (event: ViewerTrackEvent) => {
+    try {
+      onTrackRef.current?.(event);
+    } catch {
+      // Analytics must never break the viewer.
+    }
+  };
   // The view3d module, for its FaceAnnotation / PointAnnotation classes.
   const view3dModRef = useRef<any>(null);
   // Bumped on every 'ready', so hotspots are (re)attached to each new instance.
   const [readyCount, setReadyCount] = useState(0);
   const controlBarRef = useRef<any>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  // Shadow-root host for hotspot elements; see createAnnotationLayer.
+  const annotationHostRef = useRef<HTMLElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Starts true (instead of flipping true only once the mount effect runs)
   // so the spinner is visible from the very first paint after a page
@@ -925,6 +1012,7 @@ export function ViewerPreview({
       exitNativeFullscreen();
       return;
     }
+    track("f_fullscreen");
     const el = elRef.current;
     // A null return (no API, or a synchronous throw) and a rejected promise both
     // mean the request was refused, so the warning covers either.
@@ -943,6 +1031,7 @@ export function ViewerPreview({
   // the current background color is painted onto an offscreen canvas first
   // and the WebGL frame is drawn on top of that before exporting.
   function captureSnapshot() {
+    track("f_screenshot");
     const v3d = view3dRef.current;
     const canvas = elRef.current?.querySelector("canvas");
     if (!v3d || !canvas) return;
@@ -1027,7 +1116,10 @@ export function ViewerPreview({
         destroyView3D(view3dRef.current);
         controlBarRef.current = null;
 
-        const opts = buildOptions(modelUrl, config);
+        annotationHostRef.current?.remove();
+        const layer = createAnnotationLayer(el);
+        annotationHostRef.current = layer.host;
+        const opts = { ...buildOptions(modelUrl, config), annotationWrapper: layer.wrapper };
         const instance = new View3D(el, opts);
         view3dRef.current = instance;
 
@@ -1226,7 +1318,7 @@ export function ViewerPreview({
         });
         instance.once?.("loadError", () => {
           if (!cancelled) {
-            setError("Failed to load model");
+            setError(strings.load_failed);
             setLoading(false);
           }
         });
@@ -1251,6 +1343,8 @@ export function ViewerPreview({
       destroyView3D(view3dRef.current);
       view3dRef.current = null;
       controlBarRef.current = null;
+      annotationHostRef.current?.remove();
+      annotationHostRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initKey]);
@@ -1468,6 +1562,8 @@ export function ViewerPreview({
     config.hotspotLabel,
     config.hotspotTrigger,
     config.hotspots,
+    locale,
+    strings,
   ]);
   useEffect(() => {
     const view3d = view3dRef.current;
@@ -1482,16 +1578,15 @@ export function ViewerPreview({
     const annotations = config.hotspots.map((h, i) => {
       // No cart on this origin (admin, or the /viewer/:id embed): the shop
       // buttons explain that instead of failing.
-      const element = buildHotspotElement(h, i, config.hotspotColor, () => {
-        const message =
-          "Add to cart, Buy now and the product link work on your storefront.";
+      const element = buildHotspotElement(localizeHotspot(h, locale), i, config.hotspotColor, () => {
+        const message = t("shopButtonsStorefrontOnly");
         if (typeof shopify !== "undefined") {
           shopify.toast.show(message, { duration: 4000 });
         } else {
           setNotice(message);
           window.setTimeout(() => setNotice(null), 4000);
         }
-      }, config.hotspotLabel);
+      }, config.hotspotLabel, strings);
       if (config.hotspotTrigger === "hover") {
         wireHotspotHover(element, () => annotations[i]);
       }
@@ -1519,12 +1614,17 @@ export function ViewerPreview({
     };
     view3d.on?.("annotationUnfocus", onUnfocus);
     const onFocus = (evt: any) => {
+      track("f_hotspot");
+      const el = evt?.annotation?.element;
+      if (el) primeHotspotVideoFrames(el);
       if (elRef.current) fitHotspotCard(evt?.annotation, elRef.current);
     };
     view3d.on?.("annotationFocus", onFocus);
+    const stopResetView = resetViewOnHotspotClose(view3d);
     return () => {
       view3d.off?.("annotationUnfocus", onUnfocus);
       view3d.off?.("annotationFocus", onFocus);
+      stopResetView();
       // The instance may already be gone (a reinit); only reset a live one.
       if (view3dRef.current === view3d) view3d.annotation?.reset();
     };
@@ -1591,18 +1691,18 @@ export function ViewerPreview({
       if (moved > 8 || !quick) return;
       const view3d = view3dRef.current;
       if (!view3d?.model) {
-        say("The model is still loading — try again in a moment.");
+        say(t("placeStillLoading"));
         return;
       }
       threeP
         .then((THREE) => pickHotspotAnchor(view3d, e, THREE))
         .then((anchor) => {
           if (anchor) placeRef.current?.(anchor);
-          else say("Click directly on the model to place the hotspot.");
+          else say(t("placeMissedModel"));
         })
         .catch((error) => {
           console.error("[hotspots] placement failed", error);
-          say("Couldn’t place the hotspot. Reload the page and try again.");
+          say(t("placeFailed"));
         });
     };
     // On the wrapper, in the capture phase: the canvas is not the only thing
@@ -1614,7 +1714,7 @@ export function ViewerPreview({
       el.removeEventListener("pointerdown", onDown, true);
       el.removeEventListener("pointerup", onUp, true);
     };
-  }, [placingHotspot, readyCount]);
+  }, [placingHotspot, readyCount, t]);
 
   if (!modelUrl) {
     return (
@@ -1626,7 +1726,7 @@ export function ViewerPreview({
         style={{ height: fill ? "100%" : config.height }}
       >
         <UploadCloud className="size-6 opacity-50" />
-        <p className="text-sm">Upload a model to see the preview</p>
+        <p className="text-sm">{t("emptyUpload")}</p>
       </div>
     );
   }
@@ -1641,11 +1741,7 @@ export function ViewerPreview({
         style={{ height: fill ? "100%" : config.height }}
       >
         <FileWarning className="size-6 opacity-50" />
-        <p className="text-sm max-w-xs">
-          Live preview isn&apos;t available for this file type yet. Only .glb
-          and .gltf models can be shown here — the file is still stored and
-          linked normally.
-        </p>
+        <p className="text-sm max-w-xs">{t("unsupportedFileType")}</p>
       </div>
     );
   }
@@ -1665,8 +1761,11 @@ export function ViewerPreview({
         return config.showZoomButtons && config.zoom ? (
           <MiniToolbarButton
             tooltipSide={side}
-            label="Zoom in"
-            onClick={() => stepZoom(view3dRef.current, 15)}
+            label={strings.zoom_in}
+            onClick={() => {
+              track("f_zoom");
+              stepZoom(view3dRef.current, 15);
+            }}
           >
             <ZoomIn />
           </MiniToolbarButton>
@@ -1675,8 +1774,11 @@ export function ViewerPreview({
         return config.showZoomButtons && config.zoom ? (
           <MiniToolbarButton
             tooltipSide={side}
-            label="Zoom out"
-            onClick={() => stepZoom(view3dRef.current, -15)}
+            label={strings.zoom_out}
+            onClick={() => {
+              track("f_zoom");
+              stepZoom(view3dRef.current, -15);
+            }}
           >
             <ZoomOut />
           </MiniToolbarButton>
@@ -1685,7 +1787,7 @@ export function ViewerPreview({
         return config.showCameraResetButton ? (
           <MiniToolbarButton
             tooltipSide={side}
-            label="Resets view"
+            label={strings.reset}
             onClick={() => view3dRef.current?.camera?.reset(500)}
           >
             <RotateCcw />
@@ -1697,10 +1799,10 @@ export function ViewerPreview({
             tooltipSide={side}
             label={
               isNativeFullscreen
-                ? "Exit fullscreen"
+                ? strings.exit_fullscreen
                 : fullscreenAvailable
-                  ? "Fullscreen"
-                  : "Fullscreen — storefront only"
+                  ? strings.fullscreen
+                  : t("fullscreenStorefrontOnly")
             }
             onClick={toggleFullscreen}
           >
@@ -1711,7 +1813,7 @@ export function ViewerPreview({
         return config.showScreenshotButton ? (
           <MiniToolbarButton
             tooltipSide={side}
-            label="Capture and download image"
+            label={strings.capture}
             onClick={captureSnapshot}
           >
             <Camera />
@@ -1728,8 +1830,9 @@ export function ViewerPreview({
           return (
             <MiniToolbarButton
               tooltipSide={side}
-              label="View in your room"
+              label={strings.ar_view_in_room}
               onClick={() => {
+                track("ar");
                 view3dRef.current?.ar
                   ?.enter?.()
                   .catch((err: unknown) =>
@@ -1745,7 +1848,7 @@ export function ViewerPreview({
           return (
             <MiniToolbarButton
               tooltipSide={side}
-              label="View in your room on your phone"
+              label={strings.ar_view_on_phone}
               onClick={() => {
                 if (arQrOpen) {
                   closeArQr();
@@ -1753,6 +1856,7 @@ export function ViewerPreview({
                 }
                 arQrReturnFocusRef.current =
                   document.activeElement as HTMLElement | null;
+                track("ar");
                 setArQrOpen(true);
               }}
             >
@@ -1772,7 +1876,7 @@ export function ViewerPreview({
                   type="button"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => setListOpen((v) => !v)}
-                  aria-label="Choose animation"
+                  aria-label={strings.choose_animation}
                   aria-haspopup="listbox"
                   aria-expanded={listOpen}
                   className={cn(
@@ -1796,7 +1900,7 @@ export function ViewerPreview({
                     className="preview-animation-label truncate"
                   >
                     {activeClipIndex === -1
-                      ? "None"
+                      ? strings.animation_none
                       : clipNames[activeClipIndex]}
                   </span>
                   {listOpen ? (
@@ -1808,7 +1912,7 @@ export function ViewerPreview({
               </TooltipTrigger>
               {!listOpen && (
                 <TooltipContent side={sideFor(slot)} sideOffset={8}>
-                  Choose animation
+                  {strings.choose_animation}
                 </TooltipContent>
               )}
               {/*
@@ -1838,7 +1942,7 @@ export function ViewerPreview({
                         : "text-black/80",
                     )}
                   >
-                    None
+                    {strings.animation_none}
                   </button>
                   {clipNames.map((name, idx) => (
                     <button
@@ -1846,7 +1950,11 @@ export function ViewerPreview({
                       type="button"
                       role="option"
                       aria-selected={idx === activeClipIndex}
-                      onClick={() => selectClip(idx)}
+                      onClick={() => {
+                        // Picking a clip, as the storefront counts it.
+                        track("f_animation");
+                        selectClip(idx);
+                      }}
                       className={cn(
                         "group flex w-full items-center gap-2 truncate rounded px-2 py-1.5 text-left transition-colors duration-150 hover:bg-primary hover:text-white",
                         idx === activeClipIndex
@@ -1914,7 +2022,7 @@ export function ViewerPreview({
           <div className="flex items-center gap-2 border bg-background/95 px-3.5 py-2 shadow-sm">
             <Loader2 className="size-4 animate-spin text-primary" />
             <span className="text-xs font-medium text-muted-foreground">
-              Loading model…
+              {strings.loading}
             </span>
           </div>
         </div>
@@ -1974,7 +2082,7 @@ export function ViewerPreview({
           {arQrOpen && arQr && (
             <div
               role="dialog"
-              aria-label="View in your room on your phone"
+              aria-label={strings.ar_view_on_phone}
               className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 p-2 animate-in fade-in-0 duration-150"
               onClick={(e) => {
                 if (e.target === e.currentTarget) closeArQr();
@@ -1988,22 +2096,22 @@ export function ViewerPreview({
                   viewBox={`0 0 ${arQr.size} ${arQr.size}`}
                   shapeRendering="crispEdges"
                   role="img"
-                  aria-label="QR code"
+                  aria-label={strings.qr_code}
                   className="size-40 shrink-0"
                 >
                   <rect width={arQr.size} height={arQr.size} fill="#ffffff" />
                   <path d={arQr.d} fill="#000000" />
                 </svg>
                 <p className="mt-2.5 max-w-[200px] text-sm font-semibold text-black/80">
-                  View in your room
+                  {strings.ar_view_in_room}
                 </p>
                 <p className="mt-0.5 max-w-[200px] text-xs text-black/60">
-                  Scan with your phone&rsquo;s camera to see this in AR.
+                  {strings.ar_scan_qr}
                 </p>
               </div>
               <div className="absolute right-2 top-2">
                 <MiniToolbarButton
-                  label="Close"
+                  label={strings.close}
                   tooltipSide="bottom"
                   onClick={closeArQr}
                 >
@@ -2027,7 +2135,7 @@ export function ViewerPreview({
               )}
             >
               <MiniToolbarButton
-                label="Exit fullscreen"
+                label={strings.exit_fullscreen}
                 onClick={toggleFullscreen}
                 tooltipSide={sideFor(closeSlot)}
               >
@@ -2051,7 +2159,7 @@ export function ViewerPreview({
           disabled={isNativeFullscreen ? true : undefined}
           onClick={() => setArranging((v) => !v)}
         >
-          {arranging ? "Done moving controls" : "Move controls"}
+          {arranging ? t("doneMovingControls") : t("moveControls")}
         </s-button>
       </div>
     </div>
