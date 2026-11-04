@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "Solo se admiten archivos .glb o .gltf",
+  "chooseFile": "Elige un archivo .glb o .gltf",
+  "tooBigRaw": "El archivo pesa {size}. Máximo {max} MB antes de la optimización.",
+  "tooBig": "El archivo pesa {size}. El tamaño máximo es de {max} MB — activa “Optimizar para una carga más rápida” para subir archivos más grandes.",
+  "stillTooBig": "Sigue pesando {size} después de la optimización (antes {original}). Máximo {max} MB.",
+  "cantShrink": "El archivo pesa {size} y no se pudo reducir más. Máximo {max} MB.",
+  "saving": "Optimizado: {from} → {to} ({pct} % más ligero)",
+  "quota": "Alcanzaste el límite de {limit} modelos 3D de tu plan {plan}. Mejora tu plan para agregar más.",
+  "fileGone": "El archivo ya no está disponible. Agrégalo de nuevo.",
+  "uploadFailed": "No se pudo subir el archivo"
+}

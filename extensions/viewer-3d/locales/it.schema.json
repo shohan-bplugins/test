@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "Visualizzatore 3D — Prodotto",
+      "paragraph": "Per impostazione predefinita il modello proviene dal metacampo prodotto custom.model_3d (gestito dall’app 3D Viewer). Lascia vuota la sostituzione per il funzionamento normale. Incolla un URL .glb / .gltf diretto qui sotto solo se vuoi sostituire il metacampo per un test.",
+      "model_url": {
+        "label": "URL manuale del modello (deve terminare con .glb o .gltf)",
+        "info": "Lascia vuoto per usare il metacampo del prodotto. Gli URL che non sono modelli vengono ignorati."
+      },
+      "header_appearance": "Aspetto predefinito"
+    },
+    "page": {
+      "name": "Visualizzatore 3D — Qualsiasi modello",
+      "paragraph": "Usa un ID modello oppure un URL del file. L’ID modello applica anche le impostazioni salvate del visualizzatore per quel modello, quindi è l’opzione migliore: copialo dall’app in Modelli 3D → (il tuo modello) → ID modello.",
+      "model_id": {
+        "label": "ID modello",
+        "info": "Dalla libreria Modelli 3D dell’app. Ha la priorità sull’URL qui sotto."
+      },
+      "model_url": {
+        "label": "URL del modello (.glb / .gltf)",
+        "info": "In alternativa all’ID modello: incolla un URL diretto del file da Impostazioni → File."
+      },
+      "caption": {
+        "label": "Didascalia (facoltativa)"
+      },
+      "header_appearance": "Aspetto",
+      "header_interaction": "Interazione",
+      "auto_rotate": {
+        "label": "Rotazione automatica"
+      },
+      "show_controls": {
+        "label": "Mostra i controlli a schermo"
+      }
+    },
+    "shared": {
+      "header_source": "Origine del modello",
+      "height": {
+        "label": "Altezza del visualizzatore"
+      },
+      "background_color": {
+        "label": "Colore di sfondo"
+      }
+    },
+    "configurator_block": {
+      "name": "Configuratore di prodotto",
+      "paragraph": "Mostra il modello 3D con le opzioni cliente impostate nell’editor 3D, prezzo in tempo reale e aggiunta al carrello."
+    }
+  }
+}

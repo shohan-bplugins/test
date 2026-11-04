@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "3D Viewer — Product",
+      "paragraph": "By default the model comes from the product metafield custom.model_3d (managed via the 3D Viewer app). Leave the override blank for the normal flow. Only paste a direct .glb / .gltf URL below if you want to override the metafield for testing.",
+      "model_url": {
+        "label": "Manual model URL (must end in .glb or .gltf)",
+        "info": "Leave empty to use the product metafield. Non-model URLs are ignored."
+      },
+      "header_appearance": "Default appearance"
+    },
+    "page": {
+      "name": "3D Viewer — Any Model",
+      "paragraph": "Use either a Model ID or a file URL. The Model ID also applies that model's saved viewer settings, so it's the better option — copy it from the app under 3D Models → (your model) → Model ID.",
+      "model_id": {
+        "label": "Model ID",
+        "info": "From the app's 3D Models library. Takes priority over the URL below."
+      },
+      "model_url": {
+        "label": "Model URL (.glb / .gltf)",
+        "info": "Alternative to a Model ID: paste a direct file URL from Settings → Files."
+      },
+      "caption": {
+        "label": "Caption (optional)"
+      },
+      "header_appearance": "Appearance",
+      "header_interaction": "Interaction",
+      "auto_rotate": {
+        "label": "Auto rotate"
+      },
+      "show_controls": {
+        "label": "Show on-screen controls"
+      }
+    },
+    "shared": {
+      "header_source": "Model source",
+      "height": {
+        "label": "Viewer height"
+      },
+      "background_color": {
+        "label": "Background color"
+      }
+    },
+    "configurator_block": {
+      "name": "Product configurator",
+      "paragraph": "Shows the product's 3D model with the customer options set up in the 3D editor, live pricing and add to cart."
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "확대",
+  "control_zoomOut": "축소",
+  "control_reset": "보기 재설정",
+  "control_fullscreen": "전체 화면",
+  "control_screenshot": "스크린샷",
+  "control_ar": "내 공간에서 보기",
+  "control_animation": "애니메이션",
+  "slotTopLeft": "왼쪽 위",
+  "slotTopCenter": "가운데 위",
+  "slotTopRight": "오른쪽 위",
+  "slotBottomLeft": "왼쪽 아래",
+  "slotBottomCenter": "가운데 아래",
+  "slotBottomRight": "오른쪽 아래",
+  "chipOffA11y": "{control}, 꺼짐. 뷰어로 드래그하거나 Enter 키를 눌러 켜세요.",
+  "chipOnA11y": "{control}, {where}. 드래그하거나 화살표 키로 이동하고, Delete 키로 끄세요.",
+  "empty": "비어 있음",
+  "instructions": "컨트롤을 원하는 위치로 드래그하거나 두 컨트롤 사이로 드래그하여 순서를 정하세요. 아래 트레이로 드래그하면 숨겨지고, 트레이 밖으로 드래그하면 표시됩니다.",
+  "hidden": "숨김",
+  "whereHidden": "숨김",
+  "dropToHide": "여기에 놓아 숨기기",
+  "nothingHidden": "숨겨진 항목 없음 — 컨트롤을 여기로 드래그하면 숨겨집니다"
+}

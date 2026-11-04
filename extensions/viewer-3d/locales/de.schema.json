@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "3D-Viewer — Produkt",
+      "paragraph": "Standardmäßig stammt das Modell aus dem Produkt-Metafeld custom.model_3d (verwaltet über die 3D Viewer App). Lass die Überschreibung für den normalen Ablauf leer. Füge unten nur dann eine direkte .glb- / .gltf-URL ein, wenn du das Metafeld zum Testen überschreiben möchtest.",
+      "model_url": {
+        "label": "Manuelle Modell-URL (muss auf .glb oder .gltf enden)",
+        "info": "Leer lassen, um das Produkt-Metafeld zu verwenden. URLs, die keine Modelle sind, werden ignoriert."
+      },
+      "header_appearance": "Standarddarstellung"
+    },
+    "page": {
+      "name": "3D-Viewer — Beliebiges Modell",
+      "paragraph": "Verwende entweder eine Modell-ID oder eine Datei-URL. Die Modell-ID übernimmt auch die gespeicherten Viewer-Einstellungen des Modells und ist daher die bessere Wahl — kopiere sie in der App unter 3D-Modelle → (dein Modell) → Modell-ID.",
+      "model_id": {
+        "label": "Modell-ID",
+        "info": "Aus der 3D-Modell-Bibliothek der App. Hat Vorrang vor der URL unten."
+      },
+      "model_url": {
+        "label": "Modell-URL (.glb / .gltf)",
+        "info": "Alternative zur Modell-ID: Füge eine direkte Datei-URL aus Einstellungen → Dateien ein."
+      },
+      "caption": {
+        "label": "Bildunterschrift (optional)"
+      },
+      "header_appearance": "Darstellung",
+      "header_interaction": "Interaktion",
+      "auto_rotate": {
+        "label": "Automatisch drehen"
+      },
+      "show_controls": {
+        "label": "Bildschirmsteuerung anzeigen"
+      }
+    },
+    "shared": {
+      "header_source": "Modellquelle",
+      "height": {
+        "label": "Höhe des Viewers"
+      },
+      "background_color": {
+        "label": "Hintergrundfarbe"
+      }
+    },
+    "configurator_block": {
+      "name": "Produktkonfigurator",
+      "paragraph": "Zeigt das 3D-Modell mit den im 3D-Editor eingerichteten Kundenoptionen, Live-Preis und Warenkorb-Button."
+    }
+  }
+}

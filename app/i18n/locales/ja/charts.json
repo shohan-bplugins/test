@@ -1,0 +1,16 @@
+{
+  "seriesView": "表示回数",
+  "seriesInteract": "インタラクション",
+  "seriesAr": "ARクリック",
+  "grainDay": "日別",
+  "grainWeek": "週別",
+  "grainMonth": "月別",
+  "chartAriaDay": "日別の表示回数、インタラクション、ARクリック。下の表に日別の数値が記載されています。",
+  "chartAriaWeek": "週別の表示回数、インタラクション、ARクリック。下の表に日別の数値が記載されています。",
+  "chartAriaMonth": "月別の表示回数、インタラクション、ARクリック。下の表に日別の数値が記載されています。",
+  "weekOf": "{date}の週",
+  "monthYearShort": "’{year} {month}",
+  "partialDays": "{title}（{total}日中{days}日）",
+  "legendAria": "系列の表示/非表示",
+  "lockedSeriesAria": "{label}：有料プランで利用できます。アップグレードしてください。"
+}

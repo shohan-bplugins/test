@@ -1,0 +1,301 @@
+{%- liquid
+  # A complete product section in one app block: gallery (3D model + images),
+  # title, price, variant picker, quantity, add to cart, the customer options
+  # from the 3D editor, description and extra tabs.
+  assign render = product.metafields['$app:configurator'].render.value
+  assign current_variant = product.selected_or_first_available_variant
+
+  # Saved-but-unpublished changes ("Save draft" in the editor). Only sent to the
+  # page when they differ from what is live, and only used by configurator.js
+  # when the URL carries ?e3d_preview=1, so shoppers never see them.
+  assign draft = product.metafields['$app:configurator'].render_draft.value
+  assign has_draft_diff = false
+  if draft and draft.enabled != false
+    if render == blank or draft.rev != render.rev
+      assign has_draft_diff = true
+    endif
+  endif
+
+  assign viewer_off = false
+  if render and render.enabled == false
+    assign viewer_off = true
+  endif
+
+  # "Customer options" are on unless the merchant switched them off for this
+  # product. Without a published config the section still works as a plain
+  # product section (with the product's 3D model, if it has one).
+  assign options_on = false
+  if render and render.enabled != false and render.customizer != 'off'
+    assign options_on = true
+  endif
+
+  assign model_url = ''
+  if options_on and render.model != blank
+    assign model_url = render.models[render.model].glb
+  endif
+  # A product with a draft but nothing published yet: render the viewer hidden so
+  # the preview can show it. Nothing loads until it is revealed.
+  assign draft_only = false
+  if model_url == blank and render == blank and has_draft_diff and draft.model != blank
+    assign model_url = draft.models[draft.model].glb
+    if model_url != blank
+      assign draft_only = true
+    endif
+  endif
+  if model_url == blank and viewer_off == false
+    assign model_field = product.metafields.custom.model_3d
+    if model_field.value
+      for source in model_field.value.sources
+        assign source_format = source.format | downcase
+        if model_url == blank and source_format == 'glb' or model_url == blank and source_format == 'gltf'
+          assign model_url = source.url
+        endif
+      endfor
+    endif
+  endif
+
+  assign cfg = product.metafields.custom.viewer_3d_config.value
+  assign viewer_bg = block.settings.background_color
+  assign poster_url = ''
+  if product.featured_image
+    assign poster_url = product.featured_image | image_url: width: 1200
+  endif
+-%}
+
+{%- capture viewer_i18n -%}{%- render 'viewer_i18n' -%}{%- endcapture -%}
+{%- capture configurator_i18n -%}{%- render 'configurator_i18n' -%}{%- endcapture -%}
+
+<div
+  class="viewer-3d-block e3d-configurator e3d-product e3d-media-{{ block.settings.media_position }}"
+  {{ block.shopify_attributes }}
+  data-e3d-configurator
+  data-render="{% if options_on %}{{ render | json | escape }}{% else %}null{% endif %}"
+  {%- if has_draft_diff %}
+  data-render-draft="{{ draft | json | escape }}"
+  {%- endif %}
+  data-product="{{ product | json | escape }}"
+  data-variant-id="{{ current_variant.id }}"
+  data-currency="{{ localization.country.currency.iso_code | escape }}"
+  data-locale="{{ request.locale.iso_code | escape }}"
+  data-i18n="{{ configurator_i18n | strip | escape }}"
+>
+  <div class="e3d-gallery">
+    <div class="e3d-stage" style="--viewer-height: {{ block.settings.height }}px;">
+      {%- if model_url != blank -%}
+        <div
+          id="viewer-3d-{{ block.id }}"
+          class="viewer-3d"
+          {%- if draft_only %} hidden data-draft-hidden{% endif %}
+          style="--viewer-height: {{ block.settings.height }}px; --viewer-bg: {{ viewer_bg }}; background: {{ viewer_bg }};"
+          data-view3d
+          data-model-url="{{ model_url }}"
+          data-poster-url="{{ poster_url }}"
+          data-viewer-height="{{ block.settings.height }}"
+          data-viewer-bg="{{ viewer_bg }}"
+          data-placement="product"
+          data-track-target="{{ product.id }}"
+          {%- unless request.design_mode %} data-track-url="/apps/viewer-3d/track"{% endunless %}
+          data-config="{{ cfg | json | escape }}"
+          data-locale="{{ request.locale.iso_code | escape }}"
+          data-i18n="{{ viewer_i18n | strip | escape }}"
+        >
+          <canvas class="view3d-canvas"></canvas>
+        </div>
+      {%- endif -%}
+      {%- for image in product.images -%}
+        <img
+          class="e3d-image{% if model_url == blank and forloop.first %} is-active{% endif %}"
+          data-e3d-image="{{ image.id }}"
+          src="{{ image | image_url: width: 1200 }}"
+          alt="{{ image.alt | escape }}"
+          width="{{ image.width }}"
+          height="{{ image.height }}"
+          loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"
+        >
+      {%- endfor -%}
+    </div>
+
+    {%- if product.images.size > 1 or model_url != blank and product.images.size > 0 -%}
+      <div class="e3d-thumbs">
+        {%- if model_url != blank -%}
+          <button type="button" class="e3d-thumb-btn e3d-thumb-3d is-on" data-e3d-thumb="3d" aria-pressed="true"{% if draft_only %} hidden data-draft-hidden{% endif %}>
+            {{ 'viewer_3d.configurator.view_3d' | t }}
+          </button>
+        {%- endif -%}
+        {%- for image in product.images -%}
+          <button
+            type="button"
+            class="e3d-thumb-btn{% if model_url == blank and forloop.first %} is-on{% endif %}"
+            data-e3d-thumb="{{ image.id }}"
+            aria-pressed="{% if model_url == blank and forloop.first %}true{% else %}false{% endif %}"
+          >
+            <img src="{{ image | image_url: width: 160, height: 160, crop: 'center' }}" alt="{{ image.alt | escape }}" width="80" height="80" loading="lazy">
+          </button>
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+  </div>
+
+  <div class="e3d-info">
+    {%- if block.settings.show_vendor and product.vendor != blank -%}
+      <p class="e3d-vendor">{{ product.vendor }}</p>
+    {%- endif -%}
+    <h1 class="e3d-title">{{ product.title }}</h1>
+
+    <p class="e3d-price-line">
+      <span class="e3d-price-main" data-e3d-price-main>{{ current_variant.price | money }}</span>
+      <s class="e3d-price-compare" data-e3d-price-compare{% unless current_variant.compare_at_price > current_variant.price %} hidden{% endunless %}>
+        {%- if current_variant.compare_at_price > current_variant.price %}{{ current_variant.compare_at_price | money }}{% endif -%}
+      </s>
+    </p>
+
+    {%- if block.settings.show_sku and current_variant.sku != blank -%}
+      <p class="e3d-sku">SKU: <span data-e3d-sku>{{ current_variant.sku }}</span></p>
+    {%- endif -%}
+
+    {%- unless product.has_only_default_variant -%}
+      <div class="e3d-options">
+        {%- for option in product.options_with_values -%}
+          {%- assign option_index = forloop.index0 -%}
+          <fieldset class="e3d-opt" data-option-index="{{ option_index }}">
+            <legend class="e3d-label">{{ option.name }}</legend>
+            {%- if block.settings.variant_style == 'dropdown' -%}
+              <select class="e3d-select" aria-label="{{ option.name | escape }}">
+                {%- for value in option.values -%}
+                  {%- assign is_selected = '' -%}
+                  {%- if option.selected_value == value -%}{%- assign is_selected = 'selected' -%}{%- endif -%}
+                  <option value="{{ value | escape }}" {{ is_selected }}>{{ value }}</option>
+                {%- endfor -%}
+              </select>
+            {%- else -%}
+              <div class="e3d-pills">
+                {%- for value in option.values -%}
+                  {%- assign is_checked = '' -%}
+                  {%- if option.selected_value == value -%}{%- assign is_checked = 'checked' -%}{%- endif -%}
+                  <label class="e3d-pill">
+                    <input
+                      type="radio"
+                      name="e3d-{{ block.id }}-{{ option_index }}"
+                      value="{{ value | escape }}"
+                      {{ is_checked }}
+                    >
+                    <span>{{ value }}</span>
+                  </label>
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+          </fieldset>
+        {%- endfor -%}
+      </div>
+    {%- endunless -%}
+
+    {%- comment -%} Filled in by configurator.js when the product has customer options. {%- endcomment -%}
+    <div class="e3d-panel" data-e3d-panel hidden></div>
+
+    {%- form 'product', product, data-e3d-form: '', class: 'e3d-form' -%}
+      <input type="hidden" name="id" value="{{ current_variant.id }}">
+      {%- if block.settings.show_quantity -%}
+        <label class="e3d-qty">
+          <span class="e3d-label">{{ 'viewer_3d.configurator.quantity' | t }}</span>
+          <input type="number" name="quantity" value="1" min="1" inputmode="numeric">
+        </label>
+      {%- endif -%}
+      <button type="submit" name="add" class="e3d-add" data-e3d-submit{% unless current_variant.available %} disabled{% endunless %}>
+        {%- if current_variant.available -%}
+          {{- 'viewer_3d.configurator.add_to_cart' | t -}}
+        {%- else -%}
+          {{- 'viewer_3d.configurator.sold_out' | t -}}
+        {%- endif -%}
+      </button>
+      {%- if block.settings.show_buy_now -%}
+        <button type="button" class="e3d-buy" data-e3d-buy{% unless current_variant.available %} disabled{% endunless %}>
+          {{- 'viewer_3d.ui.buy_now' | t -}}
+        </button>
+      {%- endif -%}
+      <p class="e3d-msg" role="status" data-e3d-msg></p>
+    {%- endform -%}
+
+    {%- if block.settings.show_description and product.description != blank -%}
+      <div class="e3d-description rte">{{ product.description }}</div>
+    {%- endif -%}
+
+    {%- for n in (1..3) -%}
+      {%- assign title_key = 'tab_' | append: n | append: '_title' -%}
+      {%- assign body_key = 'tab_' | append: n | append: '_content' -%}
+      {%- assign tab_title = block.settings[title_key] -%}
+      {%- if tab_title != blank -%}
+        <details class="e3d-tab">
+          <summary>{{ tab_title }}</summary>
+          <div class="rte">{{ block.settings[body_key] }}</div>
+        </details>
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+</div>
+
+{{ 'viewer-3d.css' | asset_url | stylesheet_tag }}
+{{ 'configurator.css' | asset_url | stylesheet_tag }}
+{%- if model_url != blank -%}
+  <script
+    src="{{ 'viewer-3d.js' | asset_url }}"
+    data-vendor-js="{{ 'view3d.pkgd.min.js' | asset_url }}"
+    data-vendor-css="{{ 'view3d-bundle.min.css' | asset_url }}"
+    defer
+  ></script>
+{%- endif -%}
+<script src="{{ 'configurator.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "t:viewer_3d.configurator_block.name",
+  "target": "section",
+  "settings": [
+    { "type": "paragraph", "content": "t:viewer_3d.configurator_block.paragraph" },
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "media_position",
+      "label": "Gallery position",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "left"
+    },
+    {
+      "type": "range",
+      "id": "height",
+      "label": "Gallery height",
+      "min": 300,
+      "max": 800,
+      "step": 50,
+      "default": 550,
+      "unit": "px"
+    },
+    { "type": "color", "id": "background_color", "label": "3D background", "default": "#ffffff" },
+    { "type": "header", "content": "Product details" },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "show_sku", "label": "Show SKU", "default": false },
+    {
+      "type": "select",
+      "id": "variant_style",
+      "label": "Variant picker",
+      "options": [
+        { "value": "pills", "label": "Buttons" },
+        { "value": "dropdown", "label": "Dropdown" }
+      ],
+      "default": "pills"
+    },
+    { "type": "checkbox", "id": "show_buy_now", "label": "Show Buy now button", "default": true },
+    { "type": "checkbox", "id": "show_quantity", "label": "Show quantity", "default": true },
+    { "type": "checkbox", "id": "show_description", "label": "Show description", "default": true },
+    { "type": "header", "content": "Extra content" },
+    { "type": "text", "id": "tab_1_title", "label": "Tab 1 title", "default": "Shipping" },
+    { "type": "richtext", "id": "tab_1_content", "label": "Tab 1 content" },
+    { "type": "text", "id": "tab_2_title", "label": "Tab 2 title", "default": "Returns" },
+    { "type": "richtext", "id": "tab_2_content", "label": "Tab 2 content" },
+    { "type": "text", "id": "tab_3_title", "label": "Tab 3 title" },
+    { "type": "richtext", "id": "tab_3_content", "label": "Tab 3 content" }
+  ]
+}
+{% endschema %}

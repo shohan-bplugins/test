@@ -1,0 +1,317 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// MongoDB (Atlas). `url` is always read from DATABASE_URL — never hardcoded —
+// because it carries the cluster credentials and the database holds live Shopify
+// access tokens.
+//
+//   DATABASE_URL="mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/viewer3d?retryWrites=true&w=majority"
+//
+// The database name in the path is REQUIRED. Prisma's MongoDB connector has no
+// default database, and an `mongodb+srv://host/` with nothing after the slash
+// fails at connect time rather than at generate time — so it surfaces as a 500
+// on the first query, not as a build error.
+//
+// Prisma Migrate does not support MongoDB. There is no prisma/migrations
+// directory and `prisma migrate deploy` will refuse to run; the schema is
+// applied with `prisma db push`, which is what `npm run setup` does. Push is
+// what creates the unique and compound indexes declared below — without it the
+// app still reads and writes, it just silently loses every uniqueness guarantee.
+
+generator client {
+  provider = "prisma-client-js"
+
+  // The deploy target's engine, in addition to the developer's own machine.
+  // Prisma ships a platform-specific query engine binary and resolves it at
+  // runtime, so a node_modules generated on macOS and copied to a Linux host
+  // throws "Query engine library for current platform could not be located" on
+  // the first query — a 500 on the first page that touches the database while
+  // every static route keeps working.
+  //
+  // Change the second entry to match the production host: debian-openssl-3.0.x
+  // covers Debian 12 and Ubuntu 22.04+; use debian-openssl-1.1.x for Debian 11
+  // and Ubuntu 20.04, or linux-musl-openssl-3.0.x on Alpine. Running
+  // `prisma generate` on the server instead makes this line unnecessary, but it
+  // costs nothing to keep as a safety net.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Every `@id` below is a plain `String` mapped to `_id`, not an ObjectId, and
+// that is deliberate in two places that would break otherwise:
+//
+//   Model3D.id  is a v4 uuid that three *unauthenticated* public endpoints treat
+//               as the only thing standing between a stranger and a shop's model
+//               (/viewer/:id, /api/model/:id, /proxy/model/:id — see
+//               app/lib/model-resolve.server.ts). ObjectIds embed a timestamp
+//               and a counter, so consecutive ids differ by one byte and the
+//               whole library becomes enumerable.
+//
+//   Charge.id   is assigned Shopify's own numeric subscription id
+//               (app/routes/app.SuccessBilling.tsx), which is not 24 hex
+//               characters and so is not a representable ObjectId at all.
+//
+// Session.id is supplied by Shopify ("offline_shop.myshopify.com") and has no
+// default for the same reason.
+
+model Session {
+  id                  String    @id @map("_id")
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+
+  // Required by `future.expiringOfflineAccessTokens` in app/shopify.server.ts.
+  // The library refreshes an offline token within 5 minutes of expiry using
+  // these two columns; drop them and every merchant is silently logged out at
+  // the 24-hour mark instead.
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+model AppUser {
+  id             String   @id @default(uuid()) @map("_id")
+  shop           String   @unique
+  planId         String?
+  chargeId       String?
+  modelLimit     Int      @default(3)
+  productLimit   Int      @default(3)
+  onboardingStep Int      @default(0)
+  onboardingDone Boolean  @default(false)
+  // Set the first time the merchant picks a plan (Free or paid). Until then
+  // every admin page sends them to /app/pricing — see hasChosenPlan. Nullable
+  // so rows written before this column existed read as "not chosen" rather
+  // than failing to deserialize.
+  planSelectedAt DateTime?
+  // Review prompt bookkeeping — see app/lib/review-prompt.server.ts. Nullable
+  // for the same reason as planSelectedAt: existing rows lack the fields.
+  lastReviewPromptAt DateTime?
+  reviewPromptCount  Int?
+  reviewed           Boolean?
+  // When the dashboard or Analytics page used its one-time "more than 5
+  // lifetime views" review ask. Null until then.
+  reviewViewsMilestoneAt DateTime?
+  // When the review popup was actually shown, last 365 days only. Rule 2 in
+  // app/lib/review-prompt.server.ts allows 3 a year. Empty on older rows.
+  reviewPromptDates  DateTime[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Charge {
+  id           String   @id @default(uuid()) @map("_id")
+  shop         String
+  name         String
+  price        String
+  status       String
+  modelLimit   Int?
+  productLimit Int?
+  activatedOn  String?
+  trialDays    String?
+  cancelledOn  String?
+  billingOn    String?
+  planId       String?
+  chargeId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([shop, chargeId])
+}
+
+model Model3D {
+  id        String   @id @default(uuid()) @map("_id")
+  shop      String
+  name      String
+  fileGid   String
+  fileUrl   String
+  fileSize  Int?
+  config    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop, createdAt])
+}
+
+// One file of a bulk upload to the model library, keyed by an id the browser
+// generates (app/lib/upload-queue.client.ts). It is what lets an upload survive
+// a reload: the browser keeps the file and asks here whether a key it sent
+// before the reload already landed, is still being processed, or has to be
+// sent again — so nothing is uploaded twice. Rows older than a week are
+// cleared by the upload endpoint itself.
+model UploadJob {
+  id        String   @id @map("_id")
+  shop      String
+  name      String
+  size      Int
+  status    String // "uploading" | "done" | "error"
+  error     String?
+  modelId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop, createdAt])
+}
+
+model WebhookCall {
+  id       String   @id @default(uuid()) @map("_id")
+  shop     String   @unique
+  called   Boolean  @default(false)
+  calledAt DateTime @default(now())
+}
+
+model Plan {
+  id           String   @id @default(uuid()) @map("_id")
+  title        String
+  name         String   @unique
+  description  String?
+  features     String
+  price        String
+  currencyCode String
+  trialDays    String?
+  modelLimit   Int
+  productLimit Int      @default(3)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Storefront engagement with the 3D viewer, as daily counters — never one row
+// per event, and nothing about the shopper. Written by
+// app/lib/viewer-stats.server.ts, read by the Analytics page.
+//
+//   day        UTC calendar day, "YYYY-MM-DD", so a range query is a string
+//              comparison and buckets never depend on the server's timezone
+//   placement  product | page | embed — which viewer the shopper used
+//   event      view | interact | ar | cart_3d | cart_no3d | dwell_s | dwell_n
+//              | f_zoom | f_fullscreen | f_screenshot | f_animation
+//              (dwell_s sums seconds on screen, dwell_n counts viewers — their
+//              ratio is the average time; see app/lib/viewer-stats.ts)
+//   device     desktop | tablet | mobile | unknown. Optional only because rows
+//              written before it existed lack it; they read as "unknown".
+//   target     what was viewed: "product:<numeric id>" or "model:<Model3D id>",
+//              "-" when the viewer was given a raw URL and neither is known
+//
+// The compound unique is what lets a flush upsert-and-increment one row per
+// bucket; `prisma db push` creates it.
+model ViewerStat {
+  id        String @id @default(uuid()) @map("_id")
+  shop      String
+  day       String
+  placement String
+  event     String
+  target    String
+  device    String?
+  count     Int
+
+  @@unique([shop, day, placement, event, target, device])
+  @@index([shop, day])
+}
+
+// ---------------------------------------------------------------------------
+// 3D configurator (see CONFIGURATOR-PLAN.md). The config JSON format is the
+// prototype's `schema_version: 1`; the rules that layer it live in
+// app/lib/configurator/config.ts. JSON is stored as strings, like
+// Model3D.config, so a malformed write can't break deserialization of the row.
+// ---------------------------------------------------------------------------
+
+// The merchant's editable configurator for one product. The published, resolved
+// data is mirrored to the product's `$app:configurator` metafields on save (see
+// app/lib/configurator/product-config.server.ts); this row is the draft source.
+//
+//   productId       numeric Shopify product id, as a string
+//   modelFileId     Shopify Files gid of the product's GLB (null = use the
+//                   product's custom.model_3d)
+//   config          product default layer
+//   optionRules     { "Color=Teal": { config, modelFileId? } }
+//   variantConfigs  { "<numeric variant id>": { config, modelFileId? } }
+//   customizer      inherit | on | off
+model ProductConfig {
+  id             String    @id @default(uuid()) @map("_id")
+  shop           String
+  productId      String
+  enabled        Boolean   @default(true)
+  modelFileId    String?
+  config         String
+  optionRules    String    @default("{}")
+  variantConfigs String    @default("{}")
+  customizer     String    @default("inherit")
+  publishedAt    DateTime?
+  // Set by "Save draft", cleared by "Publish". A draft is stored and previewable
+  // (the `render_draft` metafield) but the live `render` metafield is untouched.
+  draftAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([shop, productId])
+}
+
+// A shopper's design: written when a configured product is added to cart
+// (kind "cart") or saved for sharing (kind "saved"). `code` is the public share
+// code — random, never sequential, because /apps/viewer-3d/d/<code> is
+// unauthenticated. `choices` is the raw shopper layer (options, decals, colors,
+// parts) as JSON.
+model Design {
+  id          String    @id @default(uuid()) @map("_id")
+  code        String    @unique
+  shop        String
+  kind        String // "cart" | "saved"
+  productId   String
+  variantId   String
+  customerId  String?
+  name        String?
+  choices     String
+  snapshotUrl String?
+  views       Int       @default(0)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([shop, kind, createdAt])
+  @@index([shop, customerId])
+}
+
+// A design frozen at order time by the orders/create webhook. Holds the fully
+// resolved config so later edits to the product never change how a past order
+// looks — the prototype re-resolved from the live product config instead.
+model OrderDesign {
+  id              String   @id @default(uuid()) @map("_id")
+  shop            String
+  orderId         String
+  lineId          String
+  designCode      String
+  effectiveConfig String
+  modelUrl        String?
+  snapshotUrl     String?
+  createdAt       DateTime @default(now())
+
+  @@unique([shop, orderId, lineId])
+  @@index([shop, designCode])
+}
+
+// Reusable material / environment / camera / animation settings.
+model Preset {
+  id        String   @id @default(uuid()) @map("_id")
+  shop      String
+  kind      String // "material" | "environment" | "camera" | "animation"
+  name      String
+  data      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop, kind])
+}

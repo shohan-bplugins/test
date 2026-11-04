@@ -1,0 +1,442 @@
+{%- liquid
+  # A complete product section in one app block: gallery (3D model + images),
+  # title, price, variant picker, quantity, add to cart, the customer options
+  # from the 3D editor, description and extra tabs.
+  assign render = product.metafields['$app:configurator'].render.value
+  assign current_variant = product.selected_or_first_available_variant
+
+  # Saved-but-unpublished changes ("Save draft" in the editor). Only sent to the
+  # page when they differ from what is live, and only used by configurator.js
+  # when the URL carries ?e3d_preview=1, so shoppers never see them.
+  assign draft = product.metafields['$app:configurator'].render_draft.value
+  assign has_draft_diff = false
+  if draft and draft.enabled != false
+    if render == blank or draft.rev != render.rev
+      assign has_draft_diff = true
+    endif
+  endif
+
+  assign viewer_off = false
+  if render and render.enabled == false
+    assign viewer_off = true
+  endif
+
+  # "Customer options" are on unless the merchant switched them off for this
+  # product. Without a published config the section still works as a plain
+  # product section (with the product's 3D model, if it has one).
+  assign options_on = false
+  if render and render.enabled != false and render.customizer != 'off'
+    assign options_on = true
+  endif
+
+  assign model_url = ''
+  if options_on and render.model != blank
+    assign model_url = render.models[render.model].glb
+  endif
+  # A product with a draft but nothing published yet: render the viewer hidden so
+  # the preview can show it. Nothing loads until it is revealed.
+  assign draft_only = false
+  if model_url == blank and render == blank and has_draft_diff and draft.model != blank
+    assign model_url = draft.models[draft.model].glb
+    if model_url != blank
+      assign draft_only = true
+    endif
+  endif
+  if model_url == blank and viewer_off == false
+    assign model_field = product.metafields.custom.model_3d
+    if model_field.value
+      for source in model_field.value.sources
+        assign source_format = source.format | downcase
+        if model_url == blank and source_format == 'glb' or model_url == blank and source_format == 'gltf'
+          assign model_url = source.url
+        endif
+      endfor
+    endif
+  endif
+
+  assign cfg = product.metafields.custom.viewer_3d_config.value
+  assign viewer_bg = block.settings.background_color
+  assign poster_url = ''
+  if product.featured_image
+    assign poster_url = product.featured_image | image_url: width: 1200
+  endif
+-%}
+
+{%- capture viewer_i18n -%}{%- render 'viewer_i18n' -%}{%- endcapture -%}
+{%- capture configurator_i18n -%}{%- render 'configurator_i18n' -%}{%- endcapture -%}
+
+{%- if model_url != blank -%}
+<div
+  class="viewer-3d-block e3d-configurator e3d-modal-block"
+  {{ block.shopify_attributes }}
+  data-e3d-configurator
+  data-render="{% if options_on %}{{ render | json | escape }}{% else %}null{% endif %}"
+  {%- if has_draft_diff %}
+  data-render-draft="{{ draft | json | escape }}"
+  {%- endif %}
+  data-product="{{ product | json | escape }}"
+  data-variant-id="{{ current_variant.id }}"
+  data-currency="{{ localization.country.currency.iso_code | escape }}"
+  data-locale="{{ request.locale.iso_code | escape }}"
+  data-i18n="{{ configurator_i18n | strip | escape }}"
+  data-mode="{{ block.settings.display_mode }}"
+  {%- if product.featured_image %}
+  data-replace-gallery="{{ product.featured_image.src | split: '?' | first | split: '/' | last | split: '.' | first | escape }}"
+  {%- endif %}
+>
+  <div class="e3d-gallery">
+    <div class="e3d-stage" style="--viewer-height: {{ block.settings.height }}px;">
+      {%- if model_url != blank -%}
+        <div
+          id="viewer-3d-{{ block.id }}"
+          class="viewer-3d"
+          {%- if draft_only %} hidden data-draft-hidden{% endif %}
+          style="--viewer-height: {{ block.settings.height }}px; --viewer-bg: {{ viewer_bg }}; background: {{ viewer_bg }};"
+          data-view3d
+          data-model-url="{{ model_url }}"
+          data-poster-url="{{ poster_url }}"
+          data-viewer-height="{{ block.settings.height }}"
+          data-viewer-bg="{{ viewer_bg }}"
+          data-placement="product"
+          data-track-target="{{ product.id }}"
+          {%- unless request.design_mode %} data-track-url="/apps/viewer-3d/track"{% endunless %}
+          data-config="{{ cfg | json | escape }}"
+          data-locale="{{ request.locale.iso_code | escape }}"
+          data-i18n="{{ viewer_i18n | strip | escape }}"
+        >
+          <canvas class="view3d-canvas"></canvas>
+        </div>
+        <button
+          type="button"
+          class="e3d-customize-btn e3d-customize-{{ block.settings.button_position }}"
+          data-e3d-open
+          title="{{ block.settings.button_label | default: 'Customize' | escape }}"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          hidden
+        >
+          <svg class="e3d-3d-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 3.5 7v10L12 21.5 20.5 17V7L12 2.5Z"/><path d="m3.5 7 8.5 4.5L20.5 7M12 11.5v10"/></svg>
+          <span class="e3d-btn-label">{{- block.settings.button_label | default: 'Customize' -}}</span>
+        </button>
+      {%- endif -%}
+    </div>
+  </div>
+
+  {%- comment -%}
+    The option panel (filled in by configurator.js) lives in a side sheet so the
+    model stays visible and live while the shopper customizes.
+  {%- endcomment -%}
+  <div class="e3d-sheet" data-e3d-sheet role="dialog" aria-modal="false" aria-label="{{ block.settings.button_label | default: 'Customize' | escape }}" hidden>
+    <button type="button" class="e3d-sheet-close" data-e3d-close aria-label="{{ 'viewer_3d.ui.close' | t | escape }}">&times;</button>
+    {%- unless product.has_only_default_variant -%}
+      <div class="e3d-options">
+        {%- for option in product.options_with_values -%}
+          {%- assign option_index = forloop.index0 -%}
+          <fieldset class="e3d-opt" data-option-index="{{ option_index }}">
+            <legend class="e3d-label">{{ option.name }}</legend>
+            {%- if block.settings.variant_style == 'dropdown' -%}
+              <select class="e3d-select" aria-label="{{ option.name | escape }}">
+                {%- for value in option.values -%}
+                  {%- assign is_selected = '' -%}
+                  {%- if option.selected_value == value -%}{%- assign is_selected = 'selected' -%}{%- endif -%}
+                  <option value="{{ value | escape }}" {{ is_selected }}>{{ value }}</option>
+                {%- endfor -%}
+              </select>
+            {%- else -%}
+              <div class="e3d-pills">
+                {%- for value in option.values -%}
+                  {%- assign is_checked = '' -%}
+                  {%- if option.selected_value == value -%}{%- assign is_checked = 'checked' -%}{%- endif -%}
+                  <label class="e3d-pill">
+                    <input
+                      type="radio"
+                      name="e3d-{{ block.id }}-{{ option_index }}"
+                      value="{{ value | escape }}"
+                      {{ is_checked }}
+                    >
+                    <span>{{ value }}</span>
+                  </label>
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+          </fieldset>
+        {%- endfor -%}
+      </div>
+    {%- endunless -%}
+    <div class="e3d-panel" data-e3d-panel hidden></div>
+  </div>
+</div>
+
+{%- if block.settings.hide_selector != blank and block.settings.display_mode != 'modal' -%}
+  <style>{{ block.settings.hide_selector | strip_html | escape }} { display: none !important; }</style>
+{%- endif -%}
+
+{{ 'viewer-3d.css' | asset_url | stylesheet_tag }}
+{{ 'configurator.css' | asset_url | stylesheet_tag }}
+{%- if model_url != blank -%}
+  <script
+    src="{{ 'viewer-3d.js' | asset_url }}"
+    data-vendor-js="{{ 'view3d.pkgd.min.js' | asset_url }}"
+    data-vendor-css="{{ 'view3d-bundle.min.css' | asset_url }}"
+    defer
+  ></script>
+{%- endif -%}
+<script src="{{ 'configurator.js' | asset_url }}" defer></script>
+<script>
+  (function () {
+    var root = document.currentScript.previousElementSibling;
+    while (root && !(root.classList && root.classList.contains('e3d-modal-block'))) root = root.previousElementSibling;
+    if (!root) root = document.querySelector('[data-e3d-configurator].e3d-modal-block');
+    if (!root || root.dataset.e3dModal) return;
+    root.dataset.e3dModal = '1';
+    var stem = root.dataset.replaceGallery;
+    var btn = root.querySelector('[data-e3d-open]');
+    var sheet = root.querySelector('[data-e3d-sheet]');
+    var panel = root.querySelector('[data-e3d-panel]');
+    if (!btn || !sheet || !panel) return;
+
+    // "Show in modal": the theme's images stay. The 3D viewer and the options move
+    // into a centered modal, opened by a button placed on the theme's product image.
+    if (root.dataset.mode === 'modal') {
+      var overlay = document.createElement('div');
+      overlay.className = 'e3d-overlay';
+      overlay.hidden = true;
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      var inner = document.createElement('div');
+      inner.className = 'e3d-overlay-inner';
+      inner.appendChild(root);
+      overlay.appendChild(inner);
+      document.body.appendChild(overlay);
+      sheet.hidden = false;
+      var openModal = function () {
+        overlay.hidden = false;
+        document.documentElement.style.overflow = 'hidden';
+        btn.setAttribute('aria-expanded', 'true');
+        window.dispatchEvent(new Event('resize'));
+        setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 150);
+      };
+      var closeModal = function () {
+        overlay.hidden = true;
+        document.documentElement.style.overflow = '';
+        btn.setAttribute('aria-expanded', 'false');
+        btn.focus();
+      };
+      btn.addEventListener('click', openModal);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+      root.querySelector('[data-e3d-close]').addEventListener('click', closeModal);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !overlay.hidden) closeModal(); });
+      var placeBtn = function () {
+        if (btn.dataset.placed) return;
+        var g = stem ? findGallery() : null;
+        if (!g) return;
+        // Sit on the main product image itself (its direct container), not the
+        // whole gallery column, so the icon overlays the picture.
+        // The main preview is the largest visible media element in the gallery
+        // (thumbnails are small; the featured image may not be the first item).
+        var best = null, bestArea = 10000;
+        Array.prototype.forEach.call(g.querySelectorAll('img, video, canvas, model-viewer, product-model, iframe'), function (m) {
+          if (root.contains(m) || btn.contains(m)) return;
+          var r = m.getBoundingClientRect();
+          if (r.width * r.height > bestArea) { best = m; bestArea = r.width * r.height; }
+        });
+        if (best && best.parentElement) g = best.parentElement;
+        else if (lastHit && lastHit.parentElement) g = lastHit.parentElement;
+        btn.classList.add('e3d-icon-btn');
+        if (getComputedStyle(g).position === 'static') g.style.position = 'relative';
+        g.appendChild(btn);
+        btn.dataset.placed = '1';
+        btn.hidden = false;
+      };
+      var fallbackBtn = function () {
+        placeBtn();
+        if (btn.dataset.placed) return;
+        // No gallery found: float the button so the modal is still reachable.
+        btn.classList.add('e3d-icon-btn');
+        btn.style.position = 'fixed';
+        document.body.appendChild(btn);
+        btn.dataset.placed = '1';
+        btn.hidden = false;
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', placeBtn);
+      else placeBtn();
+      window.addEventListener('load', fallbackBtn);
+      return;
+    }
+    function sync() { btn.hidden = panel.hidden; if (panel.hidden) close(); }
+    function open() { sheet.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+    function close() { sheet.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'], childList: true });
+    btn.addEventListener('click', function () { sheet.hidden ? open() : close(); });
+    root.querySelector('[data-e3d-close]').addEventListener('click', function () { close(); btn.focus(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sheet.hidden) close(); });
+    sync();
+
+    // Replace the theme's own product gallery with this block. Themes differ, so
+    // find it by content: the image whose file name is the product's featured
+    // image, then climb to the widest ancestor that holds product media but not
+    // the title or the add-to-cart form (i.e. the gallery, not the whole section).
+    if (!stem || root.dataset.e3dReplaced) return;
+    var lastHit = null;
+    function findGallery() {
+      var imgs = document.querySelectorAll('img');
+      var hit = null;
+      lastHit = null;
+      for (var i = 0; i < imgs.length && !hit; i++) {
+        var img = imgs[i];
+        if (root.contains(img)) continue;
+        var s = (img.currentSrc || img.src || '') + ' ' + (img.getAttribute('srcset') || '');
+        if (s.indexOf('/' + stem) > -1 || s.indexOf(stem + '_') > -1 || s.indexOf(stem + '.') > -1) hit = img;
+      }
+      if (!hit) return null;
+      lastHit = hit;
+      var node = hit;
+      while (node.parentElement && node.parentElement !== document.body) {
+        var p = node.parentElement;
+        if (p.contains(root) || p.querySelector('h1, form[action*="/cart/add"]')) break;
+        node = p;
+      }
+      return node === hit ? hit.parentElement : node;
+    }
+    function replace() {
+      if (root.dataset.e3dReplaced) return;
+      var gallery = findGallery();
+      if (!gallery || gallery.contains(root)) return;
+      root.dataset.e3dReplaced = '1';
+      // Move into the gallery column (not next to it) so the theme's grid keeps
+      // its column widths: model on one side, the theme's own content on the other.
+      Array.prototype.forEach.call(gallery.children, function (child) {
+        child.style.setProperty('display', 'none', 'important');
+      });
+      gallery.insertBefore(root, gallery.firstChild);
+      root.style.setProperty('display', 'block', 'important');
+      root.style.width = '100%';
+      window.dispatchEvent(new Event('resize'));
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', replace);
+    else replace();
+    window.addEventListener('load', replace);
+  })();
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "3D product + Customize",
+  "target": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Replace mode swaps the theme's product images for the 3D model, with a Customize button that opens the options. Modal mode keeps the theme's images and adds a button on them that opens the 3D model and options in a modal. Products without a 3D model keep the theme's normal images."
+    },
+    {
+      "type": "range",
+      "id": "height",
+      "label": "Height",
+      "min": 300,
+      "max": 900,
+      "step": 50,
+      "default": 550,
+      "unit": "px"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "3D background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "header",
+      "content": "Customize button"
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Customize"
+    },
+    {
+      "type": "select",
+      "id": "button_position",
+      "label": "Button position",
+      "options": [
+        {
+          "value": "top-left",
+          "label": "Top left"
+        },
+        {
+          "value": "top-center",
+          "label": "Top center"
+        },
+        {
+          "value": "top-right",
+          "label": "Top right"
+        },
+        {
+          "value": "middle-left",
+          "label": "Middle left"
+        },
+        {
+          "value": "middle-right",
+          "label": "Middle right"
+        },
+        {
+          "value": "bottom-left",
+          "label": "Bottom left"
+        },
+        {
+          "value": "bottom-center",
+          "label": "Bottom center"
+        },
+        {
+          "value": "bottom-right",
+          "label": "Bottom right"
+        }
+      ],
+      "default": "bottom-right"
+    },
+    {
+      "type": "select",
+      "id": "variant_style",
+      "label": "Variant picker (in modal)",
+      "options": [
+        {
+          "value": "pills",
+          "label": "Buttons"
+        },
+        {
+          "value": "dropdown",
+          "label": "Dropdown"
+        }
+      ],
+      "default": "pills"
+    },
+    {
+      "type": "header",
+      "content": "Replace theme image"
+    },
+    {
+      "type": "select",
+      "id": "display_mode",
+      "label": "Display mode",
+      "options": [
+        {
+          "value": "replace",
+          "label": "Replace the theme's product images"
+        },
+        {
+          "value": "modal",
+          "label": "Keep images, open 3D in a modal"
+        }
+      ],
+      "default": "replace"
+    },
+    {
+      "type": "text",
+      "id": "hide_selector",
+      "label": "Gallery CSS selector (only if auto-detect misses)",
+      "info": "Optional, Replace mode only, e.g. .product__media-wrapper. Hides that element in addition to auto-detect."
+    }
+  ]
+}
+{% endschema %}

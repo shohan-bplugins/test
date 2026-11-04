@@ -1,0 +1,16 @@
+{
+  "seriesView": "المشاهدات",
+  "seriesInteract": "التفاعلات",
+  "seriesAr": "نقرات AR",
+  "grainDay": "يوميًا",
+  "grainWeek": "أسبوعيًا",
+  "grainMonth": "شهريًا",
+  "chartAriaDay": "المشاهدات والتفاعلات ونقرات AR اليومية. يسرد الجدول أدناه الأرقام اليومية.",
+  "chartAriaWeek": "المشاهدات والتفاعلات ونقرات AR الأسبوعية. يسرد الجدول أدناه الأرقام اليومية.",
+  "chartAriaMonth": "المشاهدات والتفاعلات ونقرات AR الشهرية. يسرد الجدول أدناه الأرقام اليومية.",
+  "weekOf": "أسبوع {date}",
+  "monthYearShort": "{month} {year}",
+  "partialDays": "{title} ({days} من {total} يوم)",
+  "legendAria": "إظهار السلاسل أو إخفاؤها",
+  "lockedSeriesAria": "{label} — متاح في الخطط المدفوعة. قم بالترقية."
+}

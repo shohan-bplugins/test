@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "Visor 3D — Producto",
+      "paragraph": "De forma predeterminada, el modelo proviene del metacampo de producto custom.model_3d (gestionado desde la app 3D Viewer). Deja la sustitución vacía para el funcionamiento normal. Pega una URL directa .glb / .gltf abajo solo si quieres sustituir el metacampo para hacer pruebas.",
+      "model_url": {
+        "label": "URL manual del modelo (debe terminar en .glb o .gltf)",
+        "info": "Déjalo vacío para usar el metacampo del producto. Las URL que no sean de modelos se ignoran."
+      },
+      "header_appearance": "Apariencia predeterminada"
+    },
+    "page": {
+      "name": "Visor 3D — Cualquier modelo",
+      "paragraph": "Usa un ID de modelo o una URL de archivo. El ID de modelo también aplica la configuración guardada del visor de ese modelo, así que es la mejor opción: cópialo en la app, en Modelos 3D → (tu modelo) → ID de modelo.",
+      "model_id": {
+        "label": "ID de modelo",
+        "info": "De la biblioteca de Modelos 3D de la app. Tiene prioridad sobre la URL de abajo."
+      },
+      "model_url": {
+        "label": "URL del modelo (.glb / .gltf)",
+        "info": "Alternativa al ID de modelo: pega una URL directa de archivo desde Configuración → Archivos."
+      },
+      "caption": {
+        "label": "Leyenda (opcional)"
+      },
+      "header_appearance": "Apariencia",
+      "header_interaction": "Interacción",
+      "auto_rotate": {
+        "label": "Rotación automática"
+      },
+      "show_controls": {
+        "label": "Mostrar controles en pantalla"
+      }
+    },
+    "shared": {
+      "header_source": "Origen del modelo",
+      "height": {
+        "label": "Altura del visor"
+      },
+      "background_color": {
+        "label": "Color de fondo"
+      }
+    },
+    "configurator_block": {
+      "name": "Configurador de producto",
+      "paragraph": "Muestra el modelo 3D con las opciones del cliente configuradas en el editor 3D, precio en vivo y botón de carrito."
+    }
+  }
+}

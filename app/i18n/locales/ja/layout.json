@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "ズームイン",
+  "control_zoomOut": "ズームアウト",
+  "control_reset": "表示をリセット",
+  "control_fullscreen": "全画面表示",
+  "control_screenshot": "スクリーンショット",
+  "control_ar": "お部屋で見る",
+  "control_animation": "アニメーション",
+  "slotTopLeft": "左上",
+  "slotTopCenter": "上中央",
+  "slotTopRight": "右上",
+  "slotBottomLeft": "左下",
+  "slotBottomCenter": "下中央",
+  "slotBottomRight": "右下",
+  "chipOffA11y": "{control}、オフ。ビューアーにドラッグするかEnterキーを押すとオンになります。",
+  "chipOnA11y": "{control}、{where}。ドラッグまたは矢印キーで移動、Deleteキーでオフにします。",
+  "empty": "空",
+  "instructions": "コントロールを任意の位置にドラッグするか、2つのコントロールの間にドラッグして順序を設定します。下のトレイにドラッグすると非表示に、トレイから出すと表示されます。",
+  "hidden": "非表示",
+  "whereHidden": "非表示",
+  "dropToHide": "ドロップして非表示",
+  "nothingHidden": "非表示の項目はありません — ここにコントロールをドラッグすると非表示になります"
+}

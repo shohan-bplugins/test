@@ -1,0 +1,16 @@
+{
+  "seriesView": "浏览量",
+  "seriesInteract": "互动",
+  "seriesAr": "AR 点击",
+  "grainDay": "每日",
+  "grainWeek": "每周",
+  "grainMonth": "每月",
+  "chartAriaDay": "每日浏览量、互动和 AR 点击。下表列出了每日数据。",
+  "chartAriaWeek": "每周浏览量、互动和 AR 点击。下表列出了每日数据。",
+  "chartAriaMonth": "每月浏览量、互动和 AR 点击。下表列出了每日数据。",
+  "weekOf": "{date} 当周",
+  "monthYearShort": "’{year} {month}",
+  "partialDays": "{title}（{total} 天中的 {days} 天）",
+  "legendAria": "显示或隐藏数据系列",
+  "lockedSeriesAria": "{label}：付费套餐可用。升级。"
+}

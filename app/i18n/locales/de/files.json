@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "Es werden nur .glb- oder .gltf-Dateien unterstützt",
+  "chooseFile": "Wähle eine .glb- oder .gltf-Datei aus",
+  "tooBigRaw": "Die Datei ist {size} groß. Maximal {max} MB vor der Optimierung.",
+  "tooBig": "Die Datei ist {size} groß. Die maximale Größe beträgt {max} MB — aktiviere „Für schnelleres Laden optimieren“, um größere Dateien hochzuladen.",
+  "stillTooBig": "Nach der Optimierung immer noch {size} (vorher {original}). Maximal {max} MB.",
+  "cantShrink": "Die Datei ist {size} groß und konnte nicht weiter verkleinert werden. Maximal {max} MB.",
+  "saving": "Optimiert: {from} → {to} ({pct} % kleiner)",
+  "quota": "Du hast das Limit deines Tarifs {plan} von {limit} 3D-Modellen erreicht. Führe ein Upgrade deines Tarifs durch, um weitere hinzuzufügen.",
+  "fileGone": "Die Datei ist nicht mehr verfügbar. Füge sie erneut hinzu.",
+  "uploadFailed": "Hochladen fehlgeschlagen"
+}

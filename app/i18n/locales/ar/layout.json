@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "تكبير",
+  "control_zoomOut": "تصغير",
+  "control_reset": "إعادة تعيين العرض",
+  "control_fullscreen": "ملء الشاشة",
+  "control_screenshot": "لقطة شاشة",
+  "control_ar": "اعرضه في غرفتك",
+  "control_animation": "الحركة",
+  "slotTopLeft": "أعلى اليسار",
+  "slotTopCenter": "أعلى الوسط",
+  "slotTopRight": "أعلى اليمين",
+  "slotBottomLeft": "أسفل اليسار",
+  "slotBottomCenter": "أسفل الوسط",
+  "slotBottomRight": "أسفل اليمين",
+  "chipOffA11y": "{control}، متوقف. اسحبه إلى العارض، أو اضغط Enter، لتشغيله.",
+  "chipOnA11y": "{control}، {where}. اسحبه، أو استخدم مفاتيح الأسهم، لتحريكه؛ واضغط Delete لإيقافه.",
+  "empty": "فارغ",
+  "instructions": "اسحب أي عنصر تحكم إلى موضع، أو بين عنصرين آخرين لتحديد الترتيب. اسحب عنصرًا إلى الدرج أدناه لإخفائه، أو أخرجه من الدرج لإظهاره.",
+  "hidden": "مخفي",
+  "whereHidden": "مخفي",
+  "dropToHide": "أفلت للإخفاء",
+  "nothingHidden": "لا يوجد شيء مخفي — اسحب عنصر تحكم إلى هنا لإخفائه"
+}

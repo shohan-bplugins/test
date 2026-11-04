@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "Sube un modelo para ver la vista previa",
+  "unsupportedFileType": "La vista previa en vivo aún no está disponible para este tipo de archivo. Aquí solo se pueden mostrar modelos .glb y .gltf; el archivo se sigue guardando y enlazando con normalidad.",
+  "fullscreenUnavailable": "La pantalla completa solo funciona en tu tienda online. El panel de control de Shopify la bloquea en esta vista previa.",
+  "fullscreenStorefrontOnly": "Pantalla completa: solo en la tienda online",
+  "shopButtonsStorefrontOnly": "Agregar al carrito, Comprar ahora y el enlace al producto funcionan en tu tienda online.",
+  "placeStillLoading": "El modelo aún se está cargando. Inténtalo de nuevo en un momento.",
+  "placeMissedModel": "Haz clic directamente en el modelo para colocar el punto de interés.",
+  "placeFailed": "No se pudo colocar el punto de interés. Vuelve a cargar la página e inténtalo de nuevo.",
+  "moveControls": "Mover controles",
+  "doneMovingControls": "Terminar de mover controles"
+}

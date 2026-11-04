@@ -1,0 +1,16 @@
+{
+  "seriesView": "Vues",
+  "seriesInteract": "Interactions",
+  "seriesAr": "Clics AR",
+  "grainDay": "Par jour",
+  "grainWeek": "Par semaine",
+  "grainMonth": "Par mois",
+  "chartAriaDay": "Vues, interactions et clics AR par jour. Le tableau ci-dessous indique les chiffres quotidiens.",
+  "chartAriaWeek": "Vues, interactions et clics AR par semaine. Le tableau ci-dessous indique les chiffres quotidiens.",
+  "chartAriaMonth": "Vues, interactions et clics AR par mois. Le tableau ci-dessous indique les chiffres quotidiens.",
+  "weekOf": "Semaine du {date}",
+  "monthYearShort": "{month} ’{year}",
+  "partialDays": "{title} ({days} jours sur {total})",
+  "legendAria": "Afficher ou masquer les séries",
+  "lockedSeriesAria": "{label} : disponible avec les forfaits payants. Passer à un forfait supérieur."
+}

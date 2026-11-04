@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "Zoom avant",
+  "control_zoomOut": "Zoom arrière",
+  "control_reset": "Réinitialiser la vue",
+  "control_fullscreen": "Plein écran",
+  "control_screenshot": "Capture d’écran",
+  "control_ar": "Voir dans votre pièce",
+  "control_animation": "Animation",
+  "slotTopLeft": "en haut à gauche",
+  "slotTopCenter": "en haut au centre",
+  "slotTopRight": "en haut à droite",
+  "slotBottomLeft": "en bas à gauche",
+  "slotBottomCenter": "en bas au centre",
+  "slotBottomRight": "en bas à droite",
+  "chipOffA11y": "{control}, désactivé. Faites-le glisser sur la visionneuse ou appuyez sur Entrée pour l’activer.",
+  "chipOnA11y": "{control}, {where}. Faites glisser ou utilisez les touches fléchées pour le déplacer ; Suppr pour le désactiver.",
+  "empty": "Vide",
+  "instructions": "Faites glisser une commande vers un emplacement, ou entre deux autres pour définir l’ordre. Faites-en glisser une vers la zone ci-dessous pour la masquer, ou hors de cette zone pour l’afficher.",
+  "hidden": "Masqué",
+  "whereHidden": "masqué",
+  "dropToHide": "Déposer pour masquer",
+  "nothingHidden": "Rien n’est masqué — faites glisser une commande ici pour la masquer"
+}

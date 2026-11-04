@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "3D 查看器 — 商品",
+      "paragraph": "默认情况下，模型来自商品元字段 custom.model_3d（通过 3D Viewer 应用管理）。正常使用时请将覆盖项留空。仅在需要为测试覆盖元字段时，才在下方粘贴 .glb / .gltf 直链。",
+      "model_url": {
+        "label": "手动模型 URL（须以 .glb 或 .gltf 结尾）",
+        "info": "留空则使用商品元字段。非模型 URL 将被忽略。"
+      },
+      "header_appearance": "默认外观"
+    },
+    "page": {
+      "name": "3D 查看器 — 任意模型",
+      "paragraph": "可使用模型 ID 或文件 URL。模型 ID 还会应用该模型已保存的查看器设置，因此是更好的选择——可在应用中的“3D 模型 →（您的模型）→ 模型 ID”处复制。",
+      "model_id": {
+        "label": "模型 ID",
+        "info": "来自应用的 3D 模型库。优先于下方的 URL。"
+      },
+      "model_url": {
+        "label": "模型 URL（.glb / .gltf）",
+        "info": "也可不用模型 ID：粘贴“设置 → 文件”中的文件直链。"
+      },
+      "caption": {
+        "label": "说明文字（可选）"
+      },
+      "header_appearance": "外观",
+      "header_interaction": "交互",
+      "auto_rotate": {
+        "label": "自动旋转"
+      },
+      "show_controls": {
+        "label": "显示屏幕控件"
+      }
+    },
+    "shared": {
+      "header_source": "模型来源",
+      "height": {
+        "label": "查看器高度"
+      },
+      "background_color": {
+        "label": "背景颜色"
+      }
+    },
+    "configurator_block": {
+      "name": "产品配置器",
+      "paragraph": "展示 3D 模型，以及在 3D 编辑器中设置的客户选项、实时价格和加入购物车按钮。"
+    }
+  }
+}

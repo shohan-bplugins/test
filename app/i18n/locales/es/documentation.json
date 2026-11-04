@@ -1,0 +1,11 @@
+{
+  "heading": "Documentación",
+  "backLabel": "Panel",
+  "openSite": "Abrir sitio de documentación",
+  "slow.heading": "Esto está tardando más de lo habitual",
+  "slow.body": "El sitio de documentación tarda en responder. Puedes abrirlo en una pestaña nueva.",
+  "slow.visit": "Ir a la documentación",
+  "frameTitle": "Documentación de 3D Viewer",
+  "loadingLabel": "Cargando documentación",
+  "loading": "Cargando documentación…"
+}

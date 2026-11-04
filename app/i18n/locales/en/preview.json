@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "Upload a model to see the preview",
+  "unsupportedFileType": "Live preview isn't available for this file type yet. Only .glb and .gltf models can be shown here — the file is still stored and linked normally.",
+  "fullscreenUnavailable": "Fullscreen only works on your storefront. Shopify's admin blocks it inside this preview.",
+  "fullscreenStorefrontOnly": "Fullscreen — storefront only",
+  "shopButtonsStorefrontOnly": "Add to cart, Buy now and the product link work on your storefront.",
+  "placeStillLoading": "The model is still loading — try again in a moment.",
+  "placeMissedModel": "Click directly on the model to place the hotspot.",
+  "placeFailed": "Couldn’t place the hotspot. Reload the page and try again.",
+  "moveControls": "Move controls",
+  "doneMovingControls": "Done moving controls"
+}

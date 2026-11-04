@@ -1,0 +1,16 @@
+{
+  "seriesView": "Weergaven",
+  "seriesInteract": "Interacties",
+  "seriesAr": "AR-klikken",
+  "grainDay": "Per dag",
+  "grainWeek": "Per week",
+  "grainMonth": "Per maand",
+  "chartAriaDay": "Weergaven, interacties en AR-klikken per dag. De tabel hieronder toont de dagelijkse cijfers.",
+  "chartAriaWeek": "Weergaven, interacties en AR-klikken per week. De tabel hieronder toont de dagelijkse cijfers.",
+  "chartAriaMonth": "Weergaven, interacties en AR-klikken per maand. De tabel hieronder toont de dagelijkse cijfers.",
+  "weekOf": "Week van {date}",
+  "monthYearShort": "{month} ’{year}",
+  "partialDays": "{title} ({days} van {total} dagen)",
+  "legendAria": "Reeksen tonen of verbergen",
+  "lockedSeriesAria": "{label} — beschikbaar met betaalde abonnementen. Upgraden."
+}

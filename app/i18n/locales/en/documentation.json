@@ -1,0 +1,11 @@
+{
+  "heading": "Documentation",
+  "backLabel": "Dashboard",
+  "openSite": "Open docs site",
+  "slow.heading": "This is taking longer than usual",
+  "slow.body": "The documentation site is slow to respond. You can open it in a new tab instead.",
+  "slow.visit": "Visit docs",
+  "frameTitle": "3D Viewer documentation",
+  "loadingLabel": "Loading documentation",
+  "loading": "Loading documentation…"
+}

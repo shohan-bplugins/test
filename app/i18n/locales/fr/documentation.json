@@ -1,0 +1,11 @@
+{
+  "heading": "Documentation",
+  "backLabel": "Tableau de bord",
+  "openSite": "Ouvrir le site de documentation",
+  "slow.heading": "Le chargement prend plus de temps que d’habitude",
+  "slow.body": "Le site de documentation met du temps à répondre. Vous pouvez l’ouvrir dans un nouvel onglet.",
+  "slow.visit": "Consulter la documentation",
+  "frameTitle": "Documentation de la visionneuse 3D",
+  "loadingLabel": "Chargement de la documentation",
+  "loading": "Chargement de la documentation…"
+}

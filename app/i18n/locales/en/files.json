@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "Only .glb or .gltf files are supported",
+  "chooseFile": "Please choose a .glb or .gltf file",
+  "tooBigRaw": "File is {size}. Max {max} MB before optimization.",
+  "tooBig": "File is {size}. Max accepted size is {max} MB — turn on \"Optimize for faster loading\" to upload larger files.",
+  "stillTooBig": "Still {size} after optimization (from {original}). Max {max} MB.",
+  "cantShrink": "File is {size} and couldn't be optimized smaller. Max {max} MB.",
+  "saving": "Optimized {from} → {to} ({pct}% smaller)",
+  "quota": "You've reached your {plan} plan limit of {limit} 3D models. Upgrade your plan to add more.",
+  "fileGone": "The file is no longer available. Add it again.",
+  "uploadFailed": "Upload failed"
+}

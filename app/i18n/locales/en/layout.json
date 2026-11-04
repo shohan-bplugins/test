@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "Zoom in",
+  "control_zoomOut": "Zoom out",
+  "control_reset": "Reset view",
+  "control_fullscreen": "Fullscreen",
+  "control_screenshot": "Screenshot",
+  "control_ar": "View in your room",
+  "control_animation": "Animation",
+  "slotTopLeft": "top left",
+  "slotTopCenter": "top center",
+  "slotTopRight": "top right",
+  "slotBottomLeft": "bottom left",
+  "slotBottomCenter": "bottom center",
+  "slotBottomRight": "bottom right",
+  "chipOffA11y": "{control}, switched off. Drag onto the viewer, or press Enter, to turn it on.",
+  "chipOnA11y": "{control}, {where}. Drag, or use the arrow keys, to move; Delete to switch off.",
+  "empty": "Empty",
+  "instructions": "Drag any control to a spot, or between two others to set the order. Drag one to the tray below to hide it, or out of the tray to show it.",
+  "hidden": "Hidden",
+  "whereHidden": "hidden",
+  "dropToHide": "Drop to hide",
+  "nothingHidden": "Nothing hidden — drag a control here to hide it"
+}

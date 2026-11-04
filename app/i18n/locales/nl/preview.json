@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "Upload een model om het voorbeeld te zien",
+  "unsupportedFileType": "Een livevoorbeeld is nog niet beschikbaar voor dit bestandstype. Alleen .glb- en .gltf-modellen kunnen hier worden getoond — het bestand wordt gewoon opgeslagen en gekoppeld.",
+  "fullscreenUnavailable": "Volledig scherm werkt alleen in je webwinkel. De Shopify-beheeromgeving blokkeert het in dit voorbeeld.",
+  "fullscreenStorefrontOnly": "Volledig scherm — alleen in de webwinkel",
+  "shopButtonsStorefrontOnly": "Toevoegen aan winkelwagen, Nu kopen en de productlink werken in je webwinkel.",
+  "placeStillLoading": "Het model wordt nog geladen — probeer het zo opnieuw.",
+  "placeMissedModel": "Klik direct op het model om de hotspot te plaatsen.",
+  "placeFailed": "De hotspot kon niet worden geplaatst. Laad de pagina opnieuw en probeer het nog eens.",
+  "moveControls": "Bedieningselementen verplaatsen",
+  "doneMovingControls": "Klaar met verplaatsen"
+}

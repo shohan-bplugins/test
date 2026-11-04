@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "Lade ein Modell hoch, um die Vorschau zu sehen",
+  "unsupportedFileType": "Für diesen Dateityp ist noch keine Live-Vorschau verfügbar. Hier können nur .glb- und .gltf-Modelle angezeigt werden – die Datei wird trotzdem normal gespeichert und verknüpft.",
+  "fullscreenUnavailable": "Vollbild funktioniert nur in deinem Onlineshop. Der Shopify-Adminbereich blockiert es in dieser Vorschau.",
+  "fullscreenStorefrontOnly": "Vollbild – nur im Onlineshop",
+  "shopButtonsStorefrontOnly": "„In den Warenkorb“, „Jetzt kaufen“ und der Produktlink funktionieren in deinem Onlineshop.",
+  "placeStillLoading": "Das Modell wird noch geladen – versuche es gleich noch einmal.",
+  "placeMissedModel": "Klicke direkt auf das Modell, um den Hotspot zu platzieren.",
+  "placeFailed": "Der Hotspot konnte nicht platziert werden. Lade die Seite neu und versuche es erneut.",
+  "moveControls": "Steuerelemente verschieben",
+  "doneMovingControls": "Verschieben beenden"
+}

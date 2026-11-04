@@ -1,0 +1,6 @@
+{
+  "backTo": "Retour à {label}",
+  "language": "Langue",
+  "languageAuto": "Automatique (comme l’interface admin Shopify)",
+  "languageHelp": "La langue de cette application. Automatique utilise la langue de votre interface admin Shopify. La vitrine de votre boutique n’est pas concernée."
+}

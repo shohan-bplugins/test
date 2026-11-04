@@ -1,0 +1,39 @@
+{%- comment -%}
+  Every shopper-facing string viewer-3d.js uses, as one JSON object in the
+  storefront's language: the theme's translation of each viewer_3d.ui.* key,
+  including any the merchant has overridden. Rendered into data-i18n on the
+  viewer element by both blocks. Keep the keys in step with DEFAULT_STRINGS in
+  assets/viewer-3d.js — npm run check-locales fails when they drift.
+{%- endcomment -%}
+{"zoom_in":{{ 'viewer_3d.ui.zoom_in' | t | json }},
+"zoom_out":{{ 'viewer_3d.ui.zoom_out' | t | json }},
+"reset":{{ 'viewer_3d.ui.reset' | t | json }},
+"fullscreen":{{ 'viewer_3d.ui.fullscreen' | t | json }},
+"exit_fullscreen":{{ 'viewer_3d.ui.exit_fullscreen' | t | json }},
+"capture":{{ 'viewer_3d.ui.capture' | t | json }},
+"choose_animation":{{ 'viewer_3d.ui.choose_animation' | t | json }},
+"animation_none":{{ 'viewer_3d.ui.animation_none' | t | json }},
+"loading":{{ 'viewer_3d.ui.loading' | t | json }},
+"load_failed":{{ 'viewer_3d.ui.load_failed' | t | json }},
+"ar_view_in_room":{{ 'viewer_3d.ui.ar_view_in_room' | t | json }},
+"ar_view_on_phone":{{ 'viewer_3d.ui.ar_view_on_phone' | t | json }},
+"ar_scan_qr":{{ 'viewer_3d.ui.ar_scan_qr' | t | json }},
+"qr_code":{{ 'viewer_3d.ui.qr_code' | t | json }},
+"close":{{ 'viewer_3d.ui.close' | t | json }},
+"hotspot":{{ 'viewer_3d.ui.hotspot' | t | json }},
+"hotspot_n":{{ 'viewer_3d.ui.hotspot_n' | t | json }},
+"hotspot_pin":{{ 'viewer_3d.ui.hotspot_pin' | t | json }},
+"learn_more":{{ 'viewer_3d.ui.learn_more' | t | json }},
+"play_video":{{ 'viewer_3d.ui.play_video' | t | json }},
+"video":{{ 'viewer_3d.ui.video' | t | json }},
+"add_to_cart":{{ 'viewer_3d.ui.add_to_cart' | t | json }},
+"buy_now":{{ 'viewer_3d.ui.buy_now' | t | json }},
+"view_product":{{ 'viewer_3d.ui.view_product' | t | json }},
+"option_n":{{ 'viewer_3d.ui.option_n' | t | json }},
+"sold_out":{{ 'viewer_3d.ui.sold_out' | t | json }},
+"unavailable":{{ 'viewer_3d.ui.unavailable' | t | json }},
+"adding":{{ 'viewer_3d.ui.adding' | t | json }},
+"added":{{ 'viewer_3d.ui.added' | t | json }},
+"added_to_cart":{{ 'viewer_3d.ui.added_to_cart' | t | json }},
+"view_cart":{{ 'viewer_3d.ui.view_cart' | t | json }},
+"add_failed":{{ 'viewer_3d.ui.add_failed' | t | json }}}
