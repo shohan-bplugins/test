@@ -1,0 +1,74 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "8c59a52f780e993964883a2ada90aa41"
+name = "Video Player by bPlugins"
+application_url = "https://shopify-video-app.bplugins.com"
+embedded = true
+handle = "video-player-by-bplugins"
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "dev-shohan.myshopify.com"
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/subscriptionsUpdate"
+  topics = [ "app_subscriptions/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+# Mandatory privacy webhooks for App Store distribution. Each topic points at
+# its own handler rather than the shared /webhooks route, which returns 404 for
+# these topics.
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/data_request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/shop/redact"
+  compliance_topics = [ "shop/redact" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# read_locales: the shop's published languages, offered first in the player
+# text translation switcher (Customize → Language). Optional at runtime — a
+# shop that hasn't re-approved just sees every bundled language.
+scopes = "read_files,read_locales,read_themes,write_files,write_products,write_themes"
+
+[access.admin]
+# Lets the embedded frontend call the Admin API directly (and enables the
+# ShopifyQL plugin). "online" scopes those browser-side calls to the logged-in
+# staff member rather than handing the browser the app's offline token.
+direct_api_mode = "online"
+embedded_app_direct_api_access = true
+
+[auth]
+redirect_urls = [
+  "https://shopify-video-app.bplugins.com/auth/callback",
+  "https://shopify-video-app.bplugins.com/auth/shopify/callback",
+  "https://shopify-video-app.bplugins.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
+
+# First-party route for play tracking: the storefront posts to the shop's own
+# domain (/apps/svp-player/...), which ad blockers don't match, and Shopify
+# forwards it to the app server (/proxy/... routes).
+[app_proxy]
+url = "https://shopify-video-app.bplugins.com/proxy"
+subpath = "svp-player"
+prefix = "apps"

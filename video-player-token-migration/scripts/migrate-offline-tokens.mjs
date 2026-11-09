@@ -1,44 +1,45 @@
-// One-off migration: swap stored non-expiring offline tokens for expiring ones.
+// Video Player by bPlugins — migrate offline sessions to expiring tokens.
 //
+// Why: Shopify deprecates non-expiring offline access tokens (public apps are
+// delisted from 2027-01-01; the Admin API rejects them from 2027-04-01).
 // `future.expiringOfflineAccessTokens` in app/shopify.server.js only affects
-// *new* token exchanges. The library re-exchanges a token when the stored
-// session is missing or expired — and a legacy offline session has
-// `expires: null`, so it never counts as expired. Every shop installed before
-// the flag was turned on keeps using its old non-expiring token indefinitely,
-// which is what the Dev Dashboard reports as "Deprecated offline tokens".
+// *new* tokens: a legacy session has `expires: null`, never counts as expired,
+// and so is never replaced. This script runs Shopify's "migrate all
+// installations at once" exchange for those sessions:
+// https://shopify.dev/docs/apps/build/authentication-authorization/migrate-to-expiring-offline-access-tokens
 //
-// Shopify deadlines (public apps):
-//   2027-01-01  apps still using non-expiring tokens are delisted
-//   2027-04-01  Admin API rejects non-expiring tokens with 403
+// It only works for the app in shopify.app.toml: it refuses to run when
+// SHOPIFY_API_KEY in the environment is a different app, because Shopify only
+// exchanges tokens issued to the app that asks.
 //
-// This script runs Shopify's "exchange existing non-expiring tokens" flow
-// (https://shopify.dev/docs/apps/build/authentication-authorization/migrate-to-expiring-offline-access-tokens)
-// for every offline session that has no refresh token yet, and writes the new
-// expiring token + refresh token back into the Session row. After that, the
-// library refreshes them automatically.
+// Pending = an offline session with an access token and
+//   - no refresh token (never migrated), or
+//   - no `expires` (overwritten with a non-expiring token by pre-flag code).
 //
-// CAUTION: a successful exchange permanently invalidates the old token. The new
-// pair is written immediately; if a write fails, re-running within 7 days with
-// the same old token returns the same pair (Shopify's recovery window).
+// CAUTION: a successful exchange permanently invalidates the old token. Each new
+// pair is appended to scripts/.token-migration-backup.jsonl (gitignored, holds
+// secrets — delete after verifying) *before* the DB write. If a write fails,
+// re-running within 7 days returns the same pair.
 //
-//   node scripts/migrate-offline-tokens.mjs                         # dry run
-//   node scripts/migrate-offline-tokens.mjs --apply --shop x.myshopify.com
-//   node scripts/migrate-offline-tokens.mjs --apply --limit 20
-//   node scripts/migrate-offline-tokens.mjs --apply                 # all
+// Usage (on the production server, from the app folder):
+//   node --env-file=.env scripts/migrate-offline-tokens.mjs                 # dry run
+//   node --env-file=.env scripts/migrate-offline-tokens.mjs --apply --shop x.myshopify.com
+//   node --env-file=.env scripts/migrate-offline-tokens.mjs --apply --limit 20
+//   node --env-file=.env scripts/migrate-offline-tokens.mjs --apply         # all pending
 //
-// Each new token pair is appended to scripts/.token-migration-backup.jsonl
-// *before* the DB write, so a failed write can be recovered from disk. The file
-// holds secrets: it is gitignored — delete it once the migration is verified.
-//
-// Needs DATABASE_URL, SHOPIFY_API_KEY and SHOPIFY_API_SECRET in the environment
-// (e.g. `node --env-file=.env scripts/migrate-offline-tokens.mjs`).
-// Safe to re-run: sessions that already have a refresh token are skipped.
+// Safe to re-run: only pending sessions are touched; failures leave rows as-is.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+const APP_NAME = "Video Player by bPlugins";
+const TOML_PATH = fileURLToPath(new URL("../shopify.app.toml", import.meta.url));
+const BACKUP_FILE = fileURLToPath(
+  new URL("./.token-migration-backup.jsonl", import.meta.url),
+);
+const DELAY_MS = 300;
+
 const args = process.argv.slice(2);
 const argValue = (name) => {
   const i = args.indexOf(name);
@@ -47,12 +48,31 @@ const argValue = (name) => {
 const APPLY = args.includes("--apply");
 const ONLY_SHOP = argValue("--shop");
 const LIMIT = argValue("--limit") ? Number(argValue("--limit")) : undefined;
-const DELAY_MS = 300;
-const BACKUP_FILE = fileURLToPath(
-  new URL("./.token-migration-backup.jsonl", import.meta.url),
-);
 const { SHOPIFY_API_KEY, SHOPIFY_API_SECRET } = process.env;
+
+const prisma = new PrismaClient();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const isPending = (s) => s.accessToken && (!s.refreshToken || !s.expires);
+
+function checkConfig() {
+  const toml = readFileSync(TOML_PATH, "utf8");
+  const clientId = toml.match(/^\s*client_id\s*=\s*"([^"]+)"/m)?.[1];
+  const handle = toml.match(/^\s*handle\s*=\s*"([^"]+)"/m)?.[1];
+  if (!SHOPIFY_API_KEY) throw new Error("SHOPIFY_API_KEY is not set");
+  if (clientId !== SHOPIFY_API_KEY) {
+    throw new Error(
+      `SHOPIFY_API_KEY (${SHOPIFY_API_KEY.slice(0, 8)}…) is not the app in ` +
+        `shopify.app.toml (${clientId?.slice(0, 8)}…, ${handle}). Refusing to run.`,
+    );
+  }
+  if (APPLY && !SHOPIFY_API_SECRET) {
+    throw new Error("SHOPIFY_API_SECRET is not set");
+  }
+  if (LIMIT !== undefined && !(LIMIT > 0)) {
+    throw new Error("--limit must be a positive number");
+  }
+  console.log(`App: ${APP_NAME} (${handle}, ${clientId.slice(0, 8)}…)`);
+}
 
 async function exchange(shop, legacyToken) {
   const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
@@ -76,46 +96,44 @@ async function exchange(shop, legacyToken) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(`${res.status} ${JSON.stringify(body)}`);
-    err.code = body?.error;
+    err.code = body?.error || `http_${res.status}`;
+    throw err;
+  }
+  if (!body.access_token || !body.refresh_token || !body.expires_in) {
+    // Never store a response that is not an expiring pair.
+    const err = new Error(`unexpected response: ${Object.keys(body)}`);
+    err.code = "unexpected_response";
     throw err;
   }
   return body;
 }
 
 async function main() {
-  if (APPLY && (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET)) {
-    throw new Error("SHOPIFY_API_KEY and SHOPIFY_API_SECRET must be set");
-  }
-  if (LIMIT !== undefined && !(LIMIT > 0)) {
-    throw new Error("--limit must be a positive number");
-  }
+  checkConfig();
 
-  // Filtered in JS: on MongoDB a missing field and an explicit null are
-  // different to Prisma, and legacy rows may have either.
-  // An expiring token always has `expires`. A row with a refresh token but no
-  // `expires` was overwritten by a server running pre-flag code: it holds a
-  // fresh non-expiring token next to a stale refresh token, so migrate it too.
-  const pending = (
-    await prisma.session.findMany({
-      where: { isOnline: false, ...(ONLY_SHOP ? { shop: ONLY_SHOP } : {}) },
-    })
-  ).filter((s) => s.accessToken && (!s.refreshToken || !s.expires));
+  // Filtered in JS: on MongoDB a missing field and an explicit null differ for
+  // Prisma, and legacy rows may have either.
+  const offline = await prisma.session.findMany({
+    where: { isOnline: false, ...(ONLY_SHOP ? { shop: ONLY_SHOP } : {}) },
+  });
+  const pending = offline.filter(isPending);
   const sessions = LIMIT ? pending.slice(0, LIMIT) : pending;
+  const expiring = offline.filter((s) => s.refreshToken && s.expires).length;
 
   console.log(
-    `${pending.length} offline session(s) still on non-expiring tokens` +
-      (ONLY_SHOP ? ` for ${ONLY_SHOP}` : "") +
-      (APPLY
-        ? ` — migrating ${sessions.length}`
-        : ` (dry run — would migrate ${sessions.length}; pass --apply)`),
+    `Offline sessions: ${offline.length} | expiring: ${expiring} | ` +
+      `pending: ${pending.length}` +
+      (ONLY_SHOP ? ` (shop ${ONLY_SHOP})` : ""),
   );
   if (!APPLY) {
     for (const s of sessions) console.log(`  ${s.shop}`);
+    console.log(`Dry run — would migrate ${sessions.length}. Pass --apply.`);
     return;
   }
+  console.log(`Migrating ${sessions.length}…`);
 
   let ok = 0;
-  const failed = [];
+  const failures = {};
   for (const s of sessions) {
     try {
       const t = await exchange(s.shop, s.accessToken);
@@ -135,8 +153,8 @@ async function main() {
         data: {
           accessToken: t.access_token,
           scope: t.scope ?? s.scope,
-          expires: t.expires_in ? new Date(now + t.expires_in * 1000) : null,
-          refreshToken: t.refresh_token ?? null,
+          expires: new Date(now + t.expires_in * 1000),
+          refreshToken: t.refresh_token,
           refreshTokenExpires: t.refresh_token_expires_in
             ? new Date(now + t.refresh_token_expires_in * 1000)
             : null,
@@ -145,23 +163,26 @@ async function main() {
       ok++;
       console.log(`  ✓ ${s.shop}`);
     } catch (e) {
-      // invalid_subject_token usually means the shop uninstalled the app or the
-      // token is already dead; that shop gets a fresh expiring token through
-      // token exchange the next time a merchant opens the app.
-      failed.push(s.shop);
+      // invalid_subject_token: the store uninstalled the app, the token is
+      // dead, or it was issued to a different app sharing this database.
+      // The row is left exactly as it was.
+      (failures[e.code || "error"] ||= []).push(s.shop);
       console.log(`  ✗ ${s.shop}: ${e.message}`);
     }
     await sleep(DELAY_MS);
   }
-  console.log(`Migrated ${ok}, failed ${failed.length}`);
-  if (failed.length) console.log(`Failed shops: ${failed.join(", ")}`);
-  if (ok)
-    console.log(`Backup written to ${BACKUP_FILE} — delete after verifying.`);
+
+  const failed = Object.values(failures).flat().length;
+  console.log(`\nMigrated ${ok}, failed ${failed}`);
+  for (const [code, shops] of Object.entries(failures)) {
+    console.log(`  ${code}: ${shops.length}`);
+  }
+  if (ok) console.log(`Backup: ${BACKUP_FILE} — delete after verifying.`);
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error(e.message || e);
     process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());
