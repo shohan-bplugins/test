@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  session_id    String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            String    @unique
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires             DateTime?
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+  accessToken         String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean?
+  locale        String?
+  collaborator  Boolean?
+  emailVerified Boolean?
+}
+
+
+model WebhookCall {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop     String   @unique
+  called   Boolean  @default(false)
+  calledAt DateTime @default(now())
+}
+
+model Video {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop       String
+  title      String
+  videoType  String
+  url        String
+  vimeo      String
+  youtube    String
+  resetOnEnd Boolean?
+  poster     String?
+  autoPlay   Boolean?
+  repeat     Boolean?
+  controls   Json?
+  styles     Json?
+  options    Json?
+  data      Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+
+model VideoPlay {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop       String
+  videoId    String
+  videoTitle String?
+  visitorId  String?
+  browser    String?
+  os         String?
+  device     String?
+  country    String?
+  // Salted hash of the visitor's IP — identifies the network a play came from
+  // without storing the raw IP. Combined with visitorId, a device that switches
+  // network (e.g. turns on a VPN) counts as a distinct unique view.
+  ipHash     String?
+  referrer   String?
+  // URL of the page the play happened on (current page, not the traffic
+  // source). Used to attribute plays to the product page vs. a single video
+  // player placed on other pages.
+  pageUrl    String?
+  // Client-generated id for one play (per video, per page load). Lets the
+  // tracker patch the same row with updated watch time instead of inserting
+  // a new row on every heartbeat/beacon.
+  playId         String?
+  // Whether this play happened on a product page. Precomputed at write time
+  // (the tracker already knows pageUrl) because the alternative — matching
+  // pageUrl/referrer with `contains` at read time — compiles to an unanchored
+  // $regex, which cannot use an index and forces a full collection scan on
+  // every dashboard load.
+  isProductPage  Boolean?
+  // Seconds the visitor actually watched (accumulated, excludes seeks/pauses).
+  watchedSeconds Int?     @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([shop])
+  @@index([shop, videoId])
+  @@index([shop, createdAt])
+  @@index([playId])
+  // Serves the country-reuse lookup in the track endpoint (find a previous
+  // play from the same network that already resolved its country).
+  @@index([ipHash, createdAt])
+  // Serves the dashboard's product-vs-player split, per time window.
+  @@index([shop, isProductPage, createdAt])
+}
+
+// Real-user Core Web Vitals from the embedded admin, one row per reported
+// metric. Mirrors what Shopify shows on /monitoring/admin_performance, but
+// keeps the route and — for LCP — the phase breakdown, so a bad p75 can be
+// traced to a page and to a cause.
+model WebVital {
+  id      String  @id @default(auto()) @map("_id") @db.ObjectId
+  shop    String
+  metric  String // LCP | CLS | INP | TTFB | FCP
+  value   Float // milliseconds, except CLS which is unitless
+  rating  String? // good | needs-improvement | poor
+  path    String? // admin route the document loaded on
+  navType String?
+
+  // LCP only: these four sum to `value`. A large ttfb means the Remix loader;
+  // a large elementRenderDelay means the client bundle.
+  ttfb                 Float?
+  resourceLoadDelay    Float?
+  resourceLoadDuration Float?
+  elementRenderDelay   Float?
+
+  // Element the metric blames: LCP target, largest CLS shift, or INP target.
+  target String?
+
+  createdAt DateTime @default(now())
+
+  @@index([shop, metric, createdAt])
+  @@index([shop, path, metric])
+}
+
+model Users {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop      String   @unique
+  planId    String?
+  chargeId  String?
+  cardits   Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Charges {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop         String
+  name         String
+  price        String
+  status       String
+  cradit       Int?
+  activated_on String?
+  trial_days   String?
+  cancelled_on String?
+  billing_on   String?
+  planId       String?
+  chargeId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Plans {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  name         String
+  description  String?
+  features     Json
+  price        String
+  currencyCode String
+  options      Json?
+  trial_days   String?
+  cradit       Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// One row per App Store review request made through App Bridge
+// (shopify.reviews.request). `code` is Shopify's result code: "success" means
+// the review modal was shown; "already-reviewed" means the store has reviewed
+// the app. Drives the review-popup rules in app/routes/app.api.review.jsx.
+model ReviewPrompt {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop      String
+  code      String
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+}
