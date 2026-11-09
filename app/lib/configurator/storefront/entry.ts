@@ -16,6 +16,7 @@ import {
 } from "../options";
 import { encodePicks, priceSummary } from "../pricing";
 import { LINE_PROP_PICKS } from "../constants";
+import { Styler } from "../styler";
 import type {
   ConfigLayer,
   MaterialConfig,
@@ -89,99 +90,6 @@ const DEFAULTS: Strings = {
   preview_badge: "Draft preview — not live yet",
 };
 
-/* ---------- applying a config to the viewer's meshes ---------- */
-
-type Mat = {
-  color?: { set(v: string): { convertSRGBToLinear(): void } };
-  map?: unknown;
-  metalness?: number;
-  roughness?: number;
-  clearcoat?: number;
-  envMapIntensity?: number;
-  needsUpdate?: boolean;
-  clone(): Mat;
-  copy(o: Mat): Mat;
-  dispose(): void;
-};
-type Mesh = { name: string; visible: boolean; material: Mat | Mat[]; isMesh?: boolean };
-type Obj = { traverse(fn: (o: Obj & Partial<Mesh>) => void): void };
-
-/** Same naming rule as the editor's meshKeys, or config entries stop matching. */
-function meshMap(root: Obj): Map<string, Mesh> {
-  const map = new Map<string, Mesh>();
-  root.traverse((o) => {
-    if (!o.isMesh) return;
-    const base = (o.name || "").trim() || "Mesh";
-    let name = base;
-    for (let n = 2; map.has(name); n++) name = `${base}_${n}`;
-    o.name = name;
-    map.set(name, o as Mesh);
-  });
-  return map;
-}
-
-class Styler {
-  private meshes: Map<string, Mesh>;
-  private originals = new Map<string, { material: Mesh["material"]; visible: boolean }>();
-  private clones = new Map<string, Mat>();
-
-  constructor(root: Obj) {
-    this.meshes = meshMap(root);
-    for (const [name, m] of this.meshes) {
-      this.originals.set(name, { material: m.material, visible: m.visible });
-    }
-  }
-
-  apply(cfg: ProductRenderConfig) {
-    for (const [name, mesh] of this.meshes) {
-      const o = this.originals.get(name)!;
-      mesh.visible = o.visible;
-      mesh.material = o.material;
-    }
-    for (const [name, mc] of Object.entries(cfg.meshes ?? {})) {
-      const mesh = this.meshes.get(name);
-      if (mesh && mc?.visible !== undefined) mesh.visible = !!mc.visible;
-    }
-    const used = new Set<string>();
-    for (const [name, mc] of Object.entries(cfg.materials ?? {}) as [string, MaterialConfig][]) {
-      const mesh = this.meshes.get(name);
-      const orig = this.originals.get(name)?.material;
-      if (!mesh || !orig || Array.isArray(orig) || !mc) continue;
-      if (
-        !mc.baseColor &&
-        mc.metalness === undefined &&
-        mc.roughness === undefined &&
-        mc.clearcoat === undefined
-      ) {
-        continue;
-      }
-      let m = this.clones.get(name);
-      if (!m) {
-        m = orig.clone();
-        this.clones.set(name, m);
-      } else {
-        m.copy(orig);
-      }
-      used.add(name);
-      mesh.material = m;
-      if (mc.baseColor && m.color) {
-        m.color.set(mc.baseColor).convertSRGBToLinear();
-        m.map = null;
-      }
-      if (mc.metalness !== undefined) m.metalness = Number(mc.metalness);
-      if (mc.roughness !== undefined) m.roughness = Number(mc.roughness);
-      if (mc.clearcoat !== undefined && "clearcoat" in m) m.clearcoat = Number(mc.clearcoat);
-      m.needsUpdate = true;
-    }
-    for (const [name, m] of this.clones) {
-      if (!used.has(name)) {
-        m.dispose();
-        this.clones.delete(name);
-      }
-    }
-  }
-}
-
 /* ---------- helpers ---------- */
 
 const el = <K extends keyof HTMLElementTagNameMap>(
@@ -231,6 +139,12 @@ class Configurator {
   /** The block's own product form; absent when only the options are embedded. */
   private form: HTMLFormElement | null;
   private previewBadge: HTMLElement | null = null;
+  /** The model the page rendered with; stands in for a product model whose URL wasn't resolved yet. */
+  private baseModel: string | null = null;
+  /** Image id in the stage, or null while the 3D viewer is shown. */
+  private shownImage: string | null = null;
+  /** Variant the stage was last synced for; undefined until the first sync. */
+  private mediaVariant: unknown = undefined;
 
   constructor(private root: HTMLElement) {
     const blank = {
@@ -276,6 +190,10 @@ class Configurator {
     this.panel = root.querySelector<HTMLElement>("[data-e3d-panel]")!;
     this.variantId = variantFromPage(root);
     this.loadedModel = this.viewer.dataset.modelUrl ?? null;
+    this.baseModel = this.loadedModel;
+    // The block renders the merchant's "Default media" choice; start from it.
+    this.shownImage =
+      root.querySelector<HTMLElement>("[data-e3d-image].is-active")?.dataset.e3dImage ?? null;
     try {
       this.fmt = new Intl.NumberFormat(root.dataset.locale || undefined, {
         style: "currency",
@@ -323,6 +241,9 @@ class Configurator {
 
   /** Show the 3D viewer (null) or one product image in the stage. */
   private showMedia(imageId: string | null) {
+    // Hide the whole viewer (its toolbar sits above the images) while an image is shown.
+    this.shownImage = imageId;
+    this.root.querySelector(".e3d-stage")?.classList.toggle("e3d-showing-image", imageId !== null);
     for (const img of this.root.querySelectorAll<HTMLElement>("[data-e3d-image]")) {
       img.classList.toggle("is-active", img.dataset.e3dImage === imageId);
     }
@@ -363,7 +284,9 @@ class Configurator {
     // Also when the block has its own variant picker but no form (the modal
     // block): otherwise watchVariant re-reads the page's old variant after every
     // change event and snaps the pick back.
-    if (this.form || this.root.querySelector("[data-option-index]")) {
+    // Not in the iframe embed's srcdoc page (about:srcdoc), which has no URL to
+    // update — replaceState would throw there.
+    if (location.protocol !== "about:" && (this.form || this.root.querySelector("[data-option-index]"))) {
       const url = new URL(location.href);
       if (url.searchParams.get("variant") !== String(v.id)) {
         url.searchParams.set("variant", String(v.id));
@@ -409,10 +332,14 @@ class Configurator {
     const buy = this.form?.querySelector<HTMLButtonElement>("[data-e3d-buy]");
     if (buy) buy.disabled = !v.available;
 
-    if (v.featured_image?.id) {
-      const has = this.$(`[data-e3d-image="${v.featured_image.id}"]`);
-      if (has) this.showMedia(String(v.featured_image.id));
+    // A new variant: on an image, show that variant's image; on 3D, stay on 3D
+    // (the model / styling already follows the variant). Not on the first sync,
+    // which would override the block's "Default media" setting.
+    if (this.mediaVariant !== undefined && this.mediaVariant !== v.id && this.shownImage !== null) {
+      const imgId = v.featured_image?.id;
+      if (imgId && this.$(`[data-e3d-image="${imgId}"]`)) this.showMedia(String(imgId));
     }
+    this.mediaVariant = v.id;
   }
 
   private t(key: string, vars?: Record<string, string>) {
@@ -490,7 +417,9 @@ class Configurator {
     }
     this.choices = kept;
 
-    const wanted = modelId ? this.render.models?.[modelId]?.glb : null;
+    const wanted =
+      (modelId ? this.render.models?.[modelId]?.glb : null) ??
+      (modelId === this.render.model ? this.baseModel : null);
     if (wanted && this.view3d && wanted !== this.loadedModel) {
       this.loadedModel = wanted;
       this.styler = null;
@@ -723,12 +652,20 @@ class Configurator {
         body: JSON.stringify({ items: [{ id: v.id, quantity: qty, properties: this.properties() }] }),
       });
       if (!res.ok) throw new Error(String(res.status));
+      const framed = window.parent !== window;
       if (checkout) {
-        location.href = `${window.Shopify?.routes?.root ?? "/"}checkout`;
+        const url = `${window.Shopify?.routes?.root ?? "/"}checkout`;
+        // Checkout refuses to load in a frame: in the iframe embed, leave it.
+        if (framed) window.open(url, "_top");
+        else location.href = url;
         return;
       }
       this.say(this.t("added"));
       document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
+      // The iframe embed: let the page around it update its cart count / drawer.
+      if (framed) {
+        window.parent.postMessage({ type: "e3d:cart-added", variantId: v.id, quantity: qty }, "*");
+      }
     } catch {
       this.say(this.t("add_failed"), true);
     } finally {

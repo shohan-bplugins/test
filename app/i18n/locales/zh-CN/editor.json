@@ -283,5 +283,10 @@
   "publish": "发布",
   "savedDraft": "草稿已保存 · 尚未上线。请先预览，再发布。",
   "switchVariant": "款式",
-  "variantWithOwnSetup": "{name} · 独立 3D"
+  "variantWithOwnSetup": "{name} · 独立 3D",
+  "inPreview": "预览中",
+  "previewVariant": "在实时预览中显示 {name}",
+  "previewingVariant": "正在预览：{name}",
+  "previewShowDefault": "显示产品默认效果",
+  "previewButton": "预览"
 }

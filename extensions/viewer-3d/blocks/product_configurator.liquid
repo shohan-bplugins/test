@@ -54,6 +54,14 @@
     endif
   endif
 
+  # What the stage shows first: the 3D model, or the selected variant's image
+  # (the product's first image when the variant has none).
+  assign first_image = current_variant.featured_image | default: product.featured_image
+  assign show_image_first = false
+  if first_image and model_url == blank or first_image and block.settings.default_media == 'image'
+    assign show_image_first = true
+  endif
+
   assign cfg = product.metafields.custom.viewer_3d_config.value
   assign viewer_bg = block.settings.background_color
   assign poster_url = ''
@@ -80,7 +88,7 @@
   data-i18n="{{ configurator_i18n | strip | escape }}"
 >
   <div class="e3d-gallery">
-    <div class="e3d-stage" style="--viewer-height: {{ block.settings.height }}px;">
+    <div class="e3d-stage{% if show_image_first and model_url != blank %} e3d-showing-image{% endif %}" style="--viewer-height: {{ block.settings.height }}px;">
       {%- if model_url != blank -%}
         <div
           id="viewer-3d-{{ block.id }}"
@@ -104,7 +112,7 @@
       {%- endif -%}
       {%- for image in product.images -%}
         <img
-          class="e3d-image{% if model_url == blank and forloop.first %} is-active{% endif %}"
+          class="e3d-image{% if show_image_first and image.id == first_image.id %} is-active{% endif %}"
           data-e3d-image="{{ image.id }}"
           src="{{ image | image_url: width: 1200 }}"
           alt="{{ image.alt | escape }}"
@@ -118,16 +126,16 @@
     {%- if product.images.size > 1 or model_url != blank and product.images.size > 0 -%}
       <div class="e3d-thumbs">
         {%- if model_url != blank -%}
-          <button type="button" class="e3d-thumb-btn e3d-thumb-3d is-on" data-e3d-thumb="3d" aria-pressed="true"{% if draft_only %} hidden data-draft-hidden{% endif %}>
+          <button type="button" class="e3d-thumb-btn e3d-thumb-3d{% unless show_image_first %} is-on{% endunless %}" data-e3d-thumb="3d" aria-pressed="{% if show_image_first %}false{% else %}true{% endif %}"{% if draft_only %} hidden data-draft-hidden{% endif %}>
             {{ 'viewer_3d.configurator.view_3d' | t }}
           </button>
         {%- endif -%}
         {%- for image in product.images -%}
           <button
             type="button"
-            class="e3d-thumb-btn{% if model_url == blank and forloop.first %} is-on{% endif %}"
+            class="e3d-thumb-btn{% if show_image_first and image.id == first_image.id %} is-on{% endif %}"
             data-e3d-thumb="{{ image.id }}"
-            aria-pressed="{% if model_url == blank and forloop.first %}true{% else %}false{% endif %}"
+            aria-pressed="{% if show_image_first and image.id == first_image.id %}true{% else %}false{% endif %}"
           >
             <img src="{{ image | image_url: width: 160, height: 160, crop: 'center' }}" alt="{{ image.alt | escape }}" width="80" height="80" loading="lazy">
           </button>
@@ -271,6 +279,17 @@
       "step": 50,
       "default": 550,
       "unit": "px"
+    },
+    {
+      "type": "select",
+      "id": "default_media",
+      "label": "Default media",
+      "info": "What the gallery shows first. Falls back to the image when the product has no 3D model.",
+      "options": [
+        { "value": "3d", "label": "3D model" },
+        { "value": "image", "label": "Variant image" }
+      ],
+      "default": "3d"
     },
     { "type": "color", "id": "background_color", "label": "3D background", "default": "#ffffff" },
     { "type": "header", "content": "Product details" },

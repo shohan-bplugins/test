@@ -283,5 +283,10 @@
   "publish": "Publicar",
   "savedDraft": "Rascunho salvo · ainda não está no ar. Use a pré-visualização e depois publique.",
   "switchVariant": "Variante",
-  "variantWithOwnSetup": "{name} · 3D próprio"
+  "variantWithOwnSetup": "{name} · 3D próprio",
+  "inPreview": "Na pré-visualização",
+  "previewVariant": "Mostrar {name} na pré-visualização ao vivo",
+  "previewingVariant": "Pré-visualizando: {name}",
+  "previewShowDefault": "Mostrar o padrão do produto",
+  "previewButton": "Pré-visualizar"
 }

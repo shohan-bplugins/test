@@ -207,9 +207,18 @@ export function controlVisibilityPatch(
 
 /**
  * Where the fullscreen close button goes: its usual top-right unless a control
- * was moved there, then the first spot no control is using.
+ * was moved there, then the first spot no control is using. If every spot is in
+ * use it falls back to top-right, and the caller must put the button *in* that
+ * spot's bar rather than over it, or the two overlap.
+ *
+ * `isTaken` lets the caller count only the controls actually on screen (a
+ * switched-off control still has a spot in the layout); by default any control
+ * listed in a spot takes it.
  */
-export function fullscreenCloseSlot(layout: ControlsLayout): ControlSlot {
+export function fullscreenCloseSlot(
+  layout: ControlsLayout,
+  isTaken: (slot: ControlSlot) => boolean = (s) => layout[s].length > 0,
+): ControlSlot {
   const order: ControlSlot[] = [
     "top-right",
     "top-left",
@@ -218,7 +227,7 @@ export function fullscreenCloseSlot(layout: ControlsLayout): ControlSlot {
     "bottom-left",
     "bottom-center",
   ];
-  return order.find((s) => layout[s].length === 0) ?? "top-right";
+  return order.find((s) => !isTaken(s)) ?? "top-right";
 }
 
 export const DEFAULT_CONFIG: ViewerConfig = {

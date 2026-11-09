@@ -283,5 +283,10 @@
   "publish": "게시",
   "savedDraft": "초안을 저장했습니다 · 아직 게시되지 않았습니다. 미리보기로 확인한 후 게시하세요.",
   "switchVariant": "옵션",
-  "variantWithOwnSetup": "{name} · 개별 3D"
+  "variantWithOwnSetup": "{name} · 개별 3D",
+  "inPreview": "미리보기 중",
+  "previewVariant": "{name}을(를) 실시간 미리보기에 표시",
+  "previewingVariant": "미리보기: {name}",
+  "previewShowDefault": "제품 기본값 표시",
+  "previewButton": "미리보기"
 }

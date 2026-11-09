@@ -250,3 +250,95 @@ export async function publishStoredConfig(
   if (!data) return { ok: false, error: "Nothing saved to publish." };
   return saveProductConfig(admin, shop, data, "publish");
 }
+
+/**
+ * The product's own model (custom.model_3d) was replaced or removed on the
+ * product page. The configurator keeps a copy of that model's id and URL in its
+ * saved config and in the `render` / `render_draft` metafields, and the
+ * storefront block reads those first — so without this the block keeps showing
+ * the old model.
+ *
+ * Patches only `model` / `models` in place: nothing else is republished, so
+ * unpublished draft edits stay unpublished and `rev` (draft vs. live) is kept.
+ * No-op for products that never saved a configurator config.
+ */
+export async function syncConfiguratorModel(
+  admin: Admin,
+  shop: string,
+  productId: string,
+  fileGid: string | null,
+): Promise<void> {
+  const data = await getProductConfig(shop, productId);
+  if (!data || data.modelFileId === fileGid) return;
+
+  await prisma.productConfig.update({
+    where: { shop_productId: { shop, productId } },
+    data: { modelFileId: fileGid },
+  });
+
+  const ownerId = `gid://shopify/Product/${productId}`;
+  const [res, urls] = await Promise.all([
+    admin.graphql(
+      `#graphql
+        query ConfiguratorRender($id: ID!) {
+          product(id: $id) {
+            render: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${RENDER_KEY}") { value }
+            draft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${DRAFT_KEY}") { value }
+          }
+        }`,
+      { variables: { id: ownerId } },
+    ),
+    fileGid ? resolveModelUrls(admin, [fileGid]) : Promise.resolve({}),
+  ]);
+  const json: any = await res.json();
+  const product = json?.data?.product;
+
+  // Old model's URL stays in `models` only if a variant / option layer uses it.
+  const stillUsed = new Set(modelIds({ ...data, modelFileId: fileGid }));
+  const patch = (raw: string | undefined) => {
+    if (!raw) return null;
+    let render: any;
+    try {
+      render = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    const models: Record<string, unknown> = {};
+    for (const [gid, u] of Object.entries(render.models ?? {})) {
+      if (stillUsed.has(gid)) models[gid] = u;
+    }
+    // A just-uploaded file may not have a URL yet; the block then falls back
+    // to custom.model_3d, which is already the new model.
+    if (fileGid && (urls as any)[fileGid]) models[fileGid] = (urls as any)[fileGid];
+    return { ...render, model: fileGid, models };
+  };
+
+  const metafields = [
+    [RENDER_KEY, patch(product?.render?.value)],
+    [DRAFT_KEY, patch(product?.draft?.value)],
+  ]
+    .filter(([, v]) => v)
+    .map(([key, value]) => ({
+      ownerId,
+      namespace: CONFIGURATOR_NAMESPACE,
+      key: key as string,
+      type: "json",
+      value: JSON.stringify(value),
+    }));
+  if (!metafields.length) return;
+
+  const setRes = await admin.graphql(
+    `#graphql
+      mutation SyncConfiguratorModel($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+    { variables: { metafields } },
+  );
+  const setJson: any = await setRes.json();
+  const errors = setJson?.data?.metafieldsSet?.userErrors ?? [];
+  if (errors.length) {
+    throw new Error(errors.map((e: any) => e.message).join("; "));
+  }
+}

@@ -54,6 +54,7 @@ import { configuratorModules } from "~/lib/configurator/modules.server";
 import { sanitizeOptionGroups } from "~/lib/configurator/options";
 import { MAX_VARIANT_IMAGE_BYTES, setVariantImage } from "~/lib/configurator/variants.server";
 import { CubeLoader } from "~/components/CubeLoader";
+import { Grid3x3, Rotate3d, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { formatFileSize } from "~/lib/files";
 import type { ConfigLayer, ProductRenderConfig } from "~/lib/configurator/types";
 
@@ -629,22 +630,43 @@ function Editor({ locked }: { locked: boolean }) {
               </s-banner>
             </div>
           ) : null}
+          {/*
+            Styled like the viewer's own controls (ViewerPreview's
+            MiniToolbarButton / the storefront's mini toolbar): square white
+            buttons stacked in the corner, so the editor looks like the viewer
+            shoppers get. Grid and auto-rotate are editor-only toggles, filled
+            while on.
+          */}
           <div className="ed-tools" role="toolbar" aria-label={t("viewTools")}>
-            <s-button icon="maximize" accessibilityLabel={t("frame")} onClick={() => viewportRef.current?.frame()} />
-            <s-button icon="plus" accessibilityLabel={t("zoomIn")} onClick={() => viewportRef.current?.zoom(0.8)} />
-            <s-button icon="minus" accessibilityLabel={t("zoomOut")} onClick={() => viewportRef.current?.zoom(1.25)} />
-            <s-button
-              icon="layout-columns-3"
-              variant={grid ? "primary" : "secondary"}
-              accessibilityLabel={t("grid")}
+            <button type="button" className="ed-tool" title={t("zoomIn")} aria-label={t("zoomIn")} onClick={() => viewportRef.current?.zoom(0.8)}>
+              <ZoomIn />
+            </button>
+            <button type="button" className="ed-tool" title={t("zoomOut")} aria-label={t("zoomOut")} onClick={() => viewportRef.current?.zoom(1.25)}>
+              <ZoomOut />
+            </button>
+            <button type="button" className="ed-tool" title={t("frame")} aria-label={t("frame")} onClick={() => viewportRef.current?.frame()}>
+              <RotateCcw />
+            </button>
+            <button
+              type="button"
+              className={`ed-tool${grid ? " is-on" : ""}`}
+              title={t("grid")}
+              aria-label={t("grid")}
+              aria-pressed={grid}
               onClick={() => setGrid((g) => !g)}
-            />
-            <s-button
-              icon="refresh"
-              variant={autoRotate ? "primary" : "secondary"}
-              accessibilityLabel={t("autoRotate")}
+            >
+              <Grid3x3 />
+            </button>
+            <button
+              type="button"
+              className={`ed-tool${autoRotate ? " is-on" : ""}`}
+              title={t("autoRotate")}
+              aria-label={t("autoRotate")}
+              aria-pressed={autoRotate}
               onClick={() => setAutoRotate((a) => !a)}
-            />
+            >
+              <Rotate3d />
+            </button>
           </div>
         </main>
 
@@ -715,7 +737,12 @@ const EDITOR_CSS = `
 .ed-center { position: relative; min-width: 0; }
 .ed-boot { position: absolute; inset: 0; display: grid; place-items: center; }
 .ed-error { position: absolute; left: 12px; right: 12px; top: 12px; }
-.ed-tools { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; background: #fff; padding: 4px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.ed-tools { position: absolute; right: 8px; bottom: 8px; z-index: 5; display: flex; flex-direction: column; gap: 8px; }
+.ed-tool { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: #fff; color: rgba(0,0,0,.8); border: 1px solid rgba(0,0,0,.1); box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); transition: background-color .15s, color .15s, transform .15s; }
+.ed-tool svg { width: 20px; height: 20px; stroke-width: 2.5; }
+.ed-tool:hover, .ed-tool:focus-visible, .ed-tool.is-on { background: #146ef5; color: #fff; }
+.ed-tool:focus-visible { outline: 2px solid rgba(0,0,0,.3); outline-offset: 1px; }
+.ed-tool:active { transform: scale(.9); }
 .ed-panel { padding: 12px; border-bottom: 1px solid #ebebeb; display: flex; flex-direction: column; gap: 6px; }
 .ed-h { margin: 6px 0 2px; font-size: 13px; font-weight: 650; display: flex; justify-content: space-between; align-items: baseline; }
 .ed-meta { font-weight: 400; color: #616161; font-size: 12px; }

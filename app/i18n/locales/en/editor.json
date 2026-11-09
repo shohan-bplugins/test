@@ -304,5 +304,10 @@
   "publish": "Publish",
   "savedDraft": "Draft saved · not live yet. Use Preview to see it, then Publish.",
   "switchVariant": "Variant",
-  "variantWithOwnSetup": "{name} · own 3D"
+  "variantWithOwnSetup": "{name} · own 3D",
+  "inPreview": "In preview",
+  "previewVariant": "Show {name} in the live preview",
+  "previewingVariant": "Previewing: {name}",
+  "previewShowDefault": "Show product default",
+  "previewButton": "Preview"
 }

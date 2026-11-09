@@ -283,5 +283,10 @@
   "publish": "Publiceren",
   "savedDraft": "Concept opgeslagen · nog niet live. Bekijk het met Voorbeeld en publiceer daarna.",
   "switchVariant": "Variant",
-  "variantWithOwnSetup": "{name} · eigen 3D"
+  "variantWithOwnSetup": "{name} · eigen 3D",
+  "inPreview": "In voorbeeld",
+  "previewVariant": "{name} in het livevoorbeeld tonen",
+  "previewingVariant": "Voorbeeld: {name}",
+  "previewShowDefault": "Productstandaard tonen",
+  "previewButton": "Voorbeeld"
 }

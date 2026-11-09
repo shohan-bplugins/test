@@ -283,5 +283,10 @@
   "publish": "公開",
   "savedDraft": "下書きを保存しました · まだ公開されていません。プレビューで確認してから公開してください。",
   "switchVariant": "バリエーション",
-  "variantWithOwnSetup": "{name} · 個別の3D"
+  "variantWithOwnSetup": "{name} · 個別の3D",
+  "inPreview": "プレビュー中",
+  "previewVariant": "{name} をライブプレビューに表示",
+  "previewingVariant": "プレビュー中: {name}",
+  "previewShowDefault": "商品のデフォルトを表示",
+  "previewButton": "プレビュー"
 }

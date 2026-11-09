@@ -93,3 +93,30 @@ function canonical(key: string): string {
   const [lang, region] = key.split("-");
   return region ? `${lang}-${region.toUpperCase()}` : lang;
 }
+
+const CONFIGURATOR_CATALOG: Record<string, Record<string, string>> = {
+  en: en.viewer_3d.configurator,
+  bn: bn.viewer_3d.configurator,
+  ar: ar.viewer_3d.configurator,
+  de: de.viewer_3d.configurator,
+  es: es.viewer_3d.configurator,
+  fr: fr.viewer_3d.configurator,
+  it: it.viewer_3d.configurator,
+  ja: ja.viewer_3d.configurator,
+  ko: ko.viewer_3d.configurator,
+  nl: nl.viewer_3d.configurator,
+  "pt-br": ptBR.viewer_3d.configurator,
+  "zh-cn": zhCN.viewer_3d.configurator,
+};
+
+/**
+ * The Product configurator's strings (viewer_3d.configurator.*) in `locale`,
+ * English filling gaps — what the block renders through configurator_i18n,
+ * for pages served outside the theme (the iframe embed).
+ */
+export function getConfiguratorStrings(
+  locale: string | null | undefined,
+): Record<string, string> {
+  const key = locale && LOCALE_PATTERN.test(locale) ? catalogKey(locale) : null;
+  return { ...CONFIGURATOR_CATALOG.en, ...(key ? CONFIGURATOR_CATALOG[key] : {}) };
+}

@@ -283,5 +283,10 @@
   "publish": "Pubblica",
   "savedDraft": "Bozza salvata · non ancora online. Usa l’anteprima, poi pubblica.",
   "switchVariant": "Variante",
-  "variantWithOwnSetup": "{name} · 3D proprio"
+  "variantWithOwnSetup": "{name} · 3D proprio",
+  "inPreview": "In anteprima",
+  "previewVariant": "Mostra {name} nell'anteprima dal vivo",
+  "previewingVariant": "Anteprima: {name}",
+  "previewShowDefault": "Mostra il prodotto predefinito",
+  "previewButton": "Anteprima"
 }

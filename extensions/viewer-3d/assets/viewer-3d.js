@@ -1818,14 +1818,26 @@
         else if (nativeFullscreenElement()) exitNativeFullscreen();
       };
 
-      var closeBar = document.createElement('div');
       var closeSlot = fullscreenCloseSlot(cfg.controlsLayout);
-      closeBar.className =
-        'viewer-3d-mini-toolbar pos-' + closeSlot + ' viewer-3d-fs-only';
-      closeBar.appendChild(
-        makeButton(t('exit_fullscreen'), CLOSE_ICON, exitFullscreen, closeSlot.indexOf('top') === 0)
+      var closeBtn = makeButton(
+        t('exit_fullscreen'), CLOSE_ICON, exitFullscreen, closeSlot.indexOf('top') === 0
       );
-      el.appendChild(closeBar);
+      if (bars[closeSlot]) {
+        // Every spot has controls, so a bar of its own would sit on top of
+        // them. Join that spot's bar as its first button instead; the button
+        // carries the fs-only class itself so it still shows only in
+        // fullscreen. The bar is attached now in case none of its own
+        // controls ever arrive.
+        closeBtn.className += ' viewer-3d-fs-only';
+        bars[closeSlot].insertBefore(closeBtn, bars[closeSlot].firstChild);
+        if (!bars[closeSlot].parentNode) el.appendChild(bars[closeSlot]);
+      } else {
+        var closeBar = document.createElement('div');
+        closeBar.className =
+          'viewer-3d-mini-toolbar pos-' + closeSlot + ' viewer-3d-fs-only';
+        closeBar.appendChild(closeBtn);
+        el.appendChild(closeBar);
+      }
 
       var fsBtn = addButton('fullscreen', t('fullscreen'), FULLSCREEN_ICON, function () {
         if (maximized) {
@@ -3219,7 +3231,11 @@
       // Shopify's cart permalink: one of this variant, straight to checkout.
       onAddToCart();
       flushTrack();
-      window.location.href = '/cart/' + encodeURIComponent(variantId) + ':1';
+      // The whole window: checkout refuses to load inside a frame (the
+      // Product configurator's iframe embed).
+      var permalink = '/cart/' + encodeURIComponent(variantId) + ':1';
+      if (window.parent !== window) window.open(permalink, '_top');
+      else window.location.href = permalink;
       return;
     }
     var label = button.textContent;

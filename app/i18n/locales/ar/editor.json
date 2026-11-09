@@ -283,5 +283,10 @@
   "publish": "نشر",
   "savedDraft": "تم حفظ المسودة · غير منشورة بعد. استخدم المعاينة ثم انشر.",
   "switchVariant": "المتغير",
-  "variantWithOwnSetup": "{name} · ثلاثي أبعاد خاص"
+  "variantWithOwnSetup": "{name} · ثلاثي أبعاد خاص",
+  "inPreview": "في المعاينة",
+  "previewVariant": "عرض {name} في المعاينة المباشرة",
+  "previewingVariant": "معاينة: {name}",
+  "previewShowDefault": "عرض الإعداد الافتراضي للمنتج",
+  "previewButton": "معاينة"
 }

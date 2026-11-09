@@ -283,5 +283,10 @@
   "publish": "Publier",
   "savedDraft": "Brouillon enregistré · pas encore en ligne. Utilisez l’aperçu, puis publiez.",
   "switchVariant": "Variante",
-  "variantWithOwnSetup": "{name} · 3D dédié"
+  "variantWithOwnSetup": "{name} · 3D dédié",
+  "inPreview": "Dans l'aperçu",
+  "previewVariant": "Afficher {name} dans l'aperçu en direct",
+  "previewingVariant": "Aperçu : {name}",
+  "previewShowDefault": "Afficher le produit par défaut",
+  "previewButton": "Aperçu"
 }

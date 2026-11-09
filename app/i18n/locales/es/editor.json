@@ -283,5 +283,10 @@
   "publish": "Publicar",
   "savedDraft": "Borrador guardado · aún no está activo. Usa la vista previa y luego publica.",
   "switchVariant": "Variante",
-  "variantWithOwnSetup": "{name} · 3D propio"
+  "variantWithOwnSetup": "{name} · 3D propio",
+  "inPreview": "En la vista previa",
+  "previewVariant": "Mostrar {name} en la vista previa en vivo",
+  "previewingVariant": "Vista previa: {name}",
+  "previewShowDefault": "Mostrar el predeterminado del producto",
+  "previewButton": "Vista previa"
 }

@@ -42,6 +42,8 @@ export function VariantsPanel({
   customized,
   fallbackImage,
   onCustomize,
+  selectedId = null,
+  onSelect,
 }: {
   product: EditorProduct;
   /** Variants that have their own 3D setup. */
@@ -50,6 +52,10 @@ export function VariantsPanel({
   fallbackImage?: string | null;
   /** Opens the 3D editor on one variant; omitted while there is no model. */
   onCustomize?: (variantId: string) => void;
+  /** The variant shown in the live preview; its row is highlighted. */
+  selectedId?: string | null;
+  /** Clicking a row shows that variant in the live preview (again: back to default). */
+  onSelect?: (variantId: string) => void;
 }) {
   const t = useT("editor");
   const tc = useT("common");
@@ -363,22 +369,15 @@ export function VariantsPanel({
     const own = customized.includes(v.id);
     const editing = form && "id" in form && form.id === v.id ? form.kind : null;
     const image = v.image ?? fallbackImage;
-    return (
-      <s-box
-        key={v.id}
-        padding="small"
-        borderWidth="base"
-        borderRadius="base"
-        background="base"
+    const selected = selectedId === v.id;
+    const summary = (
+      <s-grid
+        gridTemplateColumns={image ? "auto 1fr" : "1fr"}
+        gap="small"
+        alignItems="start"
       >
-        <s-stack gap="small">
-          <s-grid
-            gridTemplateColumns={image ? "auto 1fr auto" : "1fr auto"}
-            gap="small"
-            alignItems="start"
-          >
-            {image ? <s-thumbnail src={image} alt="" size="small" /> : null}
-            <s-stack gap="small-300">
+        {image ? <s-thumbnail src={image} alt="" size="small" /> : null}
+        <s-stack gap="small-300">
               <s-text type="strong">{v.title}</s-text>
               <s-stack direction="inline" gap="small-300" alignItems="center">
                 {v.price ? <s-text>{v.price}</s-text> : null}
@@ -397,8 +396,39 @@ export function VariantsPanel({
                 ) : (
                   <s-badge>{t("usesDefault3d")}</s-badge>
                 )}
+                {selected ? (
+                  <s-badge tone="success" icon="view">
+                    {t("inPreview")}
+                  </s-badge>
+                ) : null}
               </s-stack>
             </s-stack>
+      </s-grid>
+    );
+    return (
+      <s-box
+        key={v.id}
+        padding="small"
+        // A heavier border marks the variant the live preview is showing.
+        borderWidth={selected ? "large" : "base"}
+        borderColor={selected ? "strong" : "base"}
+        borderRadius="base"
+        background={selected ? "subdued" : "base"}
+      >
+        <s-stack gap="small">
+          <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="start">
+            {onSelect ? (
+              <s-clickable
+                inlineSize="100%"
+                borderRadius="base"
+                accessibilityLabel={t("previewVariant", { name: v.title })}
+                onClick={() => onSelect(v.id)}
+              >
+                {summary}
+              </s-clickable>
+            ) : (
+              summary
+            )}
             <s-button
               variant="tertiary"
               icon="menu-horizontal"
@@ -407,13 +437,29 @@ export function VariantsPanel({
               command="--show"
             />
           </s-grid>
-          {onCustomize ? (
-            <s-button
-              icon="three-d-environment"
-              onClick={() => onCustomize(v.id)}
-            >
-              {own ? t("edit3d") : t("customize3d")}
-            </s-button>
+          {onCustomize || onSelect ? (
+            <s-stack direction="inline" gap="small-200">
+              {onCustomize ? (
+                <s-button
+                  icon="three-d-environment"
+                  onClick={() => onCustomize(v.id)}
+                >
+                  {own ? t("edit3d") : t("customize3d")}
+                </s-button>
+              ) : null}
+              {onSelect ? (
+                // Shows this variant in the live preview; pressed again, back
+                // to the product default.
+                <s-button
+                  icon="view"
+                  variant={selected ? "primary" : "secondary"}
+                  accessibilityLabel={t("previewVariant", { name: v.title })}
+                  onClick={() => onSelect(v.id)}
+                >
+                  {t("previewButton")}
+                </s-button>
+              ) : null}
+            </s-stack>
           ) : null}
           {editing === "edit"
             ? editForm(v)

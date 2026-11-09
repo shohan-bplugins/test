@@ -283,5 +283,10 @@
   "publish": "Veröffentlichen",
   "savedDraft": "Entwurf gespeichert · noch nicht live. Nutze die Vorschau und veröffentliche dann.",
   "switchVariant": "Variante",
-  "variantWithOwnSetup": "{name} · eigenes 3D"
+  "variantWithOwnSetup": "{name} · eigenes 3D",
+  "inPreview": "In der Vorschau",
+  "previewVariant": "{name} in der Live-Vorschau anzeigen",
+  "previewingVariant": "Vorschau: {name}",
+  "previewShowDefault": "Produktstandard anzeigen",
+  "previewButton": "Vorschau"
 }
