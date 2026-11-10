@@ -45,10 +45,15 @@
   if model_url == blank and viewer_off == false
     assign model_field = product.metafields.custom.model_3d
     if model_field.value
+      # A GLB uploaded as a file has a plain `.url`; only Shopify 3D-model
+      # media has `.sources`. Same lookup as product_viewer.liquid.
+      assign model_url = model_field.value.url
       for source in model_field.value.sources
         assign source_format = source.format | downcase
-        if model_url == blank and source_format == 'glb' or model_url == blank and source_format == 'gltf'
-          assign model_url = source.url
+        if model_url == blank
+          if source_format == 'glb' or source_format == 'gltf'
+            assign model_url = source.url
+          endif
         endif
       endfor
     endif
