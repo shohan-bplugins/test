@@ -241,6 +241,10 @@
   </div>
 </div>
 
+<style>
+  /* Shopify's app-block wrapper (parent of the main div) can't take attributes from here, so target it by id. */
+  #shopify-block-{{ block.id }} { width: 100%; }
+</style>
 {{ 'viewer-3d.css' | asset_url | stylesheet_tag }}
 {{ 'configurator.css' | asset_url | stylesheet_tag }}
 {%- if model_url != blank -%}
