@@ -40,6 +40,10 @@
       "background_color": {
         "label": "背景颜色"
       }
+    },
+    "configurator_block": {
+      "name": "产品配置器",
+      "paragraph": "展示 3D 模型，以及在 3D 编辑器中设置的客户选项、实时价格和加入购物车按钮。"
     }
   }
 }

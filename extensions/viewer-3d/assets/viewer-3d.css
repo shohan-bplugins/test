@@ -307,6 +307,27 @@
 }
 
 /*
+ * The same, for a close button that joined another spot's bar because every
+ * spot had controls. The button rule's `display: flex !important` is more
+ * specific than the plain fs-only rules, so these have to match it.
+ */
+.viewer-3d button.viewer-3d-mini-toolbar-btn.viewer-3d-fs-only {
+  display: none !important;
+}
+
+.viewer-3d:fullscreen button.viewer-3d-mini-toolbar-btn.viewer-3d-fs-only {
+  display: flex !important;
+}
+
+.viewer-3d:-webkit-full-screen button.viewer-3d-mini-toolbar-btn.viewer-3d-fs-only {
+  display: flex !important;
+}
+
+.viewer-3d--pseudo-fullscreen button.viewer-3d-mini-toolbar-btn.viewer-3d-fs-only {
+  display: flex !important;
+}
+
+/*
  * view3d's axis gizmo is anchored `top: 10px; right: 10px` at 120x120 — exactly
  * where the close button goes. Our toolbar has z-index 5 so the button stays
  * clickable on top, but it would sit over the axes; nudging the gizmo below the

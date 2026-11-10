@@ -9,6 +9,7 @@ import {
   uploadMedia,
   type UploadProgress,
 } from "~/lib/media-upload";
+import { CubeLoader } from "~/components/CubeLoader";
 import { useT } from "~/i18n";
 
 // Images are checked here first (mirrors routes/api.media.tsx) so an
@@ -458,7 +459,7 @@ export function MediaPickerModal({
 
           {loading ? (
             <div className="mp-center">
-              <s-spinner accessibilityLabel={t("loadingFiles")} />
+              <CubeLoader label={t("loadingFiles")} />
             </div>
           ) : items.length === 0 ? (
             <s-paragraph color="subdued">

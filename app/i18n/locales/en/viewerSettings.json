@@ -87,5 +87,6 @@
   "variantPlaceholder": "leave empty for default",
   "variantDetails": "Name of a KHR_materials_variants variant in the model.",
   "fixSkinnedLabel": "Fix skinned bounding box",
-  "fixSkinnedDetails": "Recalculate bbox using skeleton weights (rigged models)."
+  "fixSkinnedDetails": "Recalculate bbox using skeleton weights (rigged models).",
+  "noSettingsMatch": "No settings match “{query}”."
 }

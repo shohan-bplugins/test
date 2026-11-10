@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customize 3D · Prototype</title>
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+:root{--bg:#f1f1f1;--surf:#fff;--ink:#303030;--sub:#616161;--line:#e3e3e3;--pri:#303030;--blue:#2c6ecb;--ok:#cdfed4;--okt:#0c5132;--warn:#ffd6a4;--warnt:#5e4200;--crit:#c70a24;--info:#cae9ff;--infot:#003a5a}
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;color:var(--ink);background:var(--bg);height:100vh;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+.ed{position:fixed;inset:0;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surf);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top h1{font-size:14px;margin:0 4px 0 0}
+.sp{flex:1}
+.body{flex:1;display:grid;grid-template-columns:290px 1fr 330px;min-height:0}
+aside{background:var(--surf);overflow:auto;padding:10px}
+aside.l{border-right:1px solid var(--line)}aside.r{border-left:1px solid var(--line)}
+main{position:relative;background:#e9eaec;min-width:0}
+model-viewer{width:100%;height:100%;--poster-color:transparent}
+.btn{border:1px solid #c9c9c9;background:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;box-shadow:0 1px 0 #0001}
+.btn:hover{background:#f7f7f7}.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.pri{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.pri[disabled]{opacity:.45}
+.btn.t{border-color:transparent;background:none;box-shadow:none;color:var(--blue);padding:3px 6px}
+.btn.d{color:var(--crit)}.btn.ic{padding:4px 8px}.btn.on{background:#e0ecff;border-color:var(--blue)}
+.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;background:#e3e3e3}
+.b-ok{background:var(--ok);color:var(--okt)}.b-warn{background:var(--warn);color:var(--warnt)}.b-info{background:var(--info);color:var(--infot)}
+h3{font-size:12px;text-transform:none;margin:14px 0 6px;color:var(--ink)}h3:first-child{margin-top:2px}
+.help{color:var(--sub);font-size:12px;margin:4px 0}
+.row{display:flex;align-items:center;gap:6px;margin:3px 0}
+.trow{display:flex;gap:4px;margin:2px 0}
+.trow .btn:first-child{flex:1;text-align:left;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:#e8741a;display:none}.dot.on{display:inline-block}
+details.sec{border:1px solid var(--line);border-radius:10px;margin:8px 0;background:#fff}
+details.sec>summary{cursor:pointer;padding:9px 12px;font-weight:600;display:flex;justify-content:space-between;list-style:none}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary:after{content:"▾";color:var(--sub)}details.sec[open]>summary:after{content:"▴"}
+details.sec>.in{padding:2px 12px 12px}
+details.sub{border:1px solid var(--line);border-radius:8px;margin:8px 0}details.sub>summary{padding:7px 10px;cursor:pointer;font-weight:600}details.sub>.in{padding:0 10px 10px}
+label.f{display:block;margin:8px 0 2px;font-weight:500}
+label.c{display:flex;gap:6px;align-items:flex-start;margin:5px 0}
+label.c small{display:block;color:var(--sub)}
+input[type=text],input[type=number],select,textarea{width:100%;border:1px solid #8a8a8a;border-radius:8px;padding:6px 8px;background:#fff}
+input[type=range]{width:100%}.rg{display:flex;align-items:center;gap:8px}.rg span{min-width:36px;text-align:right;color:var(--sub)}
+input[type=color]{width:34px;height:28px;padding:0;border:1px solid #c9c9c9;border-radius:6px;background:none}
+.tools{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;background:#fffd;padding:6px;border-radius:10px;box-shadow:0 1px 6px #0003}
+.tree .g{display:flex;align-items:center;gap:4px;margin:2px 0}.tree .m{display:flex;gap:4px;margin:2px 0 2px 18px}
+.tree .m .nm{flex:1;text-align:left;border:1px solid transparent;background:none;border-radius:6px;padding:3px 6px;cursor:pointer}
+.tree .m .nm.sel{background:#e0ecff;border-color:var(--blue)}.tree .dim{opacity:.4}
+.card{border:1px solid var(--line);border-radius:8px;padding:8px;margin:6px 0}.card.pv{border-color:var(--blue)}
+.kv{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #f1f1f1}
+.lock{background:#f6f6f7;border:1px dashed #c9c9c9;border-radius:8px;padding:8px;color:var(--sub);margin:6px 0}
+.chip{display:inline-flex;align-items:center;gap:2px;background:#f1f1f1;border-radius:99px;padding:1px 4px 1px 8px;margin:2px}
+.vr{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f1f1f1}.vr .t1{flex:1}
+.form{background:#f8f8f8;border:1px solid var(--line);border-radius:8px;padding:8px;margin:6px 0}
+.sw{display:flex;gap:6px;margin:4px 0}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#303030;color:#fff;padding:8px 14px;border-radius:8px;display:none;z-index:50}
+.plan{background:#fffbe6;border-bottom:1px solid #f0e0a0;padding:5px 14px;font-size:12px;display:flex;gap:10px;align-items:center}
+dialog{border:none;border-radius:12px;padding:18px;max-width:380px;box-shadow:0 8px 40px #0005}
+
+/* viewer stage + control bar (matches extensions/viewer-3d/assets/viewer-3d.css) */
+main{display:flex;align-items:center;justify-content:center}
+#stage{position:relative;width:100%;height:min(500px,100%);background:#fff;border:1px solid #e5e5e5;overflow:hidden;--e3d-hotspot:#2a78d6;--viewer-3d-primary:#146ef5}
+#stage:fullscreen{height:100%}
+#stage model-viewer{position:absolute;inset:0}
+.tb{position:absolute;z-index:5;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.tb.top-left{top:8px;left:8px}.tb.top-right{top:8px;right:8px}.tb.bottom-left{bottom:8px;left:8px}.tb.bottom-right{bottom:8px;right:8px}
+.tb.top-center{top:8px;left:50%;transform:translateX(-50%);flex-direction:row}.tb.bottom-center{bottom:8px;left:50%;transform:translateX(-50%);flex-direction:row}
+.tbtn{pointer-events:auto;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:1px solid rgba(0,0,0,.1);border-radius:0;background:#fff;color:rgba(0,0,0,.8);cursor:pointer;box-shadow:0 4px 6px -1px #0000001a,0 2px 4px -2px #0000001a;transition:background-color .15s,color .15s,transform .15s}
+.tbtn:hover{background:var(--viewer-3d-primary);color:#fff}.tbtn:active{background:#0b57c4;color:#fff;transform:scale(.9)}
+.tbtn svg,.mini svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.gizmo{position:absolute;left:50%;top:50%;width:0;height:0}
+.gz{position:absolute;right:10px;top:54px;z-index:4;font:700 11px system-ui;pointer-events:none}
+.gz span{display:inline-block;width:18px;height:18px;border-radius:50%;color:#fff;text-align:center;line-height:18px;margin-left:3px}
+.e3d-hotspot{width:28px;height:28px;position:relative;pointer-events:auto}
+.e3d-pin{pointer-events:auto}
+#stage.placing-on,#stage.placing-on model-viewer{cursor:crosshair}
+.e3d-hotspot.t{width:auto}
+.e3d-pin{all:unset;box-sizing:border-box;display:block;width:28px;height:28px;border-radius:50%;background:var(--e3d-hotspot);color:#fff;font:700 13px/28px system-ui;text-align:center;cursor:pointer;box-shadow:0 0 0 3px #ffffffe6,0 2px 8px #0000059;transition:transform .15s}
+.e3d-hotspot.t .e3d-pin{width:auto;max-width:180px;padding:0 12px;border-radius:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.e3d-pin:hover,.e3d-hotspot.selected .e3d-pin{transform:scale(1.12)}
+.e3d-card{display:none;position:absolute;left:38px;top:-6px;width:240px;padding:12px 14px;border-radius:10px;background:#fff;color:#1a1a1a;font:400 13px/1.45 system-ui;box-shadow:0 8px 24px #0000002e;z-index:9;white-space:normal}
+.e3d-hotspot.t .e3d-card{left:calc(100% + 10px)}
+.e3d-hotspot.selected .e3d-card{display:block}
+.e3d-card .tt{font-weight:650;font-size:14px;margin-bottom:4px}.e3d-card .tx{color:#4a4a4a}
+.e3d-card a{display:inline-block;margin-top:8px;font-weight:600;color:var(--e3d-hotspot)}
+.e3d-card .img,.e3d-card .vid{margin-top:8px;border-radius:6px;background:#e9e9e9;height:90px;background-size:cover;display:flex;align-items:center;justify-content:center;color:#666;font-size:12px}
+.e3d-card .prod{margin-top:8px;border:1px solid #e5e5e5;border-radius:8px;padding:8px}
+.e3d-card .cbtn{display:block;width:100%;margin-top:6px;padding:6px;border:0;border-radius:6px;background:var(--e3d-hotspot);color:#fff;font-weight:600;cursor:pointer}
+.e3d-card .cbtn.o{background:#fff;color:#111;border:1px solid #bbb}
+.placing{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:8;background:#303030;color:#fff;border-radius:8px;padding:8px 12px;max-width:320px;text-align:center}
+.lay{position:relative;aspect-ratio:16/10;background:#f3f3f3;border:1px solid var(--line);border-radius:8px;margin:6px 0}
+.lay .sl{position:absolute;min-width:48px;min-height:48px;display:flex;gap:4px;padding:4px;border:1px dashed #c9c9c9;border-radius:6px;flex-direction:column}
+.lay .sl.row{flex-direction:row}.lay .sl.over,.tray.over{background:#e0ecff;border-color:var(--blue)}
+.lay .sl small{position:absolute;color:#aaa;font-size:10px;pointer-events:none}
+.lay .tl{top:4px;left:4px}.lay .tc{top:4px;left:50%;transform:translateX(-50%)}.lay .tr{top:4px;right:4px;align-items:flex-end}
+.lay .bl{bottom:4px;left:4px;justify-content:flex-end}.lay .bc{bottom:4px;left:50%;transform:translateX(-50%)}.lay .br{bottom:4px;right:4px;align-items:flex-end;justify-content:flex-end}
+.mini{width:30px;height:30px;border:1px solid #0001;background:#fff;display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 1px 3px #0002}
+.mini svg{width:16px;height:16px}
+.tray{min-height:44px;border:1px dashed #c9c9c9;border-radius:8px;padding:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:var(--sub);margin:6px 0}
+.decal{position:relative;width:100%;aspect-ratio:1;background:#f3f3f3;border:1px solid var(--line);border-radius:8px;margin:6px 0}
+.decal i{position:absolute;border:2px solid var(--blue);background:#2c6ecb22;display:block}
+.meter{height:6px;border-radius:4px;background:#e5e5e5;overflow:hidden}.meter i{display:block;height:100%;background:var(--blue)}
+.hs{display:flex;gap:6px;align-items:center}.hs b{width:22px;height:22px;border-radius:50%;background:#2a78d6;color:#fff;text-align:center;line-height:22px;font-size:12px}
+@media(max-width:900px){.body{display:block;overflow:auto}main{height:45vh}aside{border:0}}
+</style>
+</head>
+<body>
+<div class="ed">
+  <div class="plan">Prototype · all controls from the current editor. Plan simulator:
+    <select id="plan" style="width:auto"><option>Free</option><option selected>Growth</option><option>Advance</option></select>
+    <span style="color:#7a6a00">Locked controls show their required plan instead of disappearing.</span>
+  </div>
+  <header class="top">
+    <h1>Edit 3D · Orange Snowboard</h1>
+    <span id="status" class="badge b-ok">Published</span>
+    <span id="editing" class="badge b-info" style="display:none"></span>
+    <span class="sp"></span>
+    <button class="btn ic" id="undo" title="Undo (Ctrl+Z)" disabled>↶</button>
+    <button class="btn ic" id="redo" title="Redo (Ctrl+Shift+Z)" disabled>↷</button>
+    <button class="btn" id="preview">Preview on store ↗</button>
+    <button class="btn" id="discard" disabled>Discard</button>
+    <button class="btn" id="draft" disabled>Save draft</button>
+    <button class="btn pri" id="publish" disabled>Publish</button>
+  </header>
+
+  <div class="body">
+    <!-- LEFT -->
+    <aside class="l" aria-label="Variants and parts">
+      <h3>Set up by option</h3>
+      <div id="targets"></div>
+      <p class="help">Set each option value once. Every variant combines the values it has.</p>
+      <div id="layerbar"></div>
+
+      <h3>Variant exceptions <span class="help" id="vcount"></span></h3>
+      <div id="vsearchwrap"></div>
+      <div id="vexc"></div>
+      <p class="help">Only for a variant that differs from its option values, like a special edition.</p>
+
+      <h3>Product variants <span class="help">edits Shopify immediately</span></h3>
+      <div id="variants"></div>
+
+      <h3>Parts <span class="help" id="pcount"></span></h3>
+      <div id="parts" class="tree"></div>
+      <div id="partEd"></div>
+      <p class="help">Click a part here or on the model to edit its material.</p>
+    </aside>
+
+    <!-- CENTER -->
+    <main>
+      <div id="stage"><model-viewer id="mv" camera-controls touch-action="pan-y"
+        shadow-intensity="0.5" exposure="1" environment-image="neutral" interaction-prompt="none"></model-viewer>
+        <div id="bars"></div><div class="gz" id="gz" style="display:none"><span style="background:#e5484d">X</span><span style="background:#30a46c">Y</span><span style="background:#3e63dd">Z</span></div><div id="placing"></div></div>
+      <div class="tools" role="toolbar" aria-label="View tools">
+        <button class="btn ic" id="vReset" title="Reset view">⤢</button>
+        <button class="btn ic" id="vIn" title="Zoom in">＋</button>
+        <button class="btn ic" id="vOut" title="Zoom out">－</button>
+        <button class="btn ic" id="vGrid" title="Show grid">▦</button>
+        <button class="btn ic" id="vRot" title="Auto-rotate">⟳</button>
+      </div>
+    </main>
+
+    <!-- RIGHT -->
+    <aside class="r" aria-label="Inspector" id="insp">
+      <input type="text" id="find" placeholder="Search settings…" style="margin-bottom:6px">
+      <div id="ovr"></div>
+
+      <details class="sec" data-k="model"><summary>Model</summary><div class="in">
+        <div class="kv"><span>File</span><b>shoe.glb</b></div>
+        <div class="kv"><span>Size</span><b>7.5 MB</b></div>
+        <div class="kv"><span>Format</span><b>GLB</b></div>
+        <div class="kv"><span>Meshes</span><b id="mcount">–</b></div>
+        <div class="kv"><span>AR file</span><span class="badge b-ok">iPhone AR ready</span></div>
+        <p class="help">To replace the model, use the product page.</p>
+      </div></details>
+
+      <details class="sec" data-k="material" open><summary>Material <span class="help" id="matmeta"></span></summary><div class="in" id="matBody"></div></details>
+
+      <details class="sec" data-k="options"><summary>Custom options <span class="help" id="optmeta"></span></summary><div class="in" id="optBody"></div></details>
+
+      <details class="sec" data-k="scene" open><summary>Scene &amp; lighting</summary><div class="in">
+        <label class="f">Lighting</label>
+        <select id="envPreset"><option value="studio">Studio</option><option>Apartment</option><option>City</option><option>Dawn</option><option>Forest</option><option>Lobby</option><option>Night</option><option>Park</option><option>Sunset</option><option>Warehouse</option></select>
+        <label class="f">Light intensity</label>
+        <div class="rg"><input type="range" id="envInt" min="0" max="2" step="0.05" value="1"><span>1</span></div>
+        <label class="f">Background</label>
+        <select id="bgType"><option value="transparent">Transparent</option><option value="color">Colour</option><option value="preset">Lighting image</option></select>
+        <div id="bgColWrap" style="display:none"><label class="f">Background colour</label><input type="color" id="bgCol" value="#ffffff"></div>
+        <label class="c"><input type="checkbox" id="shOn" checked> Shadows</label>
+        <div id="shWrap"><label class="f">Shadow strength</label><div class="rg"><input type="range" id="shInt" min="0" max="1" step="0.05" value="0.5"><span>0.5</span></div></div>
+      </div></details>
+
+      <details class="sec" data-k="camera"><summary>Camera</summary><div class="in">
+        <div class="row"><button class="btn" id="camSet">Use current view as start view</button><button class="btn t" id="camAuto" disabled>Back to automatic</button></div>
+        <p class="help" id="camHelp">The camera frames the whole model automatically.</p>
+        <label class="c"><input type="checkbox" id="lkRot" checked> Shoppers can rotate</label>
+        <label class="c"><input type="checkbox" id="lkZoom" checked> Shoppers can zoom</label>
+        <label class="c"><input type="checkbox" id="lkPan" checked> Shoppers can pan</label>
+        <label class="f">Lowest view angle</label><input type="number" id="angMin" min="0" max="180" placeholder="°">
+        <label class="f">Highest view angle</label><input type="number" id="angMax" min="0" max="180" placeholder="°">
+        <h3>Gallery views</h3>
+        <p class="help">Shoppers can jump to these views. Move the model, then capture.</p>
+        <div id="gallery"></div>
+      </div></details>
+
+      <details class="sec" data-k="ar"><summary>AR</summary><div class="in">
+        <label class="c"><input type="checkbox" id="arOn" checked> Show “View in your space”</label>
+        <label class="f">Size in AR</label>
+        <select id="arScale"><option value="fixed">True to size</option><option value="auto">Shoppers can resize</option></select>
+        <p class="help">iPhone uses the AR file Shopify generates for the model. Draco-compressed models don't get one.</p>
+      </div></details>
+
+      <details class="sec" data-k="perf"><summary>Performance</summary><div class="in">
+        <label class="f">Sharpness limit on phones</label>
+        <select id="pxr"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2" selected>2×</option></select>
+        <label class="c"><input type="checkbox" id="lowPower"><span>Power-saving mode<small>Renders at a lower resolution to save battery.</small></span></label>
+      </div></details>
+
+      <details class="sec" data-k="io"><summary>Import &amp; export</summary><div class="in">
+        <p class="help">The JSON for what you're editing now. Paste a configuration and apply it to replace it.</p>
+        <label class="f">Configuration JSON</label>
+        <textarea id="json" rows="8" spellcheck="false"></textarea>
+        <div class="row"><button class="btn" id="jsonApply" disabled>Apply</button><button class="btn t" id="jsonCopy">Copy JSON</button></div>
+      </div></details>
+
+      <details class="sec" data-k="viewer"><summary>Viewer style &amp; controls <span class="help">shopper viewer</span></summary><div class="in" id="vsBody"></div></details>
+      <details class="sec" data-k="pricing"><summary>Pricing <span class="help" id="prmeta"></span></summary><div class="in" id="prBody"></div></details>
+      <details class="sec" data-k="decals"><summary>Personalization <span class="help" id="dcmeta"></span></summary><div class="in" id="dcBody"></div></details>
+      <details class="sec" data-k="hotspots"><summary>Hotspots <span class="help" id="hsmeta"></span></summary><div class="in" id="hsBody"></div></details>
+    </aside>
+  </div>
+</div>
+
+<dialog id="dlg"><h3 id="dTitle" style="font-size:15px;margin-top:0"></h3><p id="dBody"></p>
+  <div class="row" style="justify-content:flex-end"><button class="btn" id="dNo">Cancel</button><button class="btn pri" id="dYes" style="background:#c70a24;border-color:#c70a24">Delete</button></div></dialog>
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const uid=p=>p+"_"+Math.random().toString(36).slice(2,8);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mv=$("#mv");
+/* Browsers block loading a local .glb from a file:// page, so a double-clicked copy
+   uses the hosted sample; served over http it uses the app's own demo model. */
+const LOCAL_MODEL="../../public/demo-models/shoe.glb",
+  HOSTED_MODEL="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb";
+let triedHosted=location.protocol==="file:";
+mv.src=triedHosted?HOSTED_MODEL:LOCAL_MODEL;
+
+/* ---------- product + state ---------- */
+const product={options:[{name:"Color",values:["Orange","Black"]},{name:"Size",values:["S","M","L"]}]};
+let variants=[];
+function rebuildVariants(keep){
+  const combos=product.options.reduce((a,o)=>a.flatMap(x=>o.values.map(v=>[...x,v])),[[]]);
+  variants=combos.map((c,i)=>{const t=c.join(" / ");const old=(keep||variants).find(v=>v.title===t);
+    return old||{id:String(1000+i+Math.floor(Math.random()*9e3)),title:t,opts:c,price:"249.00",compare:"",sku:"",unlimited:false,qty:12};});
+}
+rebuildVariants([]);
+const blank=()=>({meshes:{},materials:{},environment:{},camera:null,lock:{},ar:{},optimization:{},options:null,gallery:{}});
+const DEF_LAYOUT={"top-left":["animation"],"top-center":[],"top-right":[],"bottom-left":["screenshot","ar"],"bottom-center":[],"bottom-right":["zoomIn","zoomOut","reset","fullscreen"]};
+const DEF_VIEWER={height:500,bg:"#ffffff",exposure:1,tone:"Linear",defEnv:true,blurSky:false,castShadow:true,skyUrl:"",envUrl:"",
+  fovMode:"Auto",fov:45,yaw:0,pitch:0,zoomInit:0,keepSize:false,
+  rotate:true,pan:true,zoom:true,autoRotate:true,scrollTouch:true,scrollWheel:false,grab:true,
+  bar_animation:false,bar_gizmo:false,bar_zoomBtns:true,bar_camera:false,bar_reset:false,bar_fullscreen:true,layout:JSON.parse(JSON.stringify(DEF_LAYOUT)),
+  animIndex:1,repeat:"One",arWebxr:true,arScene:true,arQuick:true,placement:"Floor",iosUrl:"",matVariant:"",fixSkinned:true};
+const DEF_HS={show:true,color:"#2a78d6",pin:"Number",open:"Click"};
+let draft={base:blank(),rules:{},variants:{},viewer:JSON.parse(JSON.stringify(DEF_VIEWER)),hs:DEF_HS,hotspots:[],decals:[]};
+let saved=JSON.stringify(draft), published=true, hasDraft=false;
+let target="default", selMesh=null, preview={}, hist={}, plan="Growth";
+const PLAN_ORDER=["Free","Growth","Advance"];
+const can=min=>PLAN_ORDER.indexOf(plan)>=PLAN_ORDER.indexOf(min);
+
+const layerOf=(t=target,create=false)=>{
+  if(t==="default")return draft.base;
+  const store=t.startsWith("rule:")?draft.rules:draft.variants, key=t.startsWith("rule:")?t.slice(5):t;
+  if(!store[key]&&create)store[key]=blank();
+  return store[key]||null;
+};
+const hasOverride=t=>{const l=layerOf(t);return !!l&&JSON.stringify(l)!==JSON.stringify(blank())};
+const targetName=t=>t==="default"?"Default":t.startsWith("rule:")?t.slice(5).replace("=",": "):(variants.find(v=>v.id===t)||{}).title;
+
+/* edit with undo (per target, coalesced) */
+let lastKey="",lastT=0;
+function edit(fn,key){
+  const h=hist[target]||(hist[target]={u:[],r:[]});
+  const now=Date.now();
+  if(!(key&&key===lastKey&&now-lastT<800)){h.u.push(JSON.stringify(draft));if(h.u.length>50)h.u.shift();}
+  lastKey=key||"";lastT=now;h.r=[];
+  fn(layerOf(target,true));
+  key?renderSoft():render();
+}
+function renderSoft(){[renderTargets,renderExceptions,renderJson,renderHeader,applyAll,applyVis,applyViewer,renderBars,renderHotspotPins].forEach(f=>{try{f()}catch(e){console.error(f.name,e)}})}
+function undo(){const h=hist[target];if(!h||!h.u.length)return;h.r.push(JSON.stringify(draft));draft=JSON.parse(h.u.pop());render()}
+function redo(){const h=hist[target];if(!h||!h.r.length)return;h.u.push(JSON.stringify(draft));draft=JSON.parse(h.r.pop());render()}
+const dirty=()=>JSON.stringify(draft)!==saved;
+function toast(m){const t=$("#toast");t.textContent=m;t.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display="none",2600)}
+function confirmDlg(title,body,yes="Delete"){return new Promise(r=>{$("#dTitle").textContent=title;$("#dBody").textContent=body;$("#dYes").textContent=yes;const d=$("#dlg");d.showModal();
+  $("#dYes").onclick=()=>{d.close();r(true)};$("#dNo").onclick=()=>{d.close();r(false)};});}
+
+/* ---------- model ---------- */
+let mats=[];
+mv.addEventListener("load",async()=>{
+  mats=mv.model?.materials||[];
+  // Variant models load materials lazily; touching an unloaded one throws.
+  await Promise.all(mats.map(m=>m.ensureLoaded?m.ensureLoaded().catch(()=>{}):0));
+  $("#mcount").textContent=mats.length;
+  if(selMesh==null&&mats[0])selMesh=mats[0].name;
+  renderParts();renderMaterial();applyAll();
+});
+mv.addEventListener("error",()=>{if(!triedHosted){triedHosted=true;mv.src=HOSTED_MODEL;return}toast("The model couldn't be loaded. Check your connection.")});
+const matByName=n=>mats.find(m=>m.name===n);
+const hex2rgba=h=>{const n=parseInt(h.slice(1),16);return[(n>>16&255)/255,(n>>8&255)/255,(n&255)/255,1]};
+const rgb2hex=c=>"#"+c.slice(0,3).map(x=>Math.round(x*255).toString(16).padStart(2,"0")).join("");
+const origMat={};
+function eff(){ // layered effective base for the viewport: base <- rule <- variant
+  const out=JSON.parse(JSON.stringify(draft.base));
+  for(const l of [...Object.values(draft.rules),...Object.values(draft.variants)])
+    for(const k of ["meshes","materials"])Object.assign(out[k],l[k]);
+  return out;
+}
+function applyAll(){
+  if(!mats.length||mats.some(m=>m.isLoaded===false))return;
+  const c=target==="default"?draft.base:{...draft.base,meshes:{...draft.base.meshes,...(layerOf()||{}).meshes},materials:{...draft.base.materials,...(layerOf()||{}).materials}};
+  mats.forEach(m=>{
+    if(!origMat[m.name]){const p=m.pbrMetallicRoughness;origMat[m.name]={c:[...p.baseColorFactor],m:p.metallicFactor,r:p.roughnessFactor}}
+    const o=origMat[m.name],s=c.materials[m.name]||{},p=m.pbrMetallicRoughness;
+    p.setBaseColorFactor(s.baseColor?hex2rgba(s.baseColor):o.c);
+    p.setMetallicFactor(s.metalness??o.m);p.setRoughnessFactor(s.roughness??o.r);
+  });
+  // option choice preview
+  for(const g of (effOptions()||[])){const pk=preview[g.id];const ch=g.choices.find(x=>x.id===pk);if(!ch)continue;
+    const tg=g.targets||[];tg.forEach(n=>{const m=matByName(n);if(!m)return;
+      if(g.type==="color"&&ch.color)m.pbrMetallicRoughness.setBaseColorFactor(hex2rgba(ch.color));
+      if(g.type==="material"&&ch.material){const q=ch.material;m.pbrMetallicRoughness.setBaseColorFactor(hex2rgba(q.baseColor));m.pbrMetallicRoughness.setMetallicFactor(q.metalness);m.pbrMetallicRoughness.setRoughnessFactor(q.roughness)}});}
+  const env=effEnv();
+  mv.exposure=env.intensity??1;
+  mv.shadowIntensity=env.shadowsEnabled===false?0:(env.shadowIntensity??0.5);
+  const bt=env.backgroundType||"transparent";
+  mv.style.background=bt==="color"?(env.backgroundColor||"#fff"):"";
+  mv.setAttribute("environment-image",bt==="preset"||["night","sunset","dawn"].includes(env.preset)?"legacy":"neutral");
+  const lk=effCam().lock||{};
+  mv.cameraControls=true;
+  lk.zoom===false?mv.setAttribute("disable-zoom",""):mv.removeAttribute("disable-zoom");
+  lk.pan===false?mv.setAttribute("disable-pan",""):mv.removeAttribute("disable-pan");
+  mv.setAttribute("min-camera-orbit",`auto ${lk.minPolarAngle??0}deg auto`);
+  mv.setAttribute("max-camera-orbit",`${lk.rotate===false?"0deg":"Infinity"} ${lk.maxPolarAngle??180}deg auto`);
+  mv.setAttribute("ar",(effAr().enabled===false)?"":"");
+}
+const effEnv=()=>({...draft.base.environment,...(layerOf()||{}).environment});
+const effCam=()=>({...(draft.base.camera||{}),lock:{...draft.base.lock,...(layerOf()||{}).lock}});
+const effAr=()=>({...draft.base.ar,...(layerOf()||{}).ar});
+const effOptions=()=>{const l=layerOf();return l&&l.options?l.options:draft.base.options};
+
+/* ---------- left: targets ---------- */
+function renderTargets(){
+  let h=`<div class="trow"><button class="btn ${target==="default"?"on":""}" data-t="default">Default (all variants)<span class="dot ${hasOverride("default")&&false?"on":""}"></span></button></div>`;
+  product.options.forEach(o=>{h+=`<div class="help" style="margin-top:8px"><b>${esc(o.name)}</b></div>`;
+    o.values.forEach(v=>{const t=`rule:${o.name}=${v}`;h+=`<div class="trow"><button class="btn ${target===t?"on":""}" data-t="${esc(t)}" aria-pressed="${target===t}">${esc(v)}<span class="dot ${hasOverride(t)?"on":""}"></span></button><button class="btn ic t" data-add="${esc(t)}" title="Add options for ${esc(v)}">＋</button></div>`})});
+  $("#targets").innerHTML=h;
+  $$("#targets [data-t]").forEach(b=>b.onclick=()=>{target=b.dataset.t;selMesh=selMesh;render()});
+  $$("#targets [data-add]").forEach(b=>b.onclick=()=>{target=b.dataset.add;customizeOptions();openSec("options");render()});
+  $("#editing").style.display=target==="default"?"none":"";$("#editing").textContent="Editing "+targetName(target);
+  // layer bar
+  const lb=$("#layerbar");
+  if(target==="default"){lb.innerHTML="";return}
+  const ov=hasOverride(target), l=layerOf(target);
+  lb.innerHTML=`<div class="form"><div class="row"><b>Editing ${esc(targetName(target))}</b><span class="badge ${ov?"b-warn":""}">${ov?"Overrides default":"Same as default"}</span></div>
+  <button class="btn t" id="rstLayer" ${ov?"":"disabled"}>Reset to default</button>
+  <div class="help" style="margin-top:6px"><b>Model for this selection</b></div>
+  <div class="help">${l&&l.model?"Uses its own model: "+esc(l.model):"Uses the product's model."}</div>
+  <div class="row"><button class="btn" id="chModel">Choose a different model</button>${l&&l.model?'<button class="btn t" id="useProd">Use the product\'s model</button>':""}</div>
+  <div class="help">Its parts and materials are set up separately from the default model.</div></div>`;
+  $("#rstLayer").onclick=()=>{edit(()=>{const store=target.startsWith("rule:")?draft.rules:draft.variants;delete store[target.startsWith("rule:")?target.slice(5):target]})};
+  $("#chModel").onclick=()=>{const n=prompt("Prototype: pick a Shopify Files model name","shoe-red.glb");if(n)edit(l=>l.model=n)};
+  const up=$("#useProd");if(up)up.onclick=()=>edit(l=>delete l.model);
+}
+function customizeOptions(){edit(l=>{if(target!=="default"&&!l.options)l.options=JSON.parse(JSON.stringify(draft.base.options||[]))})}
+function openSec(k){const d=document.querySelector(`details[data-k=${k}]`);d.open=true;d.scrollIntoView({behavior:"smooth",block:"start"})}
+
+/* variant exceptions */
+let vq="";
+function renderExceptions(){
+  $("#vcount").textContent=`${Object.keys(draft.variants).filter(k=>hasOverride(k)).length} of ${variants.length}`;
+  $("#vsearchwrap").innerHTML=variants.length>8?`<input type="text" id="vq" placeholder="Find a variant" value="${esc(vq)}">`:"";
+  const q=$("#vq");if(q)q.oninput=e=>{vq=e.target.value;renderExceptions();$("#vq").focus()};
+  $("#vexc").innerHTML=variants.filter(v=>v.title.toLowerCase().includes(vq.toLowerCase())).map(v=>
+    `<div class="trow"><button class="btn ${target===v.id?"on":""}" data-v="${v.id}">${esc(v.title)}<span class="dot ${hasOverride(v.id)?"on":""}"></span></button></div>`).join("");
+  $$("#vexc [data-v]").forEach(b=>b.onclick=()=>{target=b.dataset.v;render()});
+}
+
+/* ---------- left: product variants (Shopify) ---------- */
+let vForm=null;
+function renderVariants(){
+  const el=$("#variants");let h="";
+  const single=product.options.length===0;
+  if(single){h+=`<p class="help">This product has no variants. Every edit applies to the product.</p>`}
+  product.options.forEach((o,oi)=>{
+    h+=`<div class="row"><b>${esc(o.name)}</b><span class="sp"></span><button class="btn ic t" data-addv="${oi}" title="Add values">＋</button><button class="btn ic t d" data-rmo="${oi}" ${product.options.length<2?"disabled":""} title="Remove option ${esc(o.name)}">🗑</button></div><div>`;
+    o.values.forEach(v=>h+=`<span class="chip">${esc(v)}${o.values.length>1?`<button class="btn ic t" style="padding:0 5px" data-rmv="${oi}|${esc(v)}" title="Remove ${esc(v)}">×</button>`:""}</span>`);
+    h+=`</div>`;
+    if(vForm&&vForm.k==="addv"&&vForm.i===oi)h+=`<div class="form"><label class="f">Add values</label><input type="text" id="fv" placeholder="${o.name==="Size"?"XL, XXL":"Values"}"><div class="help">Separate values with commas, e.g. XL, XXL. Variants are created for the new combinations.</div><div class="row"><button class="btn pri" id="fvOk">Add values</button><button class="btn" id="fvNo">Cancel</button></div></div>`;
+  });
+  h+=`<div class="row" style="margin-top:8px">${product.options.length<3?`<button class="btn" id="addOpt">${single?"Add an option":"Add another option"}</button>`:""}</div>`;
+  if(vForm&&vForm.k==="opt")h+=`<div class="form"><p class="help">Name another option (for example Size or Material) and list its values, separated by commas. A variant is created for every combination with the existing options.</p><label class="f">Option name</label><input type="text" id="fon" placeholder="e.g. Size, Material, Style"><label class="f">Values</label><input type="text" id="fov"><div class="help">Separate values with commas, e.g. Teal, Red, Black</div><div class="row"><button class="btn pri" id="foOk">Create option</button><button class="btn" id="foNo">Cancel</button></div></div>`;
+  h+=`<div style="margin-top:8px"><b>${variants.length} variants</b></div>`;
+  variants.forEach(v=>{
+    h+=`<div class="vr"><span class="t1">${esc(v.title)}<br><span class="help">$${esc(v.price)} · ${v.unlimited?"∞":v.qty}</span></span><button class="btn ic t" data-ev="${v.id}" title="Edit ${esc(v.title)}">✎</button><button class="btn ic t d" data-dv="${v.id}" ${variants.length<2?"disabled":""} title="Delete ${esc(v.title)}">🗑</button></div>`;
+    if(vForm&&vForm.k==="edit"&&vForm.id===v.id)h+=`<div class="form">
+      <label class="f">Price</label><input type="text" id="ep" value="${esc(v.price)}">
+      <label class="f">Compare-at price</label><input type="text" id="ec" value="${esc(v.compare)}">
+      <label class="f">SKU</label><input type="text" id="es" value="${esc(v.sku)}">
+      <label class="c"><input type="checkbox" id="eu" ${v.unlimited?"checked":""}> Unlimited quantity</label>
+      <label class="f">Quantity</label><input type="text" id="eq" value="${v.qty}" ${v.unlimited?"disabled":""}>
+      <div class="row"><button class="btn pri" id="eOk">Save variant</button><button class="btn" id="eNo">Cancel</button></div></div>`;
+  });
+  h+=`<div class="row" style="margin-top:8px"><button class="btn" id="bulkP">💲 Set prices by option</button><button class="btn" id="addVar">Add variant</button></div>`;
+  if(vForm&&vForm.k==="bulk")h+=`<div class="form"><p class="help">Choose a value for one or two options to price only those variants, or leave everything on Any to price all of them. Apply several times for different prices.</p>
+    ${product.options.map((o,i)=>`<label class="f">${esc(o.name)}</label><select data-bo="${i}"><option value="">Any ${esc(o.name)}</option>${o.values.map(v=>`<option>${esc(v)}</option>`).join("")}</select>`).join("")}
+    <label class="f">Price</label><input type="text" id="bp"><label class="f">Compare-at price</label><input type="text" id="bc"><div class="help">Optional. Leave empty to keep the current compare-at prices.</div>
+    <label class="c"><input type="checkbox" id="bu"> Unlimited quantity</label><label class="f">Quantity</label><input type="text" id="bq"><div class="help">Optional. Leave empty to keep the current quantities.</div>
+    <div class="help" id="baff"></div><div class="row"><button class="btn pri" id="bOk">Apply price</button><button class="btn" id="bNo">Cancel</button></div></div>`;
+  if(vForm&&vForm.k==="new")h+=`<div class="form"><p class="help">Enter a value for each option. A new value is added to the option automatically.</p>
+    ${product.options.map((o,i)=>`<label class="f">${esc(o.name)}</label><input type="text" data-nv="${i}" placeholder="${esc(o.values[0])}">`).join("")}
+    <label class="f">Price</label><input type="text" id="np"><div class="help">Leave empty to use the product's default price.</div>
+    <div class="row"><button class="btn pri" id="nOk">Create variant</button><button class="btn" id="nNo">Cancel</button></div></div>`;
+  el.innerHTML=h;
+  const on=(s,f)=>$$(s).forEach(b=>b.onclick=()=>f(b));
+  on("[data-addv]",b=>{vForm={k:"addv",i:+b.dataset.addv};renderVariants()});
+  on("#fvNo,#foNo,#eNo,#bNo,#nNo",()=>{vForm=null;renderVariants()});
+  const fv=$("#fvOk");if(fv)fv.onclick=()=>{const vals=$("#fv").value.split(",").map(s=>s.trim()).filter(Boolean);const o=product.options[vForm.i];vals.forEach(v=>{if(!o.values.includes(v))o.values.push(v)});rebuildVariants();vForm=null;toast("Values added");render()};
+  on("[data-rmv]",async b=>{const[i,v]=b.dataset.rmv.split("|");const o=product.options[+i];
+    if(await confirmDlg("Remove this value?",`Variants that use ${v} in ${o.name} will be deleted from the product. This can't be undone.`)){o.values=o.values.filter(x=>x!==v);rebuildVariants();toast("Value removed");render()}});
+  on("[data-rmo]",async b=>{const o=product.options[+b.dataset.rmo];
+    if(await confirmDlg("Remove this option?",`The ${o.name} option and the variants built on it will be removed from the product. This can't be undone.`)){product.options.splice(+b.dataset.rmo,1);rebuildVariants([]);toast("Option removed");render()}});
+  const ao=$("#addOpt");if(ao)ao.onclick=()=>{vForm={k:"opt"};renderVariants()};
+  const fo=$("#foOk");if(fo)fo.onclick=()=>{const n=$("#fon").value.trim(),vals=$("#fov").value.split(",").map(s=>s.trim()).filter(Boolean);if(!n||!vals.length)return toast("Enter a name and values");product.options.push({name:n,values:vals});rebuildVariants();vForm=null;toast("Option created");render()};
+  on("[data-ev]",b=>{vForm={k:"edit",id:b.dataset.ev};renderVariants()});
+  const eu=$("#eu");if(eu)eu.onchange=()=>$("#eq").disabled=eu.checked;
+  const eo=$("#eOk");if(eo)eo.onclick=()=>{const v=variants.find(x=>x.id===vForm.id),p=$("#ep").value,q=$("#eq").value;if(!p||(!$("#eu").checked&&!/^\d{1,9}$/.test(q)))return toast("Couldn't update the variant. Check the values and try again.");
+    Object.assign(v,{price:p,compare:$("#ec").value,sku:$("#es").value,unlimited:$("#eu").checked,qty:+q||0});vForm=null;toast("Variant saved");renderVariants()};
+  on("[data-dv]",async b=>{const v=variants.find(x=>x.id===b.dataset.dv);if(await confirmDlg("Delete this variant?",`“${v.title}” will be deleted from your product in Shopify, along with its 3D setup. This can't be undone.`)){variants=variants.filter(x=>x!==v);delete draft.variants[v.id];toast("Variant deleted");render()}});
+  $("#bulkP").onclick=()=>{vForm={k:"bulk"};renderVariants();bulkCount()};
+  const bulkSel=()=>$$("[data-bo]").map(s=>s.value);
+  function bulkCount(){const a=$("#baff");if(!a)return;const sel=bulkSel();a.textContent="Variants affected: "+variants.filter(v=>sel.every((x,i)=>!x||v.opts[i]===x)).length}
+  $$("[data-bo]").forEach(s=>s.onchange=bulkCount);bulkCount();
+  const bo=$("#bOk");if(bo)bo.onclick=()=>{const p=$("#bp").value;if(!/^\d{1,9}(\.\d{1,2})?$/.test(p))return toast("Enter a valid price");const sel=bulkSel();
+    variants.filter(v=>sel.every((x,i)=>!x||v.opts[i]===x)).forEach(v=>{v.price=p;if($("#bc").value)v.compare=$("#bc").value;if($("#bu").checked)v.unlimited=true;else if($("#bq").value)v.qty=+$("#bq").value});vForm=null;toast("Prices updated");renderVariants()};
+  $("#addVar").onclick=()=>{vForm={k:"new"};renderVariants()};
+  const no=$("#nOk");if(no)no.onclick=()=>{const vals=$$("[data-nv]").map(i=>i.value.trim());if(vals.some(v=>!v))return toast("Enter a value for each option");
+    vals.forEach((v,i)=>{if(!product.options[i].values.includes(v))product.options[i].values.push(v)});
+    rebuildVariants();const nv=variants.find(v=>v.title===vals.join(" / "));if(nv&&$("#np").value)nv.price=$("#np").value;vForm=null;toast("Variant created");render()};
+}
+
+/* ---------- left: parts ---------- */
+const collapsed=new Set();
+function mLabel(n){const m=(layerOf()||{}).meshes||{};return (m[n]&&m[n].label)||(draft.base.meshes[n]&&draft.base.meshes[n].label)||n.replace(/_/g," ")}
+function meshState(n){const l=layerOf()||{};const m=(l.meshes&&l.meshes[n])||draft.base.meshes[n]||{};return m}
+function renderParts(){
+  const names=mats.map(m=>m.name||"material");
+  $("#pcount").textContent=names.length?`${names.length} ${names.length===1?"mesh":"meshes"}`:"";
+  if(!names.length){$("#parts").innerHTML=`<p class="help">Loading the model…</p>`;return}
+  // simple 2-level grouping: model root with children
+  const hidden=n=>meshState(n).visible===false;
+  const allHidden=names.every(hidden),anyHidden=names.some(hidden);
+  let h=`<div class="g"><button class="btn t ic" data-col="root">${collapsed.has("root")?"▸":"▾"}</button><span class="nm ${anyHidden?"dim":""}" style="flex:1">Model</span><button class="btn t ic" data-eyeAll="1" title="${allHidden?"Show":"Hide"} Model">${allHidden?"🙈":"👁"}</button></div>`;
+  if(!collapsed.has("root"))names.forEach(n=>{
+    const hm=hidden(n),own=!!((layerOf()||{}).meshes||{})[n]&&target!=="default";
+    h+=`<div class="m ${hm?"dim":""}"><button class="nm ${selMesh===n?"sel":""}" data-m="${esc(n)}">${esc(mLabel(n))}${own?' <span class="dot on" style="display:inline-block"></span>':""}</button><button class="btn t ic" data-eye="${esc(n)}" title="${hm?"Show":"Hide"} ${esc(n)}">${hm?"🙈":"👁"}</button></div>`});
+  $("#parts").innerHTML=h;
+  $$("#parts [data-col]").forEach(b=>b.onclick=()=>{collapsed.has("root")?collapsed.delete("root"):collapsed.add("root");renderParts()});
+  $$("#parts [data-m]").forEach(b=>b.onclick=()=>{selMesh=selMesh===b.dataset.m?null:b.dataset.m;renderParts();renderMaterial()});
+  $$("#parts [data-eye]").forEach(b=>b.onclick=()=>toggleVis([b.dataset.eye]));
+  $$("#parts [data-eyeAll]").forEach(b=>b.onclick=()=>toggleVis(names,allHidden));
+  renderPartEd();
+}
+function toggleVis(ns,forceShow){
+  const show=forceShow??ns.every(n=>meshState(n).visible===false);
+  edit(l=>ns.forEach(n=>{(l.meshes[n]=l.meshes[n]||{}).visible=show?undefined:false;}));
+  ns.forEach(n=>{const m=mats[mats.findIndex(x=>x.name===n)];}); // visibility applied via materials alpha
+  applyVis();
+}
+function applyVis(){
+  if(!mv.model||mats.some(m=>m.isLoaded===false))return;
+  const c={...draft.base.meshes,...((layerOf()||{}).meshes||{})};
+  mats.forEach(m=>{const hid=c[m.name]&&c[m.name].visible===false;const p=m.pbrMetallicRoughness;const col=[...p.baseColorFactor];col[3]=hid?0:1;p.setBaseColorFactor(col);m.setAlphaMode(hid?"BLEND":"OPAQUE")});
+}
+function renderPartEd(){
+  const el=$("#partEd");if(!selMesh){el.innerHTML="";return}
+  const ms=meshState(selMesh),own=target!=="default"&&((layerOf()||{}).meshes||{})[selMesh];
+  el.innerHTML=`<div class="form"><label class="f">Label shoppers see</label><input type="text" id="pl" placeholder="${esc(selMesh)}" value="${esc(ms.label||"")}">
+    <label class="c"><input type="checkbox" id="pv" ${ms.visible===false?"":"checked"}> Visible</label>
+    <label class="c"><input type="checkbox" id="pc" ${ms.customizable?"checked":""}><span>Customer can recolor<small>Shows a colour picker for this part in the customizer.</small></span></label>
+    <label class="c"><input type="checkbox" id="po" ${ms.optional?"checked":""}><span>Customer can hide<small>Shoppers can switch this part off.</small></span></label>
+    ${own?'<button class="btn t" id="pu">Use default for this part</button>':""}</div>`;
+  const set=(k,v,key)=>edit(l=>{(l.meshes[selMesh]=l.meshes[selMesh]||{})[k]=v},key);
+  $("#pl").oninput=e=>set("label",e.target.value||undefined,"lbl");
+  $("#pv").onchange=e=>{set("visible",e.target.checked?undefined:false);applyVis()};
+  $("#pc").onchange=e=>set("customizable",e.target.checked||undefined);
+  $("#po").onchange=e=>set("optional",e.target.checked||undefined);
+  const pu=$("#pu");if(pu)pu.onclick=()=>edit(l=>{delete l.meshes[selMesh];delete l.materials[selMesh]});
+}
+
+/* ---------- right: override note ---------- */
+function overrideNote(clear,label){
+  if(target==="default")return"";
+  const l=layerOf();const has=l&&JSON.stringify(clear.map(k=>l[k]))!==JSON.stringify(clear.map(()=>blank()[0]));
+  return "";
+}
+function ovNote(keys,id){
+  if(target==="default")return"";
+  const l=layerOf(),ov=l&&keys.some(k=>{const v=l[k];return v&&(Array.isArray(v)?v.length:typeof v==="object"?Object.keys(v).length:v)});
+  return ov?`<div class="row"><span class="badge b-warn">Changed for ${esc(targetName(target))}</span><button class="btn t" data-use="${keys.join(",")}">Use default</button></div>`
+          :`<p class="help">Same as the default setup.</p>`;
+}
+function bindUse(root){$$(root+" [data-use]").forEach(b=>b.onclick=()=>edit(l=>b.dataset.use.split(",").forEach(k=>l[k]=blank()[k])))}
+
+/* ---------- right: material ---------- */
+function renderMaterial(){
+  const body=$("#matBody");
+  $("#matmeta").textContent=selMesh||"";
+  if(!selMesh){body.innerHTML=`<p class="help">Select a part in the list or on the model to change its colour and finish.</p>`;return}
+  const l=layerOf()||{materials:{}};const s=(target==="default"?draft.base.materials:{...draft.base.materials,...l.materials})[selMesh]||{};
+  const o=origMat[selMesh]||{c:[1,1,1,1],m:0,r:.5};
+  const col=s.baseColor||rgb2hex(o.c);
+  body.innerHTML=`<b>${esc(mLabel(selMesh))}</b>
+  <label class="f">Colour</label><div class="row"><input type="color" id="mc" value="${col}"><code>${col}</code></div>
+  <label class="f">Metalness</label><div class="rg"><input type="range" id="mm" min="0" max="1" step="0.01" value="${s.metalness??o.m}"><span>${(s.metalness??o.m).toFixed(2)}</span></div>
+  <label class="f">Roughness</label><div class="rg"><input type="range" id="mr" min="0" max="1" step="0.01" value="${s.roughness??o.r}"><span>${(s.roughness??o.r).toFixed(2)}</span></div>
+  <label class="f">Clear coat</label><div class="rg"><input type="range" id="mk" min="0" max="1" step="0.01" value="${s.clearcoat??0}"><span>${(s.clearcoat??0).toFixed(2)}</span></div>
+  <div class="row"><button class="btn t" id="mrst">Reset to the model's material</button></div>${ovNote(["materials"])}`;
+  const setM=(k,v,key)=>{edit(L=>{(L.materials[selMesh]=L.materials[selMesh]||{})[k]=v},key);applyAll();applyVis()};
+  $("#mc").oninput=e=>setM("baseColor",e.target.value,"mc");
+  $("#mm").oninput=e=>{setM("metalness",+e.target.value,"mm");e.target.nextElementSibling.textContent=(+e.target.value).toFixed(2)};
+  $("#mr").oninput=e=>{setM("roughness",+e.target.value,"mr");e.target.nextElementSibling.textContent=(+e.target.value).toFixed(2)};
+  $("#mk").oninput=e=>{setM("clearcoat",+e.target.value||undefined,"mk");e.target.nextElementSibling.textContent=(+e.target.value).toFixed(2)};
+  $("#mrst").onclick=()=>{edit(L=>delete L.materials[selMesh]);applyAll();applyVis()};
+  bindUse("#matBody");
+}
+
+/* ---------- right: custom options ---------- */
+const MAXG=8,MAXC=24;
+function renderOptions(){
+  const body=$("#optBody");
+  const own=effOptions()||[];
+  $("#optmeta").textContent=own.length?`${own.length} group${own.length>1?"s":""}`:"";
+  if(!can("Growth")){body.innerHTML=`<div class="lock">🔒 Custom options are available on the Growth plan and above.</div>`;return}
+  const l=layerOf();
+  let h="";
+  if(target!=="default"&&!(l&&l.options)){
+    h+=`<p class="help">This one uses Default's customer options (${(draft.base.options||[]).length}). Customize to give it its own.</p>
+    <div class="row"><button class="btn" id="coCust">Customize options for this one</button><button class="btn t" id="coDef">Edit default</button></div>`;
+    h+=renderGroups(draft.base.options||[],true);body.innerHTML=h;
+    $("#coCust").onclick=()=>{customizeOptions()};$("#coDef").onclick=()=>{target="default";render()};return;
+  }
+  if(target!=="default")h+=`<p class="help">This one has its own customer options. Changes here don't affect Default or other variants.</p><button class="btn t" id="coUse">Use Default's options</button>`;
+  h+=`<p class="help">Let shoppers build their own variant: pick a color, material or parts and see it on the model.</p>`;
+  if(!own.length)h+=`<p class="help">No custom options yet. Add one below to let shoppers customize this product.</p>`;
+  h+=renderGroups(own,false);
+  h+=`<h3>Add an option</h3>`;
+  if(own.length>=MAXG)h+=`<p class="help">You can add up to ${MAXG} options.</p>`;
+  else h+=`<div class="row" style="flex-wrap:wrap"><button class="btn" data-ag="color">Color</button><button class="btn" data-ag="material">Material</button><button class="btn" data-ag="parts">Parts</button>${can("Growth")?'<button class="btn" data-ag="material-variant">Material variant</button>':""}</div>`;
+  body.innerHTML=h;
+  const cu=$("#coUse");if(cu)cu.onclick=()=>edit(l=>delete l.options);
+  $$("#optBody [data-ag]").forEach(b=>b.onclick=()=>addGroup(b.dataset.ag));
+  bindOptEvents();
+}
+const typeLabel={color:"Color",material:"Material",parts:"Parts","material-variant":"Material variant"};
+function renderGroups(groups,ro){
+  const names=mats.map(m=>m.name);
+  return groups.map((g,gi)=>`<details class="sub" open data-g="${gi}"><summary>${esc(g.label)} <span class="help">${typeLabel[g.type]} · ${g.choices.length} choice${g.choices.length>1?"s":""}</span></summary><div class="in" ${ro?'style="opacity:.55;pointer-events:none"':""}>
+    <label class="f">Option name</label><input type="text" maxlength="60" data-gf="label" data-gi="${gi}" value="${esc(g.label)}">
+    <label class="f">Show as</label><select data-gf="display" data-gi="${gi}"><option value="swatch" ${g.display==="swatch"?"selected":""}>Color swatches</option><option value="button" ${g.display==="button"?"selected":""}>Buttons</option><option value="dropdown" ${g.display==="dropdown"?"selected":""}>Dropdown</option></select>
+    ${g.type!=="material-variant"?`<label class="f">Parts this option changes</label>${names.map(n=>`<label class="c"><input type="checkbox" data-tg="${esc(n)}" data-gi="${gi}" ${(g.targets||[]).includes(n)?"checked":""}> ${esc(n)}</label>`).join("")}`:""}
+    <label class="f">Default choice</label><select data-gf="default" data-gi="${gi}">${g.choices.map(c=>`<option value="${c.id}" ${(g.default||g.choices[0].id)===c.id?"selected":""}>${esc(c.label)}</option>`).join("")}</select>
+    <label class="c"><input type="checkbox" data-gf="required" data-gi="${gi}" ${g.required?"checked":""}> Shoppers must choose one</label>
+    ${condEditor(g.conditions,`g${gi}`,g.id)}
+    ${!can("Advance")?`<p class="help">Price changes are available on the Advance plan.</p>`:""}
+    ${g.choices.map((c,ci)=>choiceEd(g,gi,c,ci)).join("")}
+    <div class="row"><button class="btn" data-ac="${gi}" ${g.choices.length>=MAXC?"disabled":""}>Add choice</button><button class="btn d" data-rg="${gi}">Remove option</button></div>
+  </div></details>`).join("");
+}
+function choiceEd(g,gi,c,ci){
+  const pv=preview[g.id]===c.id;let f="";
+  if(g.type==="color")f=`<label class="f">Colour</label><input type="color" data-cf="color" data-gi="${gi}" data-ci="${ci}" value="${c.color||"#3b82f6"}">`;
+  if(g.type==="material"){const m=c.material||{baseColor:"#3b82f6",metalness:0,roughness:.5};
+    f=`<label class="f">Colour</label><input type="color" data-cm="baseColor" data-gi="${gi}" data-ci="${ci}" value="${m.baseColor}">
+    <label class="f">Metalness</label><input type="range" min="0" max="1" step="0.01" data-cm="metalness" data-gi="${gi}" data-ci="${ci}" value="${m.metalness}">
+    <label class="f">Roughness</label><input type="range" min="0" max="1" step="0.01" data-cm="roughness" data-gi="${gi}" data-ci="${ci}" value="${m.roughness}">`}
+  if(g.type==="parts")f=`<label class="f">Parts shown by this choice</label>${(g.targets||[]).length?(g.targets).map(n=>`<label class="c"><input type="checkbox" data-cs="${esc(n)}" data-gi="${gi}" data-ci="${ci}" ${(c.show||[]).includes(n)?"checked":""}> ${esc(n)}</label>`).join(""):'<p class="help">Pick parts above first.</p>'}`;
+  if(g.type==="material-variant")f=`<label class="f">Material variant name</label><input type="text" data-cf="variant" data-gi="${gi}" data-ci="${ci}" value="${esc(c.variant||"")}"><div class="help">Use a variant name from the model's glTF material variants.</div>`;
+  const pr=c.price||{type:"none"};
+  const price=can("Advance")?`<label class="f">Price change</label><select data-cp="type" data-gi="${gi}" data-ci="${ci}"><option value="none" ${pr.type==="none"?"selected":""}>No change</option><option value="fixed" ${pr.type==="fixed"?"selected":""}>Fixed amount</option><option value="percent" ${pr.type==="percent"?"selected":""}>Percent of the price</option></select>
+    ${pr.type!=="none"?`<label class="f">${pr.type==="percent"?"Percent":"Amount"}</label><input type="text" data-cp="amount" data-gi="${gi}" data-ci="${ci}" value="${pr.amount??""}"><label class="f">Sale amount (optional)</label><input type="text" data-cp="sale" data-gi="${gi}" data-ci="${ci}" value="${pr.sale??""}">`:""}`
+    :`<div class="lock">🔒 Price change · Advance plan</div>`;
+  return `<div class="card ${pv?"pv":""}"><label class="f" style="margin-top:0">Choice name</label><input type="text" maxlength="60" data-cf="label" data-gi="${gi}" data-ci="${ci}" value="${esc(c.label)}">${f}${price}
+    ${condEditor(c.conditions,`c${gi}_${ci}`,g.id)}
+    <div class="row" style="margin-top:6px"><button class="btn ${pv?"on":""}" data-pv="${gi}|${ci}">${pv?"Previewing":"Preview"}</button><button class="btn t d" data-rc="${gi}|${ci}" ${g.choices.length<2?"disabled":""}>Remove choice</button></div></div>`;
+}
+function condEditor(cond,id,selfId){
+  if(!can("Growth"))return `<div class="lock">🔒 Show only when… · Growth plan</div>`;
+  const rules=(cond&&cond.rules)||[];const gs=(effOptions()||[]).filter(x=>x.id!==selfId);
+  const popts=product.options;
+  let h=`<h3>Show only when…</h3>${rules.length?"":'<p class="help">Always shown.</p>'}`;
+  rules.forEach((r,i)=>{
+    h+=`<div class="form"><label class="f">Based on</label><select data-cd="source" data-cid="${id}" data-ri="${i}">${popts.length?`<option value="option" ${r.source==="option"?"selected":""}>Product option</option>`:""}<option value="group" ${r.source==="group"?"selected":""}>Custom option</option></select>`;
+    if(r.source==="option"){const o=popts.find(x=>x.name===r.name)||popts[0];
+      h+=`<label class="f">Option</label><select data-cd="name" data-cid="${id}" data-ri="${i}">${popts.map(x=>`<option ${x.name===r.name?"selected":""}>${esc(x.name)}</option>`).join("")}</select>
+      <label class="f">Condition</label><select data-cd="op" data-cid="${id}" data-ri="${i}"><option value="is" ${r.op==="is"?"selected":""}>is</option><option value="is_not" ${r.op==="is_not"?"selected":""}>is not</option></select>
+      <label class="f">Value</label><select data-cd="value" data-cid="${id}" data-ri="${i}">${o.values.map(v=>`<option ${v===r.value?"selected":""}>${esc(v)}</option>`).join("")}</select>`;
+    }else{const gg=gs.find(x=>x.id===r.groupId)||gs[0];
+      h+=`<label class="f">Custom option</label><select data-cd="groupId" data-cid="${id}" data-ri="${i}">${gs.map(x=>`<option value="${x.id}" ${x.id===r.groupId?"selected":""}>${esc(x.label)}</option>`).join("")}</select>
+      <label class="f">Condition</label><select data-cd="op" data-cid="${id}" data-ri="${i}">${[["is","is"],["is_not","is not"],["has_choice","has a choice"],["no_choice","has no choice"]].map(([v,t])=>`<option value="${v}" ${r.op===v?"selected":""}>${t}</option>`).join("")}</select>
+      ${["is","is_not"].includes(r.op)&&gg?`<label class="f">Choice</label><select data-cd="choiceId" data-cid="${id}" data-ri="${i}"><option value="">—</option>${gg.choices.map(c=>`<option value="${c.id}" ${c.id===r.choiceId?"selected":""}>${esc(c.label)}</option>`).join("")}</select>`:""}`;}
+    h+=`<button class="btn t d" data-cdel="${id}|${i}">Remove condition</button></div>`;
+  });
+  if(rules.length>1)h+=`<label class="f">Match</label><select data-cm2="${id}"><option value="all" ${cond.match==="all"?"selected":""}>All conditions</option><option value="any" ${cond.match==="any"?"selected":""}>Any condition</option></select>`;
+  h+=(popts.length||gs.length)?(rules.length>=10?"":`<button class="btn" data-cadd="${id}">Add a condition</button>`):`<p class="help">Add a product option or another custom option first.</p>`;
+  return h;
+}
+function condHolder(L,id){ // id: g{gi} or c{gi}_{ci}
+  const o=L.options;if(id[0]==="g"){const g=o[+id.slice(1)];return g}
+  const [gi,ci]=id.slice(1).split("_").map(Number);return o[gi].choices[ci];
+}
+function mutOpts(fn,key){ // edit options of the current target (copy-on-write for rule/variant already handled)
+  edit(l=>{ if(target==="default"){l.options=l.options||[];} fn(l.options); },key);
+}
+function addGroup(type){
+  mutOpts(opts=>{
+    const g={id:uid("grp"),label:`Option ${opts.length+1}`,type,display:type==="color"?"swatch":"button",targets:selMesh?[selMesh]:[],
+      choices:[{id:uid("ch"),label:"Choice 1",...(type==="color"?{color:"#3b82f6"}:{}),...(type==="material"?{material:{baseColor:"#3b82f6",metalness:0,roughness:.5}}:{}),...(type==="material-variant"?{variant:""}:{})}]};
+    if(type==="parts")g.choices[0].show=[...g.targets];
+    opts.push(g);
+  });
+}
+function bindOptEvents(){
+  const G=(el)=>effOptions()[+el.dataset.gi];
+  $$("#optBody [data-gf]").forEach(el=>{const h=()=>{const k=el.dataset.gf,v=el.type==="checkbox"?el.checked:el.value;mutOpts(o=>{o[+el.dataset.gi][k]=v},"gf"+el.dataset.gi+k)};el.oninput=h;el.onchange=h});
+  $$("#optBody [data-tg]").forEach(el=>el.onchange=()=>mutOpts(o=>{const g=o[+el.dataset.gi];const s=new Set(g.targets||[]);el.checked?s.add(el.dataset.tg):s.delete(el.dataset.tg);g.targets=[...s]}));
+  $$("#optBody [data-cf]").forEach(el=>{const h=()=>mutOpts(o=>{o[+el.dataset.gi].choices[+el.dataset.ci][el.dataset.cf]=el.value},"cf"+el.dataset.gi+el.dataset.ci+el.dataset.cf);el.oninput=h});
+  $$("#optBody [data-cm]").forEach(el=>el.oninput=()=>mutOpts(o=>{const c=o[+el.dataset.gi].choices[+el.dataset.ci];c.material=c.material||{baseColor:"#3b82f6",metalness:0,roughness:.5};c.material[el.dataset.cm]=el.type==="range"?+el.value:el.value},"cm"+el.dataset.gi+el.dataset.ci+el.dataset.cm));
+  $$("#optBody [data-cs]").forEach(el=>el.onchange=()=>mutOpts(o=>{const c=o[+el.dataset.gi].choices[+el.dataset.ci];const s=new Set(c.show||[]);el.checked?s.add(el.dataset.cs):s.delete(el.dataset.cs);c.show=[...s]}));
+  $$("#optBody [data-cp]").forEach(el=>{const h=()=>mutOpts(o=>{const c=o[+el.dataset.gi].choices[+el.dataset.ci];c.price=c.price||{type:"none"};const k=el.dataset.cp;
+    if(k==="type")c.price=el.value==="none"?undefined:{...c.price,type:el.value};else c.price[k]=el.value.replace(",",".")},"cp"+el.dataset.gi+el.dataset.ci+el.dataset.cp);el.onchange=h;if(el.tagName==="INPUT")el.oninput=h});
+  $$("#optBody [data-ac]").forEach(b=>b.onclick=()=>mutOpts(o=>{const g=o[+b.dataset.ac];const n={id:uid("ch"),label:`Choice ${g.choices.length+1}`};
+    if(g.type==="color")n.color="#3b82f6";if(g.type==="material")n.material={baseColor:"#3b82f6",metalness:0,roughness:.5};if(g.type==="material-variant")n.variant="";if(g.type==="parts")n.show=[];g.choices.push(n)}));
+  $$("#optBody [data-rg]").forEach(b=>b.onclick=()=>mutOpts(o=>{o.splice(+b.dataset.rg,1)}));
+  $$("#optBody [data-rc]").forEach(b=>b.onclick=()=>{const[gi,ci]=b.dataset.rc.split("|").map(Number);mutOpts(o=>{o[gi].choices.splice(ci,1)})});
+  $$("#optBody [data-pv]").forEach(b=>b.onclick=()=>{const[gi,ci]=b.dataset.pv.split("|").map(Number);const g=effOptions()[gi],c=g.choices[ci];preview[g.id]=preview[g.id]===c.id?undefined:c.id;render()});
+  // conditions
+  $$("#optBody [data-cadd]").forEach(b=>b.onclick=()=>mutOpts(()=>{const L=layerOf(target,true);const h=condHolder({options:effOptions()},b.dataset.cadd);
+    h.conditions=h.conditions||{match:"all",rules:[]};
+    const p=product.options[0];h.conditions.rules.push(p?{source:"option",name:p.name,op:"is",value:p.values[0]}:{source:"group",groupId:(effOptions().find(x=>true)||{}).id,op:"has_choice"})}));
+  $$("#optBody [data-cdel]").forEach(b=>b.onclick=()=>{const[id,i]=b.dataset.cdel.split("|");mutOpts(()=>{const h=condHolder({options:effOptions()},id);h.conditions.rules.splice(+i,1);if(!h.conditions.rules.length)delete h.conditions})});
+  $$("#optBody [data-cd]").forEach(el=>el.onchange=()=>mutOpts(()=>{const h=condHolder({options:effOptions()},el.dataset.cid),r=h.conditions.rules[+el.dataset.ri];r[el.dataset.cd]=el.value;
+    if(el.dataset.cd==="source"){Object.keys(r).forEach(k=>delete r[k]);r.source=el.value;if(el.value==="option"){r.name=product.options[0].name;r.op="is";r.value=product.options[0].values[0]}else{r.groupId=(effOptions().find(g=>true)||{}).id;r.op="has_choice"}}
+    if(el.dataset.cd==="name"){r.value=product.options.find(o=>o.name===el.value).values[0]}}));
+  $$("#optBody [data-cm2]").forEach(el=>el.onchange=()=>mutOpts(()=>{condHolder({options:effOptions()},el.dataset.cm2).conditions.match=el.value}));
+}
+
+/* ---------- right: scene / camera / ar / perf ---------- */
+const bindEnv=(id,key,get)=>{const el=$(id);const h=()=>{edit(l=>{l.environment[key]=get(el)},"env"+key)};el.oninput=h;el.onchange=h};
+bindEnv("#envPreset","preset",e=>e.value);bindEnv("#envInt","intensity",e=>+e.value);bindEnv("#bgType","backgroundType",e=>e.value);bindEnv("#bgCol","backgroundColor",e=>e.value);bindEnv("#shOn","shadowsEnabled",e=>e.checked);bindEnv("#shInt","shadowIntensity",e=>+e.value);
+function syncScene(){
+  const e=effEnv();
+  $("#envPreset").value=e.preset||"studio";$("#envInt").value=e.intensity??1;$("#envInt").nextElementSibling.textContent=e.intensity??1;
+  $("#bgType").value=e.backgroundType||"transparent";$("#bgColWrap").style.display=(e.backgroundType==="color")?"":"none";$("#bgCol").value=e.backgroundColor||"#ffffff";
+  $("#shOn").checked=e.shadowsEnabled!==false;$("#shWrap").style.display=$("#shOn").checked?"":"none";
+  $("#shInt").value=e.shadowIntensity??.5;$("#shInt").nextElementSibling.textContent=e.shadowIntensity??.5;
+  const c=effCam(),lk=c.lock||{};
+  $("#lkRot").checked=lk.rotate!==false;$("#lkZoom").checked=lk.zoom!==false;$("#lkPan").checked=lk.pan!==false;
+  $("#angMin").value=lk.minPolarAngle??"";$("#angMax").value=lk.maxPolarAngle??"";
+  $("#camAuto").disabled=!draft.base.camera;$("#camHelp").textContent=draft.base.camera?"Shoppers start from the view you saved.":"The camera frames the whole model automatically.";
+  const a=effAr();$("#arOn").checked=a.enabled!==false;$("#arScale").value=a.scale||"fixed";
+  const o=(layerOf()||{}).optimization||{};$("#pxr").value=o.pixelRatioLimit??draft.base.optimization.pixelRatioLimit??2;$("#lowPower").checked=!!(o.gpuPerformanceMode??draft.base.optimization.gpuPerformanceMode);
+  // gallery
+  const g=draft.base.gallery||{};
+  $("#gallery").innerHTML=["Perspective","Front","Side","Back"].map(n=>`<div class="row"><span style="flex:1">${n}</span><button class="btn" data-cap="${n}">Capture</button><button class="btn t" data-fly="${n}" ${g[n]?"":"disabled"}>Fly to</button></div>`).join("");
+  $$("[data-cap]").forEach(b=>b.onclick=()=>{const o=mv.getCameraOrbit(),t=mv.getCameraTarget();edit(l=>{l.gallery=l.gallery||{};l.gallery[b.dataset.cap]={orbit:o.toString(),target:t.toString()}});toast(b.dataset.cap+" view captured")});
+  $$("[data-fly]").forEach(b=>b.onclick=()=>{const v=draft.base.gallery[b.dataset.fly];mv.cameraOrbit=v.orbit;mv.cameraTarget=v.target});
+}
+$("#lkRot").onchange=e=>edit(l=>{l.lock.rotate=e.target.checked?undefined:false});
+$("#lkZoom").onchange=e=>edit(l=>{l.lock.zoom=e.target.checked?undefined:false});
+$("#lkPan").onchange=e=>edit(l=>{l.lock.pan=e.target.checked?undefined:false});
+$("#angMin").oninput=e=>edit(l=>{l.lock.minPolarAngle=e.target.value===""?undefined:+e.target.value},"amin");
+$("#angMax").oninput=e=>edit(l=>{l.lock.maxPolarAngle=e.target.value===""?undefined:+e.target.value},"amax");
+$("#camSet").onclick=()=>{const o=mv.getCameraOrbit(),t=mv.getCameraTarget();edit(()=>{draft.base.camera={orbit:o.toString(),target:t.toString(),fov:mv.getFieldOfView()}});toast("Start view saved")};
+$("#camAuto").onclick=()=>edit(()=>{draft.base.camera=null});
+$("#arOn").onchange=e=>edit(l=>{l.ar.enabled=e.target.checked});
+$("#arScale").onchange=e=>edit(l=>{l.ar.scale=e.target.value});
+$("#pxr").onchange=e=>edit(l=>{l.optimization.pixelRatioLimit=+e.target.value});
+$("#lowPower").onchange=e=>edit(l=>{l.optimization.gpuPerformanceMode=e.target.checked?"low-power":undefined});
+
+/* ---------- import / export ---------- */
+let jsonText="";
+function renderJson(){
+  const l=layerOf()||blank();
+  const out={schema_version:1,...JSON.parse(JSON.stringify(l)),...(target==="default"?{viewer:draft.viewer,hotspots:draft.hotspots,decals:draft.decals}:{})};
+  jsonText=JSON.stringify(out,null,2);
+  const ta=$("#json");if(document.activeElement!==ta)ta.value=jsonText;
+  $("#jsonApply").disabled=ta.value===jsonText;
+}
+$("#json").oninput=()=>$("#jsonApply").disabled=$("#json").value===jsonText;
+$("#jsonApply").onclick=()=>{try{const o=JSON.parse($("#json").value);if(o.schema_version!==1)throw 0;delete o.schema_version;if(target==="default"){["viewer","hotspots","decals"].forEach(k=>{if(o[k]!==undefined){draft[k]=o[k];delete o[k]}})}edit(()=>{const store=target==="default"?null:target;if(target==="default")draft.base={...blank(),...o};else{const s=target.startsWith("rule:")?draft.rules:draft.variants;s[target.startsWith("rule:")?target.slice(5):target]={...blank(),...o}}});toast("Applied")}catch{toast("That isn't a valid 3D configuration (schema_version 1).")}};
+$("#jsonCopy").onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(jsonText);toast("Copied")};
+
+/* ---------- header + view tools ---------- */
+function renderHeader(){
+  const d=dirty(),h=hist[target]||{u:[],r:[]};
+  const st=$("#status");
+  if(d){st.className="badge b-warn";st.textContent="Unsaved changes"}
+  else if(hasDraft){st.className="badge b-warn";st.textContent="Draft"}
+  else if(published){st.className="badge b-ok";st.textContent="Published"}else{st.className="badge";st.textContent="Not published"}
+  $("#undo").disabled=!h.u.length;$("#redo").disabled=!h.r.length;
+  $("#discard").disabled=!d;$("#draft").disabled=!d;$("#publish").disabled=!d&&!hasDraft&&published;
+}
+$("#undo").onclick=undo;$("#redo").onclick=redo;
+$("#discard").onclick=()=>{draft=JSON.parse(saved);hist={};preview={};render();toast("Changes discarded")};
+$("#draft").onclick=()=>{saved=JSON.stringify(draft);hasDraft=true;render();toast("Draft saved · not live yet. Use Preview to see it, then Publish.")};
+$("#publish").onclick=()=>{saved=JSON.stringify(draft);hasDraft=false;published=true;render();toast("Saved · published to your storefront")};
+$("#preview").onclick=()=>{if(dirty()){saved=JSON.stringify(draft);hasDraft=true;render()}toast("Opens the storefront with ?e3d_preview=1 (prototype)")};
+document.addEventListener("keydown",e=>{
+  if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||e.target.isContentEditable)return;
+  const m=e.metaKey||e.ctrlKey;if(!m)return;
+  if(e.key==="z"&&!e.shiftKey){e.preventDefault();undo()}
+  else if((e.key==="z"&&e.shiftKey)||e.key==="y"){e.preventDefault();redo()}
+  else if(e.key==="s"){e.preventDefault();if(dirty())$("#draft").click()}
+});
+$("#vReset").onclick=()=>{mv.cameraOrbit="auto auto auto";mv.cameraTarget="auto auto auto";mv.fieldOfView="auto"};
+$("#vIn").onclick=()=>{const o=mv.getCameraOrbit();mv.cameraOrbit=`${o.theta}rad ${o.phi}rad ${o.radius*0.8}m`};
+$("#vOut").onclick=()=>{const o=mv.getCameraOrbit();mv.cameraOrbit=`${o.theta}rad ${o.phi}rad ${o.radius*1.25}m`};
+let rotTool=false;
+$("#vRot").onclick=e=>{rotTool=!rotTool;e.currentTarget.classList.toggle("on",rotTool);applyViewer()};
+$("#vGrid").onclick=e=>{const on=!e.currentTarget.classList.contains("on");e.currentTarget.classList.toggle("on",on);
+  $("main").style.backgroundImage=on?"linear-gradient(#0002 1px,transparent 1px),linear-gradient(90deg,#0002 1px,transparent 1px)":"";$("main").style.backgroundSize="32px 32px"};
+$("#plan").onchange=e=>{plan=e.target.value;render()};
+$("#find").oninput=e=>{const q=e.target.value.toLowerCase();$$("details.sec").forEach(d=>{const hit=!q||d.textContent.toLowerCase().includes(q);d.style.display=hit?"":"none";if(q&&hit)d.open=true})};
+/* Surface point under the cursor. If the viewer's raycast misses (or isn't ready),
+   fall back to the matching spot on the plane through the model's centre, facing the camera. */
+function hitPoint(x,y,rect){
+  const h=mv.positionAndNormalFromPoint(x,y);
+  if(h)return{pos:h.position.toString(),normal:h.normal.toString()};
+  const o=mv.getCameraOrbit(),t=mv.getCameraTarget(),th=o.theta,ph=o.phi,rad=o.radius;
+  const fov=(mv.getFieldOfView()||45)*Math.PI/180,hh=2*rad*Math.tan(fov/2),hw=hh*rect.width/rect.height;
+  const u=x/rect.width-.5,v=y/rect.height-.5;
+  const right=[Math.cos(th),0,-Math.sin(th)],up=[-Math.cos(ph)*Math.sin(th),Math.sin(ph),-Math.cos(ph)*Math.cos(th)];
+  const n=[Math.sin(ph)*Math.sin(th),Math.cos(ph),Math.sin(ph)*Math.cos(th)];
+  const p=[0,1,2].map(i=>[t.x,t.y,t.z][i]+right[i]*u*hw-up[i]*v*hh);
+  return{pos:p.map(a=>a+"m").join(" "),normal:n.map(a=>a+"m").join(" ")};
+}
+mv.addEventListener("click",e=>{ // select part by clicking the model
+  const r=mv.getBoundingClientRect();
+  if(placing){const p=hitPoint(e.clientX-r.left,e.clientY-r.top,r);{const h=draft.hotspots.find(x=>x.id===placing);edit(()=>{h.pos=p.pos;h.normal=p.normal;const o=mv.getCameraOrbit();h.orbit=`${o.theta}rad ${o.phi}rad ${o.radius}m`});placing=null;renderPlacing();render();toast("Hotspot placed")}return}const hit=mv.materialFromPoint(e.clientX-r.left,e.clientY-r.top);
+  mv.querySelectorAll(".e3d-hotspot.selected").forEach(n=>n.classList.remove("selected"));openHs=null;
+  if(hit){selMesh=hit.name;renderParts();renderMaterial()}else{selMesh=null;renderParts();renderMaterial()}
+});
+
+
+/* ================= viewer style + control bar ================= */
+const IC={
+zoomIn:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6M8 11h6"/>',
+zoomOut:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>',
+reset:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+fullscreen:'<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+screenshot:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+ar:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+animation:'<rect width="20" height="20" x="2" y="2" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/>'};
+const svg=id=>`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[id]}</svg>`;
+const CTRL=[["zoomIn","Zoom in"],["zoomOut","Zoom out"],["reset","Reset view"],["fullscreen","Fullscreen"],["screenshot","Screenshot"],["ar","View in your room"],["animation","Animation"]];
+const SLOTS=[["top-left","Top left"],["top-center","Top center"],["top-right","Top right"],["bottom-left","Bottom left"],["bottom-center","Bottom center"],["bottom-right","Bottom right"]];
+const V=()=>draft.viewer;
+const ctrlOn=id=>{const v=V();return id==="zoomIn"||id==="zoomOut"?v.bar_zoomBtns:id==="reset"?v.bar_reset:id==="fullscreen"?v.bar_fullscreen:id==="screenshot"?v.bar_camera:id==="animation"?v.bar_animation:(v.arWebxr||v.arScene||v.arQuick)&&effAr().enabled!==false};
+const ctrlFlag={zoomIn:"bar_zoomBtns",zoomOut:"bar_zoomBtns",reset:"bar_reset",fullscreen:"bar_fullscreen",screenshot:"bar_camera",animation:"bar_animation"};
+function moveCtrl(id,slot,before){
+  const L=V().layout;for(const k in L)L[k]=L[k].filter(x=>x!==id);
+  const arr=L[slot];const i=before?arr.indexOf(before):-1;i<0?arr.push(id):arr.splice(i,0,id);
+}
+function renderBars(){
+  const L=V().layout,lbl=Object.fromEntries(CTRL);
+  $("#bars").innerHTML=SLOTS.map(([k])=>{const ids=L[k].filter(ctrlOn);return ids.length?`<div class="tb ${k}">${ids.map(i=>`<button class="tbtn" data-ctl="${i}" aria-label="${lbl[i]}" title="${lbl[i]}">${svg(i)}</button>`).join("")}</div>`:""}).join("");
+  $$("#bars [data-ctl]").forEach(b=>b.onclick=()=>ctlAct(b.dataset.ctl));
+  $("#gz").style.display=V().bar_gizmo?"block":"none";
+}
+function ctlAct(id){
+  if(id==="zoomIn")$("#vIn").click();else if(id==="zoomOut")$("#vOut").click();else if(id==="reset")$("#vReset").click();
+  else if(id==="fullscreen"){const st=$("#stage");document.fullscreenElement?document.exitFullscreen():st.requestFullscreen&&st.requestFullscreen()}
+  else if(id==="screenshot")mv.toBlob({idealAspect:true}).then(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="3d-view.png";a.click()}).catch(()=>toast("Screenshot not available"));
+  else if(id==="ar")toast("View in your room opens on a phone (prototype)");
+  else toast(mv.availableAnimations&&mv.availableAnimations.length?"Animations: "+mv.availableAnimations.join(", "):"This model has no animations");
+}
+function applyViewer(){
+  const v=V(),lk=effCam().lock||{};
+  const st=$("#stage");st.style.height=`min(${v.height}px,100%)`;st.style.background=v.bg;
+  st.style.setProperty("--e3d-hotspot",draft.hs.color);
+  st.style.cursor=v.grab?"grab":"default";
+  const env=effEnv();
+  mv.exposure=(env.intensity??1)*v.exposure;
+  mv.shadowIntensity=(env.shadowsEnabled===false||!v.castShadow)?0:(env.shadowIntensity??.5);
+  mv.setAttribute("tone-mapping",v.tone==="ACESFilmic"?"agx":"neutral");
+  v.fovMode==="Custom"?mv.setAttribute("field-of-view",v.fov+"deg"):mv.removeAttribute("field-of-view");
+  mv.autoRotate=!!(v.autoRotate||rotTool);
+  (v.zoom&&lk.zoom!==false)?mv.removeAttribute("disable-zoom"):mv.setAttribute("disable-zoom","");
+  (v.pan&&lk.pan!==false)?mv.removeAttribute("disable-pan"):mv.setAttribute("disable-pan","");
+  mv.setAttribute("max-camera-orbit",`${(v.rotate&&lk.rotate!==false)?"Infinity":"0deg"} ${lk.maxPolarAngle??180}deg auto`);
+  mv.style.touchAction=v.scrollTouch?"pan-y":"none";
+  mv.setAttribute("touch-action",v.scrollTouch?"pan-y":"none");
+  mv.setAttribute("interaction-policy",v.scrollWheel?"allow-when-focused":"always-allow");
+}
+const vNum=(k,l,min,max,step,extra="")=>`<label class="f">${l}</label><input type="number" data-vk="${k}" min="${min}" max="${max}" step="${step}" value="${V()[k]}" ${extra}>`;
+const vSw=(k,l)=>`<label class="c"><input type="checkbox" data-vk="${k}" ${V()[k]?"checked":""}> ${l}</label>`;
+const vSel=(k,l,opts)=>`<label class="f">${l}</label><select data-vk="${k}">${opts.map(o=>`<option ${V()[k]===o?"selected":""}>${o}</option>`).join("")}</select>`;
+const vTxt=(k,l,ph="")=>`<label class="f">${l}</label><input type="text" data-vk="${k}" value="${esc(V()[k])}" placeholder="${ph}">`;
+function renderViewerStyle(){
+  const v=V(),L=v.layout,lbl=Object.fromEntries(CTRL);
+  const enabled=CTRL.map(c=>c[0]).filter(ctrlOn);
+  let h=`<p class="help">The same settings as the product page viewer. They apply to every variant.</p>`;
+  h+=`<details class="sub" open><summary>Display</summary><div class="in">${vNum("height","Viewer height",200,1200,10)}<label class="f">Background color</label><div class="row"><input type="color" data-vk="bg" value="${v.bg}"><code>${v.bg}</code></div>${vNum("exposure","Exposure",0,5,.05)}${vSel("tone","Tone mapping",["None","Linear","Reinhard","Cineon","ACESFilmic"])}${vSw("defEnv","Default environment map")}${vSw("blurSky","Blur skybox")}${vSw("castShadow","Cast shadow under model")}</div></details>`;
+  h+=`<details class="sub"><summary>Environment</summary><div class="in">${vTxt("skyUrl","Skybox HDR URL","https://…/sky.hdr")}${vTxt("envUrl","Environment map HDR URL","https://…/env.hdr")}</div></details>`;
+  h+=`<details class="sub"><summary>Camera</summary><div class="in">${vSel("fovMode","FOV mode",["Auto","Custom"])}${vNum("fov","FOV",1,179,1,v.fovMode==="Auto"?"disabled":"")}${vNum("yaw","Initial yaw",-180,180,1)}${vNum("pitch","Initial pitch",-90,90,1)}${vNum("zoomInit","Initial zoom",-50,50,.5)}${vSw("keepSize","Maintain model size on resize")}</div></details>`;
+  h+=`<details class="sub"><summary>Controls</summary><div class="in">${vSw("rotate","Allow rotate")}${vSw("pan","Allow translate (pan)")}${vSw("zoom","Allow zoom")}${vSw("autoRotate","Auto rotate")}${vSw("scrollTouch","Page scroll on touch")}${vSw("scrollWheel","Page scroll on mouse wheel")}${vSw("grab","Grab cursor on canvas")}</div></details>`;
+  h+=`<details class="sub" open><summary>Control bar</summary><div class="in">${vSw("bar_animation","Animation clip name / switcher")}${vSw("bar_gizmo","Axis gizmo (X/Y/Z)")}${vSw("bar_zoomBtns","Zoom in / out buttons")}${vSw("bar_camera","Camera (snapshot) button")}${vSw("bar_reset","Reset view button")}${vSw("bar_fullscreen","Fullscreen button")}
+    <h3>Positions</h3>${CTRL.filter(c=>enabled.includes(c[0])).map(([id,n])=>{const cur=SLOTS.find(([k])=>L[k].includes(id));return `<label class="f">${n} position</label><select data-pos="${id}">${SLOTS.map(([k,t])=>`<option value="${k}" ${cur&&cur[0]===k?"selected":""}>${t}</option>`).join("")}</select>`}).join("")}
+    <p class="help">Positions — or use “Move controls” under the preview to drag each one, including the order within a spot.</p>
+    <b>Move controls</b><p class="help">Drag any control to a spot, or between two others to set the order. Drag one to the tray below to hide it, or out of the tray to show it.</p>
+    <div class="lay">${SLOTS.map(([k,t])=>{const cls={"top-left":"tl","top-center":"tc","top-right":"tr","bottom-left":"bl","bottom-center":"bc","bottom-right":"br"}[k];return `<div class="sl ${cls} ${k.endsWith("center")?"row":""}" data-slot="${k}">${L[k].filter(ctrlOn).length?"":`<small>Empty</small>`}${L[k].filter(ctrlOn).map(i=>`<div class="mini" draggable="true" data-drag="${i}" title="${lbl[i]}" tabindex="0">${svg(i)}</div>`).join("")}</div>`}).join("")}</div>
+    <div class="tray" data-slot="tray"><b style="width:100%;font-size:12px">Hidden</b>${CTRL.filter(c=>!ctrlOn(c[0])).map(([i])=>`<div class="mini" draggable="true" data-drag="${i}" title="${lbl[i]}">${svg(i)}</div>`).join("")||`<span class="help">Nothing hidden — drag a control here to hide it</span>`}</div>
+  </div></details>`;
+  h+=`<details class="sub"><summary>Animation</summary><div class="in">${vNum("animIndex","Default animation index",0,99,1)}<div class="help">0 means none.</div>${vSel("repeat","Repeat mode",["One","All","None"])}</div></details>`;
+  h+=`<details class="sub"><summary>AR (shopper viewer)</summary><div class="in">${vSw("arWebxr","WebXR AR (modern Android Chrome)")}${vSw("arScene","Google Scene Viewer (Android)")}${vSw("arQuick","Apple Quick Look (iOS)")}${vSel("placement","Placement",["Floor","Wall"])}${vTxt("iosUrl","iOS source URL (.usdz)")}</div></details>`;
+  h+=`<details class="sub"><summary>Advanced</summary><div class="in">${vTxt("matVariant","Material variant","leave empty for default")}${vSw("fixSkinned","Fix skinned bounding box")}</div></details>`;
+  h+=`<button class="btn t" id="vsReset">Reset viewer style to defaults</button>`;
+  const root=$("#vsBody");
+  // keep open state of sub sections across re-renders
+  const open=[...root.querySelectorAll("details.sub")].map(d=>d.open);
+  root.innerHTML=h;root.querySelectorAll("details.sub").forEach((d,i)=>{if(open[i]!==undefined)d.open=open[i]});
+  root.querySelectorAll("[data-vk]").forEach(el=>{
+    const k=el.dataset.vk,soft=el.type==="number"||el.type==="text"||el.type==="color";
+    el.addEventListener(soft?"input":"change",()=>{
+      const val=el.type==="checkbox"?el.checked:el.type==="number"?(el.value===""?0:+el.value):el.value;
+      if(el.type==="color")el.nextElementSibling.textContent=el.value;
+      edit(()=>{draft.viewer[k]=val},soft?"v"+k:undefined);
+      if(["yaw","pitch","zoomInit"].includes(k)&&!draft.base.camera){const r=mv.getCameraOrbit();mv.cameraOrbit=`${-draft.viewer.yaw}deg ${90-draft.viewer.pitch}deg ${r.radius*(1-draft.viewer.zoomInit/100)}m`}
+    });
+  });
+  root.querySelectorAll("[data-pos]").forEach(el=>el.onchange=()=>edit(()=>moveCtrl(el.dataset.pos,el.value)));
+  root.querySelectorAll("[data-drag]").forEach(el=>{el.ondragstart=e=>{e.dataTransfer.setData("text/plain",el.dataset.drag)};
+    el.onkeydown=e=>{const id=el.dataset.drag;if(e.key==="Delete"&&ctrlFlag[id])edit(()=>{draft.viewer[ctrlFlag[id]]=false});if(e.key==="Enter"&&ctrlFlag[id])edit(()=>{draft.viewer[ctrlFlag[id]]=true})}});
+  root.querySelectorAll("[data-slot]").forEach(z=>{
+    z.ondragover=e=>{e.preventDefault();z.classList.add("over")};z.ondragleave=()=>z.classList.remove("over");
+    z.ondrop=e=>{e.preventDefault();z.classList.remove("over");const id=e.dataTransfer.getData("text/plain");if(!id)return;
+      const before=e.target.closest&&e.target.closest("[data-drag]")?.dataset.drag;
+      if(z.dataset.slot==="tray"){if(!ctrlFlag[id])return toast("Turn AR off in the AR section");edit(()=>{draft.viewer[ctrlFlag[id]]=false})}
+      else edit(()=>{if(ctrlFlag[id])draft.viewer[ctrlFlag[id]]=true;moveCtrl(id,z.dataset.slot,before&&before!==id?before:null)});}});
+  $("#vsReset").onclick=()=>edit(()=>{draft.viewer=JSON.parse(JSON.stringify(DEF_VIEWER))});
+}
+
+/* ================= pricing ================= */
+let shopper={};
+function renderPricing(){
+  const el=$("#prBody"),groups=draft.base.options||[];
+  const base=parseFloat((variants[0]||{price:"0"}).price)||0;
+  $("#prmeta").textContent=can("Advance")?"":"Advance";
+  if(!can("Advance")){el.innerHTML=`<div class="lock">🔒 Option pricing is available on the Advance plan. Shoppers see these prices in the customizer and the cart.</div>`;return}
+  const rule=r=>{if(!r||r.type==="none")return 0;const a=parseFloat(r.sale!==undefined&&r.sale!==""?r.sale:r.amount)||0;return r.type==="percent"?Math.round(base*a)/100:Math.round(a*100)/100};
+  const lines=[];groups.forEach(g=>{const id=shopper[g.id]||g.default||(g.choices[0]||{}).id;const c=g.choices.find(x=>x.id===id);if(c){const a=rule(c.price);if(a)lines.push([`${g.label}: ${c.label}`,a])}});
+  (draft.decals||[]).forEach(d=>{const a=rule(d.price);if(a)lines.push([`${d.label||"Personalization"}`,a])});
+  const total=base+lines.reduce((s,l)=>s+l[1],0);
+  const payload=JSON.stringify({v:1,d:groups.reduce((o,g)=>{o[g.id]=g.choices.filter(c=>c.price&&c.price.type!=="none").map(c=>[c.id,c.price.type==="fixed"?1:2,c.price.amount]);return o},{})});
+  el.innerHTML=`<p class="help">Prices are set per choice (Custom options → Price change) and per personalization area. This is what a shopper pays.</p>
+  <label class="f">Base price (first variant)</label><div><b>$${base.toFixed(2)}</b></div>
+  <h3>Shopper preview</h3>
+  ${groups.length?groups.map(g=>`<label class="f">${esc(g.label)}</label><select data-sp="${g.id}">${g.choices.map(c=>`<option value="${c.id}" ${(shopper[g.id]||g.default||g.choices[0].id)===c.id?"selected":""}>${esc(c.label)}${c.price&&c.price.type!=="none"?` (${c.price.type==="percent"?c.price.amount+"%":"+$"+c.price.amount})`:""}</option>`).join("")}</select>`).join(""):'<p class="help">No custom options yet. Add one in Custom options.</p>'}
+  <div class="card" style="margin-top:10px"><div class="kv"><span>Base price</span><span>$${base.toFixed(2)}</span></div>${lines.map(l=>`<div class="kv"><span>${esc(l[0])}</span><span>${l[1]<0?"−":"+"}$${Math.abs(l[1]).toFixed(2)}</span></div>`).join("")}<div class="kv"><b>Total</b><b>$${total.toFixed(2)}</b></div></div>
+  <div class="help">Pricing data size: ${payload.length} of 10,000 bytes</div><div class="meter"><i style="width:${Math.min(100,payload.length/100)}%"></i></div>
+  <p class="help">Conditions aren't part of the cart price table. Percent prices use the variant price.</p>`;
+  el.querySelectorAll("[data-sp]").forEach(x=>x.onchange=()=>{shopper[x.dataset.sp]=x.value;renderPricing()});
+}
+
+/* ================= personalization (decals) ================= */
+const MAXD=6;
+function renderDecals(){
+  const el=$("#dcBody"),ds=draft.decals;
+  $("#dcmeta").textContent=can("Advance")?(ds.length?`${ds.length} area${ds.length>1?"s":""}`:""):"Advance";
+  if(!can("Advance")){el.innerHTML=`<div class="lock">🔒 Personalization (shoppers add their own text or image to the model) is available on the Advance plan.</div>`;return}
+  const names=mats.map(m=>m.name);
+  el.innerHTML=`<p class="help">Define areas on the model where shoppers can add text or an image.</p>
+  ${ds.length?"":'<p class="help">No areas yet. Add one to let shoppers personalize.</p>'}
+  ${ds.map((d,i)=>`<details class="sub" open><summary>${esc(d.label||"Area "+(i+1))} <span class="help">${d.side} · ${d.kinds.join(" + ")||"none"}</span></summary><div class="in">
+    <label class="f">Area name</label><input type="text" data-df="label" data-di="${i}" value="${esc(d.label)}">
+    <label class="f">Part</label><select data-df="mesh" data-di="${i}">${names.map(n=>`<option ${d.mesh===n?"selected":""}>${esc(n)}</option>`).join("")}</select>
+    <label class="f">Side</label><select data-df="side" data-di="${i}">${["front","back","left","right","top","bottom"].map(x=>`<option ${d.side===x?"selected":""}>${x}</option>`).join("")}</select>
+    <div class="decal"><i style="left:${d.x}%;top:${d.y}%;width:${d.width}%;height:${d.height}%;transform:rotate(${d.rotation||0}deg)"></i></div>
+    <div class="row"><div style="flex:1"><label class="f">X %</label><input type="number" min="0" max="100" data-df="x" data-di="${i}" data-n="1" value="${d.x}"></div><div style="flex:1"><label class="f">Y %</label><input type="number" min="0" max="100" data-df="y" data-di="${i}" data-n="1" value="${d.y}"></div></div>
+    <div class="row"><div style="flex:1"><label class="f">Width %</label><input type="number" min="1" max="100" data-df="width" data-di="${i}" data-n="1" value="${d.width}"></div><div style="flex:1"><label class="f">Height %</label><input type="number" min="1" max="100" data-df="height" data-di="${i}" data-n="1" value="${d.height}"></div></div>
+    <label class="f">Rotation (°)</label><input type="number" min="-180" max="180" data-df="rotation" data-di="${i}" data-n="1" value="${d.rotation||0}">
+    <label class="f">Shoppers can add</label>
+    <label class="c"><input type="checkbox" data-dk="text" data-di="${i}" ${d.kinds.includes("text")?"checked":""}> Text</label><label class="c"><input type="checkbox" data-dk="image" data-di="${i}" ${d.kinds.includes("image")?"checked":""}> Image</label>
+    ${d.kinds.includes("text")?`<label class="f">Fonts</label><input type="text" data-df="fonts" data-di="${i}" value="${esc(d.fonts)}"><div class="help">Separate with commas.</div><label class="f">Text colours</label><input type="text" data-df="colors" data-di="${i}" value="${esc(d.colors)}"><div class="help">Hex colours, separated by commas.</div><label class="f">Max characters</label><input type="number" min="1" max="200" data-df="maxChars" data-di="${i}" data-n="1" value="${d.maxChars}">`:""}
+    <label class="c"><input type="checkbox" data-df="required" data-di="${i}" ${d.required?"checked":""}> Shoppers must personalize</label>
+    <label class="f">Price change</label><select data-dp="type" data-di="${i}"><option value="none" ${(d.price||{type:"none"}).type==="none"?"selected":""}>No change</option><option value="fixed" ${(d.price||{}).type==="fixed"?"selected":""}>Fixed amount</option><option value="percent" ${(d.price||{}).type==="percent"?"selected":""}>Percent of the price</option></select>
+    ${d.price&&d.price.type!=="none"?`<label class="f">Amount</label><input type="text" data-dp="amount" data-di="${i}" value="${d.price.amount??""}">`:""}
+    <div class="row" style="margin-top:8px"><button class="btn t d" data-ddel="${i}">Remove area</button></div></div></details>`).join("")}
+  <button class="btn" id="dAdd" ${ds.length>=MAXD?"disabled":""}>Add area</button>${ds.length>=MAXD?`<p class="help">You can add up to ${MAXD} areas.</p>`:""}`;
+  const D=e=>draft.decals[+e.dataset.di];
+  $("#dAdd")&&($("#dAdd").onclick=()=>edit(()=>{draft.decals.push({id:uid("dc"),label:`Area ${ds.length+1}`,mesh:selMesh||names[0]||"",side:"front",x:30,y:30,width:40,height:20,rotation:0,kinds:["text"],fonts:"Sans, Serif, Script",colors:"#000000, #ffffff, #c0392b",maxChars:20,required:false,price:{type:"none"}})}));
+  el.querySelectorAll("[data-df]").forEach(x=>{const k=x.dataset.df,soft=x.type==="text"||x.type==="number";x.addEventListener(soft?"input":"change",()=>edit(()=>{D(x)[k]=x.type==="checkbox"?x.checked:x.dataset.n?+x.value:x.value},soft?"d"+k+x.dataset.di:undefined)); if(soft&&x.type==="number")x.addEventListener("input",()=>{const b=x.closest(".in").querySelector(".decal i"),d=D(x);b.style.cssText=`left:${d.x}%;top:${d.y}%;width:${d.width}%;height:${d.height}%;transform:rotate(${d.rotation||0}deg)`})});
+  el.querySelectorAll("[data-dk]").forEach(x=>x.onchange=()=>edit(()=>{const d=D(x),s=new Set(d.kinds);x.checked?s.add(x.dataset.dk):s.delete(x.dataset.dk);d.kinds=[...s]}));
+  el.querySelectorAll("[data-dp]").forEach(x=>{const h=()=>edit(()=>{const d=D(x);d.price=d.price||{type:"none"};d.price[x.dataset.dp]=x.value.replace(",",".")},x.tagName==="INPUT"?"dp"+x.dataset.di:undefined);x.addEventListener(x.tagName==="INPUT"?"input":"change",h)});
+  el.querySelectorAll("[data-ddel]").forEach(x=>x.onclick=()=>edit(()=>{draft.decals.splice(+x.dataset.ddel,1)}));
+}
+
+/* ================= hotspots ================= */
+const MAXH=10,PRODUCTS=[["Snowboard bindings","$89.00"],["Snow goggles","$59.00"],["Wax kit","$18.00"]];
+let placing=null,hsLang="English",openHs=null;const LANGS=["English","Español","Deutsch"];
+const tr=(h,k)=>hsLang==="English"?h[k]:((h.tr||{})[hsLang]||{})[k];
+function setTr(h,k,v){if(hsLang==="English")h[k]=v;else{h.tr=h.tr||{};(h.tr[hsLang]=h.tr[hsLang]||{})[k]=v}}
+function renderPlacing(){$("#stage").classList.toggle("placing-on",!!placing);const p=$("#placing");p.innerHTML=placing?`<div class="placing"><b>Click the model to place the hotspot</b><div style="font-size:12px;opacity:.85">Turn the model to the side you want first — the hotspot opens from this same angle for shoppers.</div></div>`:""}
+function renderHotspotPins(){
+  mv.querySelectorAll(".e3d-hotspot").forEach(n=>n.remove());
+  const hs=draft.hotspots,g=draft.hs;
+  if(!g.show)return;
+  hs.forEach((h,i)=>{if(!h.pos)return;
+    const title=(tr(h,"title")||h.title||"Hotspot "+(i+1));
+    const d=document.createElement("div");d.slot="hotspot-"+h.id;d.className="e3d-hotspot"+(g.pin==="Title"?" t":"");
+    d.dataset.position=h.pos;d.dataset.normal=h.normal||"0 1 0";d.dataset.visibilityAttribute="visible";
+    const blocks=(h.order||["image","video","description","product"]).map(b=>{
+      if(b==="image"&&h.image)return `<div class="img" style="background-image:url('${esc(h.image)}')">${esc(h.imageAlt||"")}</div>`;
+      if(b==="video"&&h.video)return `<div class="vid">▶ Video</div>`;
+      if(b==="description"&&tr(h,"desc"))return `<div class="tx">${esc(tr(h,"desc"))}</div>`;
+      if(b==="product"&&h.product!==undefined&&h.product!=="")return `<div class="prod"><b>${esc(PRODUCTS[h.product][0])}</b><div>${PRODUCTS[h.product][1]}</div>${h.addToCart?'<button class="cbtn">Add to cart</button>':""}${h.buyNow?'<button class="cbtn o">Buy now</button>':""}</div>`;return ""}).join("");
+    d.innerHTML=`<button class="e3d-pin">${g.pin==="Title"?esc(title):i+1}</button><div class="e3d-card"><div class="tt">${esc(title)}</div>${blocks}${h.linkUrl?`<a href="${esc(h.linkUrl)}" onclick="return false">${esc(tr(h,"linkText")||"Learn more")}</a>`:""}</div>`;
+    const pin=d.querySelector(".e3d-pin");
+    const open=()=>{mv.querySelectorAll(".e3d-hotspot.selected").forEach(n=>n!==d&&n.classList.remove("selected"));d.classList.add("selected");openHs=h.id;if(h.orbit){mv.cameraOrbit=h.orbit}};
+    if(openHs===h.id)d.classList.add("selected");
+    if(g.open==="Hover"){d.onmouseenter=open;d.onmouseleave=()=>{d.classList.remove("selected");openHs=null}}
+    pin.onclick=e=>{e.stopPropagation();if(d.classList.contains("selected")){d.classList.remove("selected");openHs=null}else open()};
+    mv.appendChild(d);
+  });
+}
+function renderHotspots(){
+  const el=$("#hsBody"),hs=draft.hotspots,g=draft.hs;
+  $("#hsmeta").textContent=can("Growth")?`${hs.length} of ${MAXH}`:"Growth";
+  renderHotspotPins();renderPlacing();
+  if(!can("Growth")){el.innerHTML=`<div class="lock"><b>Point out details right on the model.</b><br>Add numbered hotspots — “Water-resistant zipper”, “Real leather handle” — that shoppers tap to read a note while the camera turns to that spot.<br><br><button class="btn" disabled>Upgrade to add hotspots</button></div>`;return}
+  el.innerHTML=`<label class="c"><input type="checkbox" id="hsShow" ${g.show?"checked":""}> Show hotspots on the storefront</label>
+  <label class="f">Hotspot color</label><div class="row"><input type="color" id="hsCol" value="${g.color}"><code>${g.color}</code></div>
+  <label class="f">Pin shows</label><select id="hsPin"><option ${g.pin==="Number"?"selected":""}>Number</option><option ${g.pin==="Title"?"selected":""}>Title</option></select>
+  <label class="f">Open hotspot on</label><select id="hsOpen"><option ${g.open==="Click"?"selected":""}>Click</option><option ${g.open==="Hover"?"selected":""}>Hover</option></select>
+  <div class="help">On small container width or touch screens hotspots always open with a tap.</div>
+  <label class="f">Language</label><select id="hsLang">${LANGS.map((l,i)=>`<option ${l===hsLang?"selected":""}>${i?l:l+" (default)"}</option>`).join("")}</select>
+  ${hsLang!=="English"?`<div class="help">Translating titles, descriptions and link text into ${hsLang}. A field left empty shows the English text. Position, media, products and links are shared by every language.</div>`:""}
+  <div class="row" style="margin-top:8px"><button class="btn" id="hsAdd" ${hs.length>=MAXH?"disabled":""}>Add hotspot</button>${hs.length>=MAXH?`<span class="help">Up to ${MAXH} hotspots per model.</span>`:""}</div>
+  ${hs.length?"":'<p class="help">No hotspots yet. Add one, then click the spot on the model in the preview.</p>'}
+  ${hs.map((h,i)=>`<details class="sub" open draggable="true" data-hdrag="${i}"><summary><span class="hs"><b>${i+1}</b>${esc(h.title||"Hotspot "+(i+1))} ${hsLang!=="English"&&!tr(h,"title")?'<span class="badge">Untranslated</span>':""}</span></summary><div class="in">
+    <label class="f">${hsLang==="English"?"Title":"Title ("+hsLang+")"}</label><input type="text" data-hf="title" data-hi="${i}" value="${esc(tr(h,"title")||"")}">
+    <label class="f">${hsLang==="English"?"Description":"Description ("+hsLang+")"}</label><textarea rows="3" data-hf="desc" data-hi="${i}">${esc(tr(h,"desc")||"")}</textarea>
+    <label class="f">${hsLang==="English"?"Link text (optional)":"Link text ("+hsLang+")"}</label><input type="text" data-hf="linkText" data-hi="${i}" placeholder="Learn more" value="${esc(tr(h,"linkText")||"")}">
+    <label class="f">Link URL (optional)</label><input type="text" data-hs="linkUrl" data-hi="${i}" placeholder="https://… or /pages/…" value="${esc(h.linkUrl||"")}">
+    ${h.linkUrl&&!/^(https:\/\/|\/)/.test(h.linkUrl)?'<div class="help" style="color:#c70a24">Use an https:// address or a path like /pages/size-guide</div>':""}
+    <label class="f">${h.image?"Change image":"Add image"}</label><input type="text" data-hs="image" data-hi="${i}" placeholder="Or paste an image link" value="${esc(h.image||"")}">
+    ${h.image?`<label class="f">Image description (alt text)</label><input type="text" data-hs="imageAlt" data-hi="${i}" value="${esc(h.imageAlt||"")}">`:""}
+    <label class="f">${h.video?"Change video":"Add video"}</label><input type="text" data-hs="video" data-hi="${i}" placeholder="YouTube, Vimeo or video file link" value="${esc(h.video||"")}"><div class="help">Shoppers see a thumbnail; the video loads only when they press play.</div>
+    <label class="f">Select product</label><select data-hp="product" data-hi="${i}"><option value="">None</option>${PRODUCTS.map((p,pi)=>`<option value="${pi}" ${String(h.product)===String(pi)?"selected":""}>${p[0]}</option>`).join("")}</select>
+    ${h.product!==undefined&&h.product!==""?`<div class="help">Price and stock are read live from your store when a shopper opens the hotspot.</div><label class="c"><input type="checkbox" data-hb="addToCart" data-hi="${i}" ${h.addToCart?"checked":""}> Show “Add to cart” button</label><label class="c"><input type="checkbox" data-hb="buyNow" data-hi="${i}" ${h.buyNow?"checked":""}> Show “Buy now” button (straight to checkout)</label>`:""}
+    <label class="f">Card order</label><div class="help">The title always stays on top.</div>
+    ${(h.order||["image","video","description","product"]).map((b,bi,a)=>`<div class="row"><span style="flex:1">⠿ ${b[0].toUpperCase()+b.slice(1)}</span><button class="btn t ic" data-bm="${i}|${bi}|-1" ${bi?"":"disabled"} title="Move ${b} up">↑</button><button class="btn t ic" data-bm="${i}|${bi}|1" ${bi<a.length-1?"":"disabled"} title="Move ${b} down">↓</button></div>`).join("")}
+    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn" data-hmove="${i}">Move to a new spot</button><button class="btn" data-hprev="${i}">Preview hotspot ${i+1}</button>
+      <button class="btn ic t" data-hup="${i}" ${i?"":"disabled"} title="Move up">↑</button><button class="btn ic t" data-hdn="${i}" ${i<hs.length-1?"":"disabled"} title="Move down">↓</button><button class="btn t d" data-hdel="${i}" title="Delete hotspot ${i+1}">Delete</button></div>
+    ${h.pos?"":'<div class="help">Not placed yet — click “Move to a new spot”, then click the model.</div>'}
+  </div></details>`).join("")}
+  <div class="help">Hotspots don’t appear in AR — iPhone and Android AR viewers don’t support them.</div>`;
+  const G=(k,v)=>edit(()=>{draft.hs[k]=v});
+  $("#hsShow").onchange=e=>G("show",e.target.checked);$("#hsCol").oninput=e=>{e.target.nextElementSibling.textContent=e.target.value;edit(()=>{draft.hs.color=e.target.value},"hscol")};
+  $("#hsPin").onchange=e=>G("pin",e.target.value);$("#hsOpen").onchange=e=>G("open",e.target.value);
+  $("#hsLang").onchange=e=>{hsLang=e.target.value.replace(" (default)","");renderHotspots()};
+  $("#hsAdd").onclick=()=>edit(()=>{const h={id:uid("hs"),title:"",desc:"",order:["image","video","description","product"]};draft.hotspots.push(h);placing=h.id});
+  const H=x=>draft.hotspots[+x.dataset.hi];
+  el.querySelectorAll("[data-hf]").forEach(x=>x.oninput=()=>edit(()=>{setTr(H(x),x.dataset.hf,x.value)},"hf"+x.dataset.hi+x.dataset.hf));
+  el.querySelectorAll("[data-hs]").forEach(x=>x.oninput=()=>edit(()=>{H(x)[x.dataset.hs]=x.value},"hs"+x.dataset.hi+x.dataset.hs));
+  el.querySelectorAll("[data-hp]").forEach(x=>x.onchange=()=>edit(()=>{H(x).product=x.value}));
+  el.querySelectorAll("[data-hb]").forEach(x=>x.onchange=()=>edit(()=>{H(x)[x.dataset.hb]=x.checked}));
+  el.querySelectorAll("[data-bm]").forEach(x=>x.onclick=()=>{const[i,bi,d]=x.dataset.bm.split("|").map(Number);edit(()=>{const h=draft.hotspots[i];h.order=h.order||["image","video","description","product"];const[m]=h.order.splice(bi,1);h.order.splice(bi+d,0,m)})});
+  el.querySelectorAll("[data-hmove]").forEach(x=>x.onclick=()=>{placing=draft.hotspots[+x.dataset.hmove].id;renderPlacing()});
+  el.querySelectorAll("[data-hprev]").forEach(x=>x.onclick=()=>{const h=draft.hotspots[+x.dataset.hprev];if(h.orbit)mv.cameraOrbit=h.orbit;const pin=mv.querySelector(`[slot="hotspot-${h.id}"]`);mv.querySelectorAll(".e3d-hotspot.selected").forEach(n=>n.classList.remove("selected"));pin&&pin.classList.add("selected");openHs=h.id});
+  el.querySelectorAll("[data-hup]").forEach(x=>x.onclick=()=>edit(()=>{const i=+x.dataset.hup,a=draft.hotspots;[a[i-1],a[i]]=[a[i],a[i-1]]}));
+  el.querySelectorAll("[data-hdn]").forEach(x=>x.onclick=()=>edit(()=>{const i=+x.dataset.hdn,a=draft.hotspots;[a[i+1],a[i]]=[a[i],a[i+1]]}));
+  el.querySelectorAll("[data-hdel]").forEach(x=>x.onclick=()=>edit(()=>{draft.hotspots.splice(+x.dataset.hdel,1)}));
+  // drag to reorder
+  el.querySelectorAll("[data-hdrag]").forEach(x=>{x.ondragstart=e=>e.dataTransfer.setData("text/hs",x.dataset.hdrag);x.ondragover=e=>e.preventDefault();
+    x.ondrop=e=>{const f=e.dataTransfer.getData("text/hs");if(f==="")return;e.preventDefault();const from=+f,to=+x.dataset.hdrag;if(from===to)return;edit(()=>{const[m]=draft.hotspots.splice(from,1);draft.hotspots.splice(to,0,m)})}});
+}
+
+/* ---------- render all ---------- */
+function render(){
+  [renderTargets,renderExceptions,renderVariants,renderParts,renderMaterial,renderOptions,syncScene,renderJson,renderHeader,renderViewerStyle,renderPricing,renderDecals,renderHotspots,renderBars,applyAll,applyVis,applyViewer]
+    .forEach(f=>{try{f()}catch(e){console.error(f.name,e)}});
+  // per-section override notes
+  $$(".ovr-hook").forEach(n=>n.remove());
+  [["scene",["environment"]],["camera",["lock"]],["ar",["ar"]],["perf",["optimization"]]].forEach(([k,keys])=>{
+    const d=document.querySelector(`details[data-k=${k}] .in`);const div=document.createElement("div");div.className="ovr-hook";div.innerHTML=ovNote(keys);d.appendChild(div);
+    d.querySelectorAll("[data-use]").forEach(b=>b.onclick=()=>edit(l=>b.dataset.use.split(",").forEach(x=>l[x]=blank()[x])));
+  });
+}
+render();
+</script>
+</body>
+</html>

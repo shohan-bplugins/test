@@ -34,6 +34,25 @@
       "added_to_cart": "Zum Warenkorb hinzugefügt",
       "view_cart": "Warenkorb ansehen",
       "add_failed": "Konnte nicht zum Warenkorb hinzugefügt werden"
+    },
+    "configurator": {
+      "heading": "Anpassen",
+      "required": "Erforderlich",
+      "choose": "Auswählen…",
+      "base_price": "Preis",
+      "addons": "Extras",
+      "total": "Gesamt",
+      "reset": "Auswahl zurücksetzen",
+      "missing": "Bitte wählen: {names}",
+      "add_to_cart": "In den Warenkorb",
+      "adding": "Wird hinzugefügt…",
+      "added": "Zum Warenkorb hinzugefügt",
+      "add_failed": "Konnte nicht in den Warenkorb gelegt werden",
+      "sold_out": "Ausverkauft",
+      "quantity": "Menge",
+      "view_3d": "3D",
+      "unavailable": "Nicht verfügbar",
+      "preview_badge": "Entwurfsvorschau — noch nicht live"
     }
   }
 }

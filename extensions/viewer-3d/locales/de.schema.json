@@ -40,6 +40,10 @@
       "background_color": {
         "label": "Hintergrundfarbe"
       }
+    },
+    "configurator_block": {
+      "name": "Produktkonfigurator",
+      "paragraph": "Zeigt das 3D-Modell mit den im 3D-Editor eingerichteten Kundenoptionen, Live-Preis und Warenkorb-Button."
     }
   }
 }

@@ -6,6 +6,7 @@ import { authenticate } from "../shopify.server";
 
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
+import { CubeLoader } from "~/components/CubeLoader";
 import { useT } from "~/i18n";
 
 /** Hosted docs site, embedded below and linked as the escape hatch. */
@@ -168,7 +169,7 @@ function DocsEmbed() {
             }}
           >
             <s-stack direction="block" gap="base" alignItems="center">
-              <s-spinner accessibilityLabel={t("loadingLabel")} />
+              <CubeLoader size="large" label={t("loadingLabel")} />
               <s-text color="subdued">{t("loading")}</s-text>
             </s-stack>
           </div>

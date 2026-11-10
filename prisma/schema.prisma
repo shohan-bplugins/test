@@ -221,3 +221,97 @@ model ViewerStat {
   @@unique([shop, day, placement, event, target, device])
   @@index([shop, day])
 }
+
+// ---------------------------------------------------------------------------
+// 3D configurator (see CONFIGURATOR-PLAN.md). The config JSON format is the
+// prototype's `schema_version: 1`; the rules that layer it live in
+// app/lib/configurator/config.ts. JSON is stored as strings, like
+// Model3D.config, so a malformed write can't break deserialization of the row.
+// ---------------------------------------------------------------------------
+
+// The merchant's editable configurator for one product. The published, resolved
+// data is mirrored to the product's `$app:configurator` metafields on save (see
+// app/lib/configurator/product-config.server.ts); this row is the draft source.
+//
+//   productId       numeric Shopify product id, as a string
+//   modelFileId     Shopify Files gid of the product's GLB (null = use the
+//                   product's custom.model_3d)
+//   config          product default layer
+//   optionRules     { "Color=Teal": { config, modelFileId? } }
+//   variantConfigs  { "<numeric variant id>": { config, modelFileId? } }
+//   customizer      inherit | on | off
+model ProductConfig {
+  id             String    @id @default(uuid()) @map("_id")
+  shop           String
+  productId      String
+  enabled        Boolean   @default(true)
+  modelFileId    String?
+  config         String
+  optionRules    String    @default("{}")
+  variantConfigs String    @default("{}")
+  customizer     String    @default("inherit")
+  publishedAt    DateTime?
+  // Set by "Save draft", cleared by "Publish". A draft is stored and previewable
+  // (the `render_draft` metafield) but the live `render` metafield is untouched.
+  draftAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([shop, productId])
+}
+
+// A shopper's design: written when a configured product is added to cart
+// (kind "cart") or saved for sharing (kind "saved"). `code` is the public share
+// code — random, never sequential, because /apps/viewer-3d/d/<code> is
+// unauthenticated. `choices` is the raw shopper layer (options, decals, colors,
+// parts) as JSON.
+model Design {
+  id          String    @id @default(uuid()) @map("_id")
+  code        String    @unique
+  shop        String
+  kind        String // "cart" | "saved"
+  productId   String
+  variantId   String
+  customerId  String?
+  name        String?
+  choices     String
+  snapshotUrl String?
+  views       Int       @default(0)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([shop, kind, createdAt])
+  @@index([shop, customerId])
+}
+
+// A design frozen at order time by the orders/create webhook. Holds the fully
+// resolved config so later edits to the product never change how a past order
+// looks — the prototype re-resolved from the live product config instead.
+model OrderDesign {
+  id              String   @id @default(uuid()) @map("_id")
+  shop            String
+  orderId         String
+  lineId          String
+  designCode      String
+  effectiveConfig String
+  modelUrl        String?
+  snapshotUrl     String?
+  createdAt       DateTime @default(now())
+
+  @@unique([shop, orderId, lineId])
+  @@index([shop, designCode])
+}
+
+// Reusable material / environment / camera / animation settings.
+model Preset {
+  id        String   @id @default(uuid()) @map("_id")
+  shop      String
+  kind      String // "material" | "environment" | "camera" | "animation"
+  name      String
+  data      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop, kind])
+}

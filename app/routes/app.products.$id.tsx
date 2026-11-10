@@ -37,7 +37,32 @@ import {
 import { optimizeModelFile } from "~/lib/optimize-model.server";
 import { useOptimizePreference } from "~/components/useOptimizePreference";
 
+import { cubeLoaderUrl } from "~/components/CubeLoader";
 import { FilePickerDialog } from "~/components/FilePickerDialog";
+import { useEditorWindow } from "~/components/configurator/EditorWindow";
+import { EmbedPanel } from "~/components/configurator/EmbedPanel";
+import {
+  EMBED_KEY,
+  parseEmbedOptions,
+  type EmbedOptions,
+} from "~/lib/configurator/embed-snippet";
+import { CONFIGURATOR_NAMESPACE } from "~/lib/configurator/constants";
+import { VariantsPanel } from "~/components/configurator/VariantsPanel";
+import {
+  CollapsibleGroup,
+  CollapsibleGroupToggle,
+  CollapsibleSection,
+} from "~/components/polaris/CollapsibleSection";
+import type { EditorProduct } from "~/lib/configurator/editor-state";
+import {
+  getProductConfig,
+  saveProductConfig,
+  syncConfiguratorModel,
+  resolveModelUrls,
+} from "~/lib/configurator/product-config.server";
+import { configuratorModules } from "~/lib/configurator/modules.server";
+import { previewForVariant, type PreviewSource } from "~/lib/configurator/variant-preview";
+import { runVariantOp } from "~/lib/configurator/variants.server";
 import { ViewerPreview, type ViewerConfig } from "~/components/ViewerPreview";
 import view3dStylesUrl from "@egjs/view3d/css/view3d-bundle.min.css?url";
 import appStylesUrl from "~/app.css?url";
@@ -90,11 +115,22 @@ type LoaderData = {
     onlineStoreUrl: string | null;
   } | null;
   config: ViewerConfig;
+  /** Saved "Embed with iframe" options for this product. */
+  embedOptions: EmbedOptions;
+  /**
+   * The saved 3D editor setup, so the live preview can show a selected
+   * variant's model and styling. null when the product was never customised.
+   */
+  preview: (PreviewSource & { modelUrls: Record<string, string> }) | null;
   shopDomain: string | null;
   /** Free plan: the Hotspots panel shows a PRO lock. */
   hotspotsLocked: boolean;
   /** Published languages, for translating hotspot text. */
   shopLocales: ShopLocale[];
+  /** Options and variants, for the Variants section. */
+  variants: EditorProduct | null;
+  /** Variants with their own 3D setup in the editor. */
+  customizedVariants: string[];
 };
 
 export const loader = async ({
@@ -107,12 +143,17 @@ export const loader = async ({
   // Alongside the product read, never after it: cached, and independent.
   const allowedP = hotspotsAllowed(admin, session?.shop ?? "");
   const localesP = fetchShopLocales(admin);
+  const configP = getProductConfig(session.shop, String(params.id));
   const res = await admin.graphql(
     `#graphql
       query ProductDetail($id: ID!) {
         product(id: $id) {
           id title handle
           onlineStoreUrl
+          options { name values }
+          variants(first: 100) {
+            nodes { id title price compareAtPrice sku inventoryQuantity inventoryItem { tracked } selectedOptions { name value } media(first: 1) { nodes { preview { image { url(transform: { maxWidth: 96, maxHeight: 96 }) } } } } }
+          }
           featuredImage {
             url
             altText
@@ -132,6 +173,9 @@ export const loader = async ({
           configField: metafield(namespace: "${NS}", key: "${KEY_CONFIG}") {
             id value
           }
+          embedField: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${EMBED_KEY}") {
+            value
+          }
         }
         shop {
           primaryDomain { url }
@@ -143,9 +187,77 @@ export const loader = async ({
   const json = await res.json();
   const product = json?.data?.product ?? null;
   const shopDomain = json?.data?.shop?.primaryDomain?.url ?? null;
+  const numericId = (gid: string) => gid.split("/").pop() ?? gid;
+  const variants: EditorProduct | null = product
+    ? {
+        id: String(params.id),
+        title: product.title,
+        handle: product.handle,
+        options: (product.options ?? []).map((o: any) => ({ name: o.name, values: o.values ?? [] })),
+        variants: (product.variants?.nodes ?? []).map((v: any) => ({
+          id: numericId(v.id),
+          title: v.title,
+          options: Object.fromEntries(
+            (v.selectedOptions ?? []).map((o: any) => [o.name, o.value]),
+          ),
+          price: v.price ?? undefined,
+          compareAtPrice: v.compareAtPrice ?? null,
+          sku: v.sku ?? "",
+          tracked: v.inventoryItem?.tracked ?? true,
+          quantity: v.inventoryQuantity ?? null,
+          image: v.media?.nodes?.[0]?.preview?.image?.url ?? null,
+        })),
+      }
+    : null;
+  const savedConfig = await configP;
+  // Heal products whose model was swapped before the action kept the
+  // configurator in sync (see syncConfiguratorModel).
+  const currentModel: string | null = product?.modelField?.value ?? null;
+  if (product && savedConfig && savedConfig.modelFileId !== currentModel) {
+    await syncConfiguratorModel(admin, session.shop, String(params.id), currentModel).catch((err) =>
+      console.error("[products] configurator model sync failed", err),
+    );
+  }
+  const variantConfigs = savedConfig?.variantConfigs ?? {};
+
+  // Variant / option-rule models (the product's own is `modelUrl` on the page).
+  let preview: LoaderData["preview"] = null;
+  if (savedConfig) {
+    const layerModels = [
+      ...Object.values(savedConfig.optionRules),
+      ...Object.values(variantConfigs),
+    ]
+      .map((l) => l.modelFileId)
+      .filter((id): id is string => !!id && id !== currentModel);
+    const [urls, modules] = await Promise.all([
+      resolveModelUrls(admin, [...new Set(layerModels)]).catch(() => ({})),
+      configuratorModules(admin, session.shop),
+    ]);
+    preview = {
+      modelFileId: currentModel,
+      config: savedConfig.config,
+      optionRules: savedConfig.optionRules,
+      variantConfigs,
+      modules,
+      modelUrls: Object.fromEntries(
+        Object.entries(urls as Record<string, { glb: string }>).map(([id, u]) => [id, u.glb]),
+      ),
+    };
+  }
+
   return {
+    preview,
     product,
+    variants,
+    customizedVariants: Object.entries(variantConfigs)
+      .filter(
+        ([, l]) =>
+          !!l.modelFileId ||
+          Object.keys(l.config ?? {}).some((k) => k !== "schema_version"),
+      )
+      .map(([id]) => id),
     config: parseConfig(product?.configField?.value),
+    embedOptions: parseEmbedOptions(product?.embedField?.value),
     shopDomain,
     hotspotsLocked: !(await allowedP),
     shopLocales: await localesP,
@@ -200,6 +312,46 @@ async function stagedUpload(
 export const action = async ({ params, request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const productGid = `gid://shopify/Product/${params.id}`;
+
+  // Variant changes from the Variants section are posted as JSON.
+  if (request.headers.get("Content-Type")?.includes("application/json")) {
+    const body = await request.json().catch(() => null);
+    const te = getServerT(request, "editor");
+    const id = String(params.id);
+    if (!/^\d+$/.test(id)) return { ok: false as const, error: te("errVariant") };
+    if (body?.intent === "variant") return runVariantOp(admin, id, body, te);
+    if (body?.intent === "variant3d") {
+      // A variant's own 3D setup: reset it to the product default, or copy it
+      // to other variants. Saved as a draft, like "Save draft" in the editor,
+      // so nothing goes live until it is published there.
+      const data = await getProductConfig(session.shop, id);
+      const isId = (v: unknown): v is string => typeof v === "string" && /^\d+$/.test(v);
+      const variantConfigs = { ...(data?.variantConfigs ?? {}) };
+      if (body.op === "reset" && isId(body.variantId)) {
+        delete variantConfigs[body.variantId];
+      } else if (
+        body.op === "copy" &&
+        isId(body.from) &&
+        variantConfigs[body.from] &&
+        Array.isArray(body.to) &&
+        body.to.length &&
+        body.to.every(isId)
+      ) {
+        for (const to of body.to as string[]) {
+          variantConfigs[to] = structuredClone(variantConfigs[body.from]);
+        }
+      } else {
+        return { ok: false as const, error: te("errVariant3d") };
+      }
+      if (!data) return { ok: false as const, error: te("errVariant3d") };
+      const saved = await saveProductConfig(admin, session.shop, { ...data, variantConfigs }, "draft");
+      return saved.ok
+        ? { ok: true as const, message: te("variant3dSaved") }
+        : { ok: false as const, error: saved.error };
+    }
+    return { ok: false as const, error: te("errVariant") };
+  }
+
   const formData = await request.formData();
   const intent = formData.get("intent");
   const t = getServerT(request, "product");
@@ -207,28 +359,59 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   const unlimited = getServerT(request, "common")("unlimited");
 
   if (intent === "save_config") {
-    const rawConfig = String(formData.get("config") ?? "");
-    const config = parseConfig(rawConfig);
     /*
-     * Hotspots are paid-only. On Free, whatever hotspots the product already
-     * has are kept exactly as saved — never the posted ones — so a store that
-     * downgraded keeps its work, and nothing new can be added by hand.
+     * The save bar saves whatever changed: the viewer settings, the embed
+     * options, or both. Each is sent only when it changed — writing unchanged
+     * viewer settings would create custom.viewer_3d_config and mark the product
+     * as customised.
      */
-    if (!(await hotspotsAllowed(admin, session?.shop ?? ""))) {
-      const prev = await admin.graphql(
-        `#graphql
-          query SavedConfig($id: ID!) {
-            product(id: $id) {
-              metafield(namespace: "${NS}", key: "${KEY_CONFIG}") { value }
-            }
-          }`,
-        { variables: { id: productGid } },
-      );
-      const prevJson = await prev.json();
-      config.hotspots = parseConfig(
-        prevJson?.data?.product?.metafield?.value,
-      ).hotspots;
+    const metafields: Array<{
+      ownerId: string;
+      namespace: string;
+      key: string;
+      type: string;
+      value: string;
+    }> = [];
+    if (formData.has("config")) {
+      const config = parseConfig(String(formData.get("config") ?? ""));
+      /*
+       * Hotspots are paid-only. On Free, whatever hotspots the product already
+       * has are kept exactly as saved — never the posted ones — so a store that
+       * downgraded keeps its work, and nothing new can be added by hand.
+       */
+      if (!(await hotspotsAllowed(admin, session?.shop ?? ""))) {
+        const prev = await admin.graphql(
+          `#graphql
+            query SavedConfig($id: ID!) {
+              product(id: $id) {
+                metafield(namespace: "${NS}", key: "${KEY_CONFIG}") { value }
+              }
+            }`,
+          { variables: { id: productGid } },
+        );
+        const prevJson = await prev.json();
+        config.hotspots = parseConfig(
+          prevJson?.data?.product?.metafield?.value,
+        ).hotspots;
+      }
+      metafields.push({
+        ownerId: productGid,
+        namespace: NS,
+        key: KEY_CONFIG,
+        type: "json",
+        value: JSON.stringify(config),
+      });
     }
+    if (formData.has("embed")) {
+      metafields.push({
+        ownerId: productGid,
+        namespace: CONFIGURATOR_NAMESPACE,
+        key: EMBED_KEY,
+        type: "json",
+        value: JSON.stringify(parseEmbedOptions(String(formData.get("embed") ?? ""))),
+      });
+    }
+    if (!metafields.length) return { ok: true, message: t("settingsSaved") };
     const setRes = await admin.graphql(
       `#graphql
         mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -237,19 +420,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
             userErrors { field message }
           }
         }`,
-      {
-        variables: {
-          metafields: [
-            {
-              ownerId: productGid,
-              namespace: NS,
-              key: KEY_CONFIG,
-              type: "json",
-              value: JSON.stringify(config),
-            },
-          ],
-        },
-      },
+      { variables: { metafields } },
     );
     const setJson = await setRes.json();
     const errs = setJson?.data?.metafieldsSet?.userErrors ?? [];
@@ -367,6 +538,15 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       assignedCount: 1,
     });
 
+  /*
+   * Keep the Product configurator block on the product's current model. Never
+   * fails the save: the model change itself has already succeeded.
+   */
+  const syncConfigurator = (fileGid: string | null) =>
+    syncConfiguratorModel(admin, session?.shop ?? "", String(params.id), fileGid).catch((err) =>
+      console.error("[products] configurator model sync failed", err),
+    );
+
   if (intent === "assign_existing") {
     const fileGid = String(formData.get("fileGid") ?? "");
     if (!fileGid.startsWith("gid://shopify/")) {
@@ -405,6 +585,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       };
     }
     invalidateAssignedModels(session?.shop ?? "");
+    await syncConfigurator(fileGid);
     return {
       ok: true,
       message: t("assignedFromFiles"),
@@ -432,6 +613,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
     invalidateAssignedModels(session?.shop ?? "");
+    await syncConfigurator(null);
     return { ok: true, message: t("modelRemoved") };
   }
 
@@ -511,6 +693,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     return { ok: false, error: metaErrs.map((e: any) => e.message).join("; ") };
 
   invalidateAssignedModels(session?.shop ?? "");
+  await syncConfigurator(fileGid);
   const saving = describeSaving(optimized.originalSize, optimized.file.size, tf);
   return {
     ok: true,
@@ -548,7 +731,7 @@ function hashToken(value: string): string {
 function writeInterstitial(w: Window, message: string) {
   try {
     w.document.write(
-      `<!DOCTYPE html><html><head><title>${message}</title><style>html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f7f7;color:#555}body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}.spinner{width:32px;height:32px;border:3px solid #ddd;border-top-color:#000;border-radius:50%;animation:spin 0.8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div><p>${message}</p></body></html>`,
+      `<!DOCTYPE html><html><head><title>${message}</title><style>html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f7f7;color:#555}body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}.spinner{width:72px;height:72px}</style></head><body><img class="spinner" src="${new URL(cubeLoaderUrl, window.location.origin).href}" alt=""><p>${message}</p></body></html>`,
     );
     w.document.close();
   } catch {
@@ -556,13 +739,27 @@ function writeInterstitial(w: Window, message: string) {
   }
 }
 
+/** "…/files/shark-3739.glb?v=17…" → "shark-3739.glb", for showing the current file. */
+function modelFileName(url: string): string {
+  const last = url.split("?")[0].split("/").pop() ?? url;
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
+}
+
 export default function ProductDetail() {
   const {
     product,
     config: savedConfig,
+    embedOptions: savedEmbed,
     shopDomain,
     hotspotsLocked,
     shopLocales,
+    variants,
+    customizedVariants,
+    preview,
   } = useLoaderData<typeof loader>();
   // Hotspots: placement mode, and "preview this one" in the live preview.
   const [placingHotspot, setPlacingHotspot] = useState(false);
@@ -586,8 +783,13 @@ export default function ProductDetail() {
   const t = useT("product");
   const tc = useT("common");
   const tf = useT("files");
+  const te = useT("editor");
+  const editorWindow = useEditorWindow();
 
   const [config, setConfig] = useState<ViewerConfig>(savedConfig);
+  const [embed, setEmbed] = useState<EmbedOptions>(savedEmbed);
+  // The variant the live preview shows (null: the product default).
+  const [previewVariantId, setPreviewVariantId] = useState<string | null>(null);
   const [showProductImage, setShowProductImage] = useState(false);
   const lastSaveTimeRef = useRef(0);
   const pendingSaveViewWindowRef = useRef<Window | null>(null);
@@ -595,6 +797,17 @@ export default function ProductDetail() {
   const [optimize, setOptimize] = useOptimizePreference();
   // Which destructive action is awaiting confirmation, if any.
   const [pending, setPending] = useState<"remove" | "reset" | null>(null);
+  // Which aside cards are open; Model file starts open.
+  const [openCards, setOpenCards] = useState<Record<string, boolean>>({ model: true });
+  // The aside's settings search. While it has text, only Viewer settings is
+  // shown, open, and filtered down to the matching controls.
+  const [settingsQuery, setSettingsQuery] = useState("");
+  const searching = settingsQuery.trim() !== "";
+  const card = (key: string) => ({
+    open: !!openCards[key] || (searching && key === "settings"),
+    hidden: searching && key !== "settings",
+    onOpenChange: (o: boolean) => setOpenCards((c) => ({ ...c, [key]: o })),
+  });
 
   function handleFilePicked(file: FileItem) {
     const fd = new FormData();
@@ -622,10 +835,16 @@ export default function ProductDetail() {
     submit(fd, { method: "post", encType: "multipart/form-data" });
   }
 
-  const dirty = useMemo(
+  const configDirty = useMemo(
     () => JSON.stringify(config) !== JSON.stringify(savedConfig),
     [config, savedConfig],
   );
+  const embedDirty = useMemo(
+    () => JSON.stringify(embed) !== JSON.stringify(savedEmbed),
+    [embed, savedEmbed],
+  );
+  // Anything unsaved on the page opens the save bar.
+  const dirty = configDirty || embedDirty;
 
   /*
    * Keyed on the serialised config, not the object — see the same effect in
@@ -639,6 +858,11 @@ export default function ProductDetail() {
     setConfig(savedConfig);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedConfigKey]);
+  const savedEmbedKey = JSON.stringify(savedEmbed);
+  useEffect(() => {
+    setEmbed(savedEmbed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedEmbedKey]);
 
   useEffect(() => {
     if (actionData?.ok) {
@@ -740,10 +964,32 @@ export default function ProductDetail() {
     null;
   const configCustomized = Boolean(product.configField?.value);
 
+  /*
+   * The live preview follows the selected variant: its own model (or an option
+   * rule's) and its 3D editor styling, resolved as the storefront does. Without
+   * a saved 3D setup it is the plain model, as before.
+   */
+  const previewVariant =
+    previewVariantId && variants
+      ? (variants.variants.find((v) => v.id === previewVariantId) ?? null)
+      : null;
+  const variantView = preview
+    ? previewForVariant(
+        preview,
+        variants?.options.map((o) => o.name) ?? [],
+        previewVariant ? { id: previewVariant.id, options: previewVariant.options } : null,
+      )
+    : null;
+  const previewModelUrl =
+    variantView?.modelId && variantView.modelId !== preview?.modelFileId
+      ? (preview?.modelUrls[variantView.modelId] ?? modelUrl)
+      : modelUrl;
+
   function handleSaveConfig() {
     const fd = new FormData();
     fd.set("intent", "save_config");
-    fd.set("config", JSON.stringify(config));
+    if (configDirty) fd.set("config", JSON.stringify(config));
+    if (embedDirty) fd.set("embed", JSON.stringify(embed));
     submit(fd, { method: "post" });
   }
 
@@ -832,6 +1078,11 @@ export default function ProductDetail() {
     handleSaveConfig();
   }
 
+  // Only the cards on screen: Product variants is absent when the variants
+  // couldn't be loaded.
+  const cardKeys = ["model", "settings", ...(variants ? ["variants"] : []), "hotspots", "embed"];
+  const allCardsOpen = cardKeys.every((k) => openCards[k]);
+
   return (
     <s-page heading={product.title}>
       <BackButton to="/app/products" label={t("backProducts")} />
@@ -847,7 +1098,12 @@ export default function ProductDetail() {
           onClick={handleSaveConfig}
           loading={submitting ? "" : undefined}
         />
-        <button onClick={() => setConfig(savedConfig)} />
+        <button
+          onClick={() => {
+            setConfig(savedConfig);
+            setEmbed(savedEmbed);
+          }}
+        />
       </SaveBar>
 
       {previewUrl ? (
@@ -871,6 +1127,16 @@ export default function ProductDetail() {
           {t("saveAndView")}
         </s-button>
       ) : null}
+      {has ? (
+        <s-button
+          slot="secondary-actions"
+          icon="edit"
+          onClick={() => editorWindow.open(String(product.id).split("/").pop() ?? "")}
+        >
+          {te("openEditor")}
+        </s-button>
+      ) : null}
+      {editorWindow.element}
       {configCustomized ? (
         <s-button
           slot="secondary-actions"
@@ -928,72 +1194,121 @@ export default function ProductDetail() {
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading={t("modelFileHeading")}>
-        <s-paragraph color="subdued">
-          {t.rich(
-            "modelFileHelp",
-            { code: (c) => <code>{c}</code> },
-            { max: MAX_MODEL_FILE_SIZE_MB, raw: MAX_RAW_UPLOAD_MB },
-          )}
-        </s-paragraph>
-
+      {/*
+        Grouped so the space between the four cards is the app's (16px), not
+        the gap s-page puts between aside cards, which the app can't change.
+      */}
+      <CollapsibleGroup slot="aside" label={t("setupHeading")}>
+        {/*
+          Right above the cards it opens and closes; the negative margin keeps
+          it closer to them than the 16px the cards have between them.
+        */}
+        <div style={{ marginBottom: -8 }}>
+          <CollapsibleGroupToggle
+            allOpen={searching || allCardsOpen}
+            allClosed={searching || cardKeys.every((k) => !openCards[k])}
+            expandLabel={t("expandAll")}
+            collapseLabel={t("collapseAll")}
+            onExpand={() =>
+              setOpenCards(Object.fromEntries(cardKeys.map((k) => [k, true])))
+            }
+            onCollapse={() => setOpenCards({})}
+            search={{
+              label: t("searchSettings"),
+              placeholder: t("searchSettingsPlaceholder"),
+              value: settingsQuery,
+              onChange: setSettingsQuery,
+            }}
+          />
+        </div>
+      <CollapsibleSection
+        heading={t("modelFileHeading")}
+        {...card("model")}
+      >
         <s-stack direction="block" gap="base">
           {has && modelUrl ? (
+            <>
+            <s-tooltip id="remove-model-tip">{t("removeModel")}</s-tooltip>
             <s-box background="subdued" padding="small" borderRadius="base">
-              <s-text color="subdued">
-                <code>
-                  <div style={{ wordBreak: "break-all" }}>{modelUrl}</div>
-                </code>
-              </s-text>
+              {/* One line: a long name is cut with "…", and the full name shows on hover. */}
+              <s-grid gridTemplateColumns="auto 1fr auto" gap="small" alignItems="center">
+                <s-icon type="file" color="subdued" />
+                <span
+                  title={modelFileName(modelUrl)}
+                  style={{
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <s-text type="strong">{modelFileName(modelUrl)}</s-text>
+                </span>
+                <s-button
+                  variant="tertiary"
+                  tone="critical"
+                  icon="delete"
+                  disabled={flag(submitting)}
+                  interestFor="remove-model-tip"
+                  accessibilityLabel={t("removeModel")}
+                  onClick={() => setPending("remove")}
+                />
+              </s-grid>
             </s-box>
+            </>
           ) : null}
+
+          <s-button
+            icon="folder"
+            disabled={flag(submitting)}
+            onClick={() => setFilePickerOpen(true)}
+            accessibilityLabel={t("chooseFromFilesA11y")}
+          >
+            {t("chooseFromFiles")}
+          </s-button>
 
           {/*
             The drop zone doubles as the upload button — clicking it opens the
             file dialog — so there is no separate hidden <input> and <Form> to
-            keep in sync, and the file posts straight through useSubmit.
+            keep in sync, and the file posts straight through useSubmit. Its
+            size is the one that applies to what the merchant is about to pick.
           */}
           <s-drop-zone
             accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-            label={
-              has
-                ? t("dropReplacement")
-                : t("dropNew")
-            }
+            label={t(has ? "dropReplacement" : "dropNew", {
+              max: optimize ? MAX_RAW_UPLOAD_MB : MAX_MODEL_FILE_SIZE_MB,
+            })}
             disabled={flag(submitting)}
             onInput={handleFileChosen}
           />
-          <s-checkbox
-            label={t("optimizeLabel")}
-            details={t("optimizeDetails")}
-            checked={flag(optimize)}
-            onInput={(e) => setOptimize(fieldChecked(e))}
-          />
 
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <s-button
-              icon="folder"
-              disabled={flag(submitting)}
-              onClick={() => setFilePickerOpen(true)}
-              accessibilityLabel={t("chooseFromFilesA11y")}
+          <s-tooltip id="optimize-model-tip">{t("optimizeDetails")}</s-tooltip>
+          {/* A grid, not an inline stack: s-checkbox is block-level and pushed the ⓘ onto its own line. */}
+          <s-grid
+            gridTemplateColumns="auto auto"
+            justifyContent="start"
+            alignItems="center"
+            gap="small-200"
+          >
+            <s-checkbox
+              label={t("optimizeLabel")}
+              checked={flag(optimize)}
+              onInput={(e) => setOptimize(fieldChecked(e))}
+            />
+            <s-clickable
+              interestFor="optimize-model-tip"
+              accessibilityLabel={t("optimizeDetails")}
             >
-              {t("chooseFromFiles")}
-            </s-button>
-            {has ? (
-              <s-button
-                tone="critical"
-                icon="delete"
-                disabled={flag(submitting)}
-                onClick={() => setPending("remove")}
-              >
-                {tc("remove")}
-              </s-button>
-            ) : null}
-          </s-stack>
+              <s-icon type="info" color="subdued" size="small" />
+            </s-clickable>
+          </s-grid>
         </s-stack>
-      </s-section>
+      </CollapsibleSection>
 
-      <s-section slot="aside" heading={t("viewerSettingsHeading")}>
+      <CollapsibleSection
+        heading={t("viewerSettingsHeading")}
+        {...card("settings")}
+      >
         <s-paragraph color="subdued">
           {t.rich("viewerSettingsHelp", { code: (c) => <code>{c}</code> })}
         </s-paragraph>
@@ -1003,10 +1318,42 @@ export default function ProductDetail() {
           that had to be edited twice for every change, and had already drifted
           (its colour fallback and default-open states differed).
         */}
-        <ViewerSettings config={config} onChange={setConfig} />
-      </s-section>
+        <ViewerSettings
+          config={config}
+          onChange={setConfig}
+          query={settingsQuery}
+        />
+      </CollapsibleSection>
 
-      <s-section slot="aside" heading={t("hotspotsHeading")}>
+      {variants ? (
+        <CollapsibleSection
+          heading={te("variantsHeading")}
+          {...card("variants")}
+          summary={te("variantsSummary", {
+            count: variants.variants.length,
+            // Only live variants: a deleted one can leave its 3D setup behind.
+            custom: variants.variants.filter((v) =>
+              customizedVariants.includes(v.id),
+            ).length,
+          })}
+        >
+          <VariantsPanel
+            product={variants}
+            customized={customizedVariants}
+            selectedId={previewVariantId}
+            onSelect={(id) => setPreviewVariantId((cur) => (cur === id ? null : id))}
+            fallbackImage={product.featuredImage?.thumbnailUrl}
+            onCustomize={
+              has ? (variantId) => editorWindow.open(variants.id, variantId) : undefined
+            }
+          />
+        </CollapsibleSection>
+      ) : null}
+
+      <CollapsibleSection
+        heading={t("hotspotsHeading")}
+        {...card("hotspots")}
+      >
         <HotspotsEditor
           config={config}
           onChange={setConfig}
@@ -1020,7 +1367,14 @@ export default function ProductDetail() {
           editLocale={hotspotLocale}
           onEditLocaleChange={setHotspotLocale}
         />
-      </s-section>
+      </CollapsibleSection>
+
+      {product.handle ? (
+        <CollapsibleSection heading={t("embedHeading")} {...card("embed")}>
+          <EmbedPanel handle={product.handle} value={embed} onChange={setEmbed} />
+        </CollapsibleSection>
+      ) : null}
+      </CollapsibleGroup>
 
       {/*
         The preview owns the wide main column and the controls sit in the aside.
@@ -1049,8 +1403,19 @@ export default function ProductDetail() {
           <s-paragraph color="subdued">
             {t("livePreviewHelp")}
           </s-paragraph>
+          {previewVariant ? (
+            <s-stack direction="inline" gap="small-200" alignItems="center">
+              <s-badge tone="info" icon="view">
+                {te("previewingVariant", { name: previewVariant.title })}
+              </s-badge>
+              <s-button variant="tertiary" onClick={() => setPreviewVariantId(null)}>
+                {te("previewShowDefault")}
+              </s-button>
+            </s-stack>
+          ) : null}
           <ViewerPreview
-            modelUrl={modelUrl}
+            modelUrl={previewModelUrl}
+            styleConfig={variantView?.config ?? null}
             config={config}
             arShareUrl={storefrontBase}
             onLayoutChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}

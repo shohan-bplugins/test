@@ -20,7 +20,16 @@
   # glb/gltf, so that file was always there and never used.
   assign ios_src = ''
 
-  if model_url == blank
+  # "Disable 3D" on the admin's 3D products page keeps the model assigned but
+  # turns the viewer off: it publishes `enabled: false` here. A model URL typed
+  # into the block itself is the merchant's explicit choice and still renders.
+  assign configurator = product.metafields['$app:configurator'].render.value
+  assign viewer_off = false
+  if configurator and configurator.enabled == false
+    assign viewer_off = true
+  endif
+
+  if model_url == blank and viewer_off == false
     assign model_field = product.metafields.custom.model_3d
     if model_field.value
       assign model_url = model_field.value.url

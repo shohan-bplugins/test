@@ -42,6 +42,13 @@ const REPEAT_MODE_LABELS: Record<(typeof REPEAT_MODES)[number], string> = {
   none: "repeatNone",
 };
 
+/** The settings search, lower-cased and trimmed; empty when not searching. */
+const QueryContext = React.createContext("");
+
+function matches(text: unknown, query: string): boolean {
+  return typeof text === "string" && text.toLowerCase().includes(query);
+}
+
 /**
  * A collapsible group of settings.
  *
@@ -63,18 +70,50 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
+  const query = React.useContext(QueryContext);
+  // While searching, a group whose title matches shows everything; otherwise
+  // only the fields whose label or help text match, and the group is hidden
+  // when none do. Matching groups are shown open.
+  let shown: React.ReactNode = children;
+  if (query && !matches(title, query)) {
+    const hits = React.Children.toArray(children).filter((child) => {
+      if (!React.isValidElement(child)) return false;
+      const props = child.props as { label?: unknown; details?: unknown };
+      return matches(props.label, query) || matches(props.details, query);
+    });
+    if (hits.length === 0) return null;
+    shown = hits;
+  }
+  const isOpen = query ? true : open;
   return (
+    /*
+      An open group is outlined in pale cyan (#ade8f4). s-box only has
+      neutral border colours, so the outline is on a
+      wrapper, pulled in by 1px to sit over the grey border instead of beside it.
+    */
+    <div
+      data-settings-group
+      style={{
+        borderRadius: 8,
+        outline: isOpen ? "2px solid #ade8f4" : "2px solid transparent",
+        outlineOffset: -1,
+        transition: "outline-color 120ms ease",
+      }}
+    >
     <s-box
       borderWidth="base"
       borderStyle="solid"
       borderColor="base"
       borderRadius="base"
+      // White, so the groups stand out when the section around them is tinted
+      // (CollapsibleSection's open state).
+      background="base"
     >
       <s-clickable
         padding="small-100"
         inlineSize="100%"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        aria-expanded={isOpen}
+        onClick={() => setOpen(!isOpen)}
       >
         {/*
           `1fr auto`, not a flex row with space-between: space-between only
@@ -98,14 +137,14 @@ function CollapsibleSection({
             <s-text type="strong">{title}</s-text>
           </s-stack>
           <s-icon
-            type={open ? "chevron-up" : "chevron-down"}
+            type={isOpen ? "chevron-up" : "chevron-down"}
             color="subdued"
             size="small"
           />
         </s-grid>
       </s-clickable>
 
-      {open ? (
+      {isOpen ? (
         <s-box
           padding="small"
           borderWidth="base none none none"
@@ -113,22 +152,35 @@ function CollapsibleSection({
           borderColor="base"
         >
           <s-stack direction="block" gap="base">
-            {children}
+            {shown}
           </s-stack>
         </s-box>
       ) : null}
     </s-box>
+    </div>
   );
 }
 
 type Props = {
   config: ViewerConfig;
   onChange: (config: ViewerConfig) => void;
+  /** Shows only the settings whose label, help text or group title match. */
+  query?: string;
 };
 
-export function ViewerSettings({ config, onChange }: Props) {
+export function ViewerSettings({ config, onChange, query = "" }: Props) {
   const t = useT("viewerSettings");
   const tl = useT("layout");
+  const q = query.trim().toLowerCase();
+  // Whether the search hid every group, read off what actually rendered: the
+  // groups do the matching themselves, against their translated labels.
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const [noMatches, setNoMatches] = React.useState(false);
+  React.useEffect(() => {
+    setNoMatches(
+      !!q && !listRef.current?.querySelector("[data-settings-group]"),
+    );
+  });
   function update<K extends keyof ViewerConfig>(
     key: K,
     value: ViewerConfig[K],
@@ -146,6 +198,11 @@ export function ViewerSettings({ config, onChange }: Props) {
   }
 
   return (
+    <QueryContext.Provider value={q}>
+    <div ref={listRef}>
+    {noMatches ? (
+      <s-text color="subdued">{t("noSettingsMatch", { query: query.trim() })}</s-text>
+    ) : null}
     <s-stack direction="block" gap="base">
       <CollapsibleSection title={t("sectionDisplay")} icon="color">
         {/*
@@ -491,5 +548,7 @@ export function ViewerSettings({ config, onChange }: Props) {
         />
       </CollapsibleSection>
     </s-stack>
+    </div>
+    </QueryContext.Provider>
   );
 }

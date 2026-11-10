@@ -40,6 +40,10 @@
       "background_color": {
         "label": "背景色"
       }
+    },
+    "configurator_block": {
+      "name": "商品コンフィギュレーター",
+      "paragraph": "3Dエディターで設定したお客様向けオプション、リアルタイム価格、カート追加を含む3Dモデルを表示します。"
     }
   }
 }

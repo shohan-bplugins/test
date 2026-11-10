@@ -103,25 +103,23 @@
  * Hand-rolled rather than Polaris's s-spinner because the splash is up exactly
  * while polaris.js has not defined its elements yet — see components/BootSplash.
  */
-.boot-splash-spinner {
-  inline-size: 28px;
-  block-size: 28px;
-  border-radius: 50%;
-  border: 3px solid color-mix(in oklch, currentColor 12%, transparent);
-  border-block-start-color: color-mix(in oklch, currentColor 55%, transparent);
-  animation: boot-splash-spin 0.7s linear infinite;
+.cube-loader {
+  display: block;
+  inline-size: 40px;
+  block-size: 40px;
+  flex: none;
+  object-fit: contain;
+  user-select: none;
 }
 
-@keyframes boot-splash-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.cube-loader[data-size="small"] {
+  inline-size: 24px;
+  block-size: 24px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .boot-splash-spinner {
-    animation-duration: 2.4s;
-  }
+.cube-loader[data-size="large"] {
+  inline-size: 96px;
+  block-size: 96px;
 }
 
 .boot-splash[data-fading] {

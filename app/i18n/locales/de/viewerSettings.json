@@ -87,5 +87,6 @@
   "variantPlaceholder": "für Standard leer lassen",
   "variantDetails": "Name einer KHR_materials_variants-Variante im Modell.",
   "fixSkinnedLabel": "Bounding Box für Skinned-Modelle korrigieren",
-  "fixSkinnedDetails": "Bounding Box anhand der Skelettgewichtung neu berechnen (geriggte Modelle)."
+  "fixSkinnedDetails": "Bounding Box anhand der Skelettgewichtung neu berechnen (geriggte Modelle).",
+  "noSettingsMatch": "Keine Einstellungen passen zu „{query}“."
 }

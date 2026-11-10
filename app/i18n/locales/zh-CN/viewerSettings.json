@@ -87,5 +87,6 @@
   "variantPlaceholder": "留空则使用默认值",
   "variantDetails": "模型中 KHR_materials_variants 变体的名称。",
   "fixSkinnedLabel": "修复蒙皮边界框",
-  "fixSkinnedDetails": "使用骨骼权重重新计算边界框（适用于绑定骨骼的模型）。"
+  "fixSkinnedDetails": "使用骨骼权重重新计算边界框（适用于绑定骨骼的模型）。",
+  "noSettingsMatch": "没有与“{query}”匹配的设置。"
 }

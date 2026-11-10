@@ -1,4 +1,5 @@
 import { fetchActiveSubscriptionCached } from "~/lib/billing.server";
+import { CUSTOMIZER_ALL_FREE } from "~/lib/configurator/modules.server";
 
 /**
  * Hotspots are a paid-plan feature. Read from Shopify's live subscription
@@ -9,6 +10,7 @@ export async function hotspotsAllowed(
   admin: Parameters<typeof fetchActiveSubscriptionCached>[0],
   shop: string,
 ): Promise<boolean> {
+  if (CUSTOMIZER_ALL_FREE) return true;
   const subscription = await fetchActiveSubscriptionCached(admin, shop).catch(
     () => null,
   );

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { CubeLoader } from "~/components/CubeLoader";
+
 /*
  * First-load cover for the embedded admin.
  *
@@ -77,17 +79,12 @@ export function BootSplash() {
       aria-label="Loading"
     >
       {/*
-        A CSS ring, styled in app.css to match the admin's own spinner: a
-        neutral ink arc, not the brand blue this used to draw. Nothing in here
-        can be a Polaris component — the splash exists precisely because
-        polaris.js has not defined those elements yet, so an s-spinner would be
-        an inert unknown element for exactly as long as the splash is up.
-
-        A bordered div works again now that the global border-radius reset in
-        app.css is scoped to the 3D viewer; before that it rendered as a
-        spinning square, which is why this used to be an SVG.
+        Nothing in here can be a Polaris component — the splash exists
+        precisely because polaris.js has not defined those elements yet, so an
+        s-spinner would be an inert unknown element for exactly as long as the
+        splash is up. The shared cube loader is a plain <img>.
       */}
-      <div className="boot-splash-spinner" aria-hidden="true" />
+      <CubeLoader size="large" />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
   useAnalyticsPageViews,
 } from "~/components/Analytics";
 import { BootSplash } from "~/components/BootSplash";
+import { cubeLoaderUrl } from "~/components/CubeLoader";
 import { getAnalyticsConfig } from "~/lib/analytics.server";
 import { localeDir } from "~/i18n/config";
 
@@ -27,6 +28,8 @@ import { localeDir } from "~/i18n/config";
 // every page. See critical.css for what is left here and why.
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: criticalStylesUrl },
+  // Warm the browser cache for the shared loader on every page.
+  { rel: "preload", as: "image", href: cubeLoaderUrl, type: "image/gif" },
 ];
 
 export const loader = () => ({ analytics: getAnalyticsConfig() });

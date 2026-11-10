@@ -10,6 +10,7 @@ import {
 
 import type { FileItem } from "~/routes/api.files";
 import { ModalAction } from "~/components/polaris/ModalAction";
+import { CubeLoader } from "~/components/CubeLoader";
 import { useT } from "~/i18n";
 
 type Props = {
@@ -117,7 +118,7 @@ export function FilePickerDialog({
 
         {loading && files.length === 0 ? (
           <s-stack direction="block" gap="small" alignItems="center">
-            <s-spinner accessibilityLabel={t("loadingFiles")} />
+            <CubeLoader label={t("loadingFiles")} />
             <s-text color="subdued">{t("loadingFilesEllipsis")}</s-text>
           </s-stack>
         ) : files.length === 0 ? (

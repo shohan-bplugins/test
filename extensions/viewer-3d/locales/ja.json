@@ -34,6 +34,25 @@
       "added_to_cart": "カートに追加しました",
       "view_cart": "カートを見る",
       "add_failed": "カートに追加できませんでした"
+    },
+    "configurator": {
+      "heading": "カスタマイズ",
+      "required": "必須",
+      "choose": "選択してください…",
+      "base_price": "価格",
+      "addons": "オプション",
+      "total": "合計",
+      "reset": "選択をリセット",
+      "missing": "選択してください: {names}",
+      "add_to_cart": "カートに追加",
+      "adding": "追加中…",
+      "added": "カートに追加しました",
+      "add_failed": "カートに追加できませんでした",
+      "sold_out": "売り切れ",
+      "quantity": "数量",
+      "view_3d": "3D",
+      "unavailable": "在庫なし",
+      "preview_badge": "下書きプレビュー — まだ公開されていません"
     }
   }
 }

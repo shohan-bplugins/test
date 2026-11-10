@@ -40,6 +40,10 @@
       "background_color": {
         "label": "배경색"
       }
+    },
+    "configurator_block": {
+      "name": "제품 구성기",
+      "paragraph": "3D 편집기에서 설정한 고객 옵션, 실시간 가격, 장바구니 담기와 함께 3D 모델을 표시합니다."
     }
   }
 }

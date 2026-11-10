@@ -34,6 +34,25 @@
       "added_to_cart": "Ajouté à votre panier",
       "view_cart": "Voir le panier",
       "add_failed": "Impossible d’ajouter au panier"
+    },
+    "configurator": {
+      "heading": "Personnaliser",
+      "required": "Obligatoire",
+      "choose": "Choisir…",
+      "base_price": "Prix",
+      "addons": "Options",
+      "total": "Total",
+      "reset": "Réinitialiser les choix",
+      "missing": "Veuillez choisir : {names}",
+      "add_to_cart": "Ajouter au panier",
+      "adding": "Ajout…",
+      "added": "Ajouté au panier",
+      "add_failed": "Impossible d’ajouter au panier",
+      "sold_out": "Épuisé",
+      "quantity": "Quantité",
+      "view_3d": "3D",
+      "unavailable": "Indisponible",
+      "preview_badge": "Aperçu du brouillon — pas encore en ligne"
     }
   }
 }

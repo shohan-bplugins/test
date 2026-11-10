@@ -10,6 +10,8 @@ import {
   type HotspotLabel,
   type HotspotTrigger,
 } from "~/lib/hotspots";
+import { Styler } from "~/lib/configurator/styler";
+import type { ProductRenderConfig } from "~/lib/configurator/types";
 import {
   Fragment,
   useEffect,
@@ -235,6 +237,12 @@ type Props = {
    * edited in the hotspot editor.
    */
   locale?: string | null;
+  /**
+   * A resolved Product configurator config (a variant's materials / mesh
+   * visibility) applied to the loaded model, as the storefront applies it.
+   * null shows the model as authored.
+   */
+  styleConfig?: ProductRenderConfig | null;
 };
 
 export type ViewerTrackEvent = "ar" | (typeof FEATURES)[number];
@@ -750,6 +758,7 @@ export function ViewerPreview({
   focusNonce = 0,
   strings = DEFAULT_STOREFRONT_STRINGS,
   locale = null,
+  styleConfig = null,
 }: Props) {
   // Merchant-facing text only; shopper-facing labels come from `strings`.
   const t = useT("preview");
@@ -758,7 +767,6 @@ export function ViewerPreview({
   // "Move controls" mode — see ControlLayoutEditor. Only offered where the
   // page can save the result (onLayoutChange), i.e. the admin's settings pages.
   const [arranging, setArranging] = useState(false);
-  const closeSlot = fullscreenCloseSlot(config.controlsLayout);
   const elRef = useRef<HTMLDivElement>(null);
   const view3dRef = useRef<any>(null);
   // Latest onTrack, readable from view3d's event handlers without re-binding.
@@ -775,6 +783,32 @@ export function ViewerPreview({
   const view3dModRef = useRef<any>(null);
   // Bumped on every 'ready', so hotspots are (re)attached to each new instance.
   const [readyCount, setReadyCount] = useState(0);
+
+  /*
+   * Configurator styling. A Styler remembers the scene's original materials,
+   * so it is rebuilt only for a new scene (every re-init bumps readyCount), and
+   * a null config restores the authored look.
+   */
+  const stylerRef = useRef<Styler | null>(null);
+  const styleKey = styleConfig ? JSON.stringify(styleConfig) : "";
+  useEffect(() => {
+    const view3d = view3dRef.current;
+    if (!view3d || !readyCount) return;
+    const scene = view3d.model?.scene ?? view3d.scene?.root;
+    if (!scene) return;
+    let styler = stylerRef.current;
+    if (!styler || styler.root !== scene) {
+      if (!styleConfig) return;
+      styler = stylerRef.current = new Styler(scene);
+    }
+    try {
+      styler.apply(styleConfig ?? ({ meshes: {}, materials: {} } as ProductRenderConfig));
+      view3d.renderer?.renderSingleFrame?.(true);
+    } catch (err) {
+      console.warn("[preview] could not apply configurator styling", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyCount, styleKey]);
   const controlBarRef = useRef<any>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   // Shadow-root host for hotspot elements; see createAnnotationLayer.
@@ -2060,11 +2094,42 @@ export function ViewerPreview({
               set by dragging in ControlLayoutEditor). A spot whose controls are
               all switched off renders nothing at all.
             */}
-          {CONTROL_SLOTS.map((slot) => {
-            const nodes = config.controlsLayout[slot].flatMap((id) => {
-              const node = renderControl(id, slot);
-              return node ? [<Fragment key={id}>{node}</Fragment>] : [];
-            });
+          {(() => {
+            const nodesBySlot = Object.fromEntries(
+              CONTROL_SLOTS.map((slot) => [
+                slot,
+                config.controlsLayout[slot].flatMap((id) => {
+                  const node = renderControl(id, slot);
+                  return node ? [<Fragment key={id}>{node}</Fragment>] : [];
+                }),
+              ]),
+            ) as Record<ControlSlot, ReactNode[]>;
+            /*
+              Dedicated close button, shown only while fullscreen is active.
+              It takes the first spot with nothing on screen (top-right if
+              free); if every spot has controls it joins that spot's bar as
+              its first button instead of being drawn over them. Mirrors the
+              storefront widget's, which is driven by CSS off :fullscreen.
+            */
+            if (isNativeFullscreen && config.showFullscreenButton) {
+              const closeSlot = fullscreenCloseSlot(
+                config.controlsLayout,
+                (s) => nodesBySlot[s].length > 0,
+              );
+              nodesBySlot[closeSlot] = [
+                <MiniToolbarButton
+                  key="__fullscreen-close"
+                  label={strings.exit_fullscreen}
+                  onClick={toggleFullscreen}
+                  tooltipSide={sideFor(closeSlot)}
+                >
+                  <X />
+                </MiniToolbarButton>,
+                ...nodesBySlot[closeSlot],
+              ];
+            }
+            return CONTROL_SLOTS.map((slot) => {
+            const nodes = nodesBySlot[slot];
             if (nodes.length === 0) return null;
             return (
               <div
@@ -2078,7 +2143,8 @@ export function ViewerPreview({
                 {nodes}
               </div>
             );
-          })}
+            });
+          })()}
           {arQrOpen && arQr && (
             <div
               role="dialog"
@@ -2118,29 +2184,6 @@ export function ViewerPreview({
                   <X />
                 </MiniToolbarButton>
               </div>
-            </div>
-          )}
-          {/*
-              Dedicated close button in the top-right corner, shown only while
-              fullscreen is active. Mirrors the storefront widget's, which is
-              driven by CSS off :fullscreen — here the render is already
-              conditional, so a class isn't needed.
-            */}
-          {isNativeFullscreen && config.showFullscreenButton && (
-            <div
-              className={cn(
-                "preview-toolbar absolute z-10 flex items-center gap-2",
-                "animate-in fade-in-0 zoom-in-95 duration-200",
-                barClasses(closeSlot),
-              )}
-            >
-              <MiniToolbarButton
-                label={strings.exit_fullscreen}
-                onClick={toggleFullscreen}
-                tooltipSide={sideFor(closeSlot)}
-              >
-                <X />
-              </MiniToolbarButton>
             </div>
           )}
         </TooltipProvider>

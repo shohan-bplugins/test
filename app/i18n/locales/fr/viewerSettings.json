@@ -87,5 +87,6 @@
   "variantPlaceholder": "laisser vide pour la valeur par défaut",
   "variantDetails": "Nom d’une variante KHR_materials_variants du modèle.",
   "fixSkinnedLabel": "Corriger la boîte englobante des modèles riggés",
-  "fixSkinnedDetails": "Recalcule la boîte englobante à l’aide des poids du squelette (modèles riggés)."
+  "fixSkinnedDetails": "Recalcule la boîte englobante à l’aide des poids du squelette (modèles riggés).",
+  "noSettingsMatch": "Aucun paramètre ne correspond à « {query} »."
 }

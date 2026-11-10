@@ -40,6 +40,10 @@
       "background_color": {
         "label": "Colore di sfondo"
       }
+    },
+    "configurator_block": {
+      "name": "Configuratore di prodotto",
+      "paragraph": "Mostra il modello 3D con le opzioni cliente impostate nell’editor 3D, prezzo in tempo reale e aggiunta al carrello."
     }
   }
 }

@@ -19,6 +19,7 @@
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
     "check-locales": "node scripts/check-locales.mjs",
+    "build:storefront": "node scripts/build-storefront.mjs",
     "check-admin-i18n": "node scripts/check-admin-i18n.mjs"
   },
   "type": "module",
@@ -44,6 +45,7 @@
     "@react-router/fs-routes": "^7.12.0",
     "@react-router/node": "^7.12.0",
     "@react-router/serve": "^7.12.0",
+    "@react-three/fiber": "^8.18.0",
     "@shopify/app-bridge-react": "^4.2.4",
     "@shopify/shopify-app-react-router": "^1.1.0",
     "@shopify/shopify-app-session-storage-prisma": "^9.0.0",
@@ -72,6 +74,7 @@
     "@types/node": "^25.5.2",
     "@types/react": "^18.3.25",
     "@types/react-dom": "^18.3.7",
+    "@types/three": "^0.134.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.1",

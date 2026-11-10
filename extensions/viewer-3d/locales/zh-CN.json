@@ -34,6 +34,25 @@
       "added_to_cart": "已加入您的购物车",
       "view_cart": "查看购物车",
       "add_failed": "无法加入购物车"
+    },
+    "configurator": {
+      "heading": "自定义",
+      "required": "必选",
+      "choose": "请选择…",
+      "base_price": "价格",
+      "addons": "附加项",
+      "total": "合计",
+      "reset": "重置选择",
+      "missing": "请选择：{names}",
+      "add_to_cart": "加入购物车",
+      "adding": "正在添加…",
+      "added": "已加入购物车",
+      "add_failed": "无法加入购物车",
+      "sold_out": "已售罄",
+      "quantity": "数量",
+      "view_3d": "3D",
+      "unavailable": "不可用",
+      "preview_badge": "草稿预览 — 尚未上线"
     }
   }
 }

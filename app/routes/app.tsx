@@ -139,6 +139,7 @@ const NAV_ITEMS: NavItem[] = [
   // so dismissing a card deleted the only route into the wizard.
   { href: "/app/onboarding", label: "getStarted" },
   { href: "/app/products", label: "products" },
+  { href: "/app/product-3d", label: "product3d", newUntil: "2027-01-31" },
   { href: "/app/models", label: "models" },
   { href: "/app/analytics", label: "analytics", newUntil: "2026-12-31" },
   { href: "/app/documentation", label: "documentation" },
@@ -216,13 +217,21 @@ function AppLayout({
     }
   }, [planChosen, pathname, navigate]);
 
-  const navItems = planChosen ? NAV_ITEMS : [];
+  // The 3D editor runs alone inside an <s-app-window>; an s-app-nav rendered
+  // from that iframe would compete with the main window's navigation.
+  const inAppWindow = /^\/app\/products\/[^/]+\/editor\/?$/.test(pathname);
+  const navItems = planChosen && !inAppWindow ? NAV_ITEMS : [];
 
   return (
     <AppProvider embedded apiKey={apiKey}>
       <AnalyticsIdentify shop={shop} />
       <WebVitals />
-      <CrispChat shop={shop} />
+      {/*
+        Not inside the editor's <s-app-window>: that iframe would start a
+        second widget on top of the editor. The page that opened the window
+        hides its own while it is open (EditorWindow.tsx).
+      */}
+      {inAppWindow ? null : <CrispChat shop={shop} />}
       <ReviewPromptTest enabled={reviewDebug} />
       <NavigationLoading />
       <s-app-nav>

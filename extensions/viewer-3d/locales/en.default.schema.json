@@ -40,6 +40,10 @@
       "background_color": {
         "label": "Background color"
       }
+    },
+    "configurator_block": {
+      "name": "Product configurator",
+      "paragraph": "Shows the product's 3D model with the customer options set up in the 3D editor, live pricing and add to cart."
     }
   }
 }

@@ -87,5 +87,6 @@
   "variantPlaceholder": "기본값을 사용하려면 비워 두세요",
   "variantDetails": "모델에 있는 KHR_materials_variants 변형의 이름입니다.",
   "fixSkinnedLabel": "스킨드 경계 상자 수정",
-  "fixSkinnedDetails": "스켈레톤 가중치를 사용하여 경계 상자를 다시 계산합니다(리깅된 모델)."
+  "fixSkinnedDetails": "스켈레톤 가중치를 사용하여 경계 상자를 다시 계산합니다(리깅된 모델).",
+  "noSettingsMatch": "“{query}”와(과) 일치하는 설정이 없습니다."
 }

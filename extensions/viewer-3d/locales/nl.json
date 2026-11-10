@@ -34,6 +34,25 @@
       "added_to_cart": "Toegevoegd aan je winkelwagen",
       "view_cart": "Winkelwagen bekijken",
       "add_failed": "Kon niet aan winkelwagen worden toegevoegd"
+    },
+    "configurator": {
+      "heading": "Aanpassen",
+      "required": "Verplicht",
+      "choose": "Kies…",
+      "base_price": "Prijs",
+      "addons": "Extra's",
+      "total": "Totaal",
+      "reset": "Keuzes herstellen",
+      "missing": "Kies alsjeblieft: {names}",
+      "add_to_cart": "In winkelwagen",
+      "adding": "Toevoegen…",
+      "added": "Toegevoegd aan winkelwagen",
+      "add_failed": "Kon niet aan winkelwagen toevoegen",
+      "sold_out": "Uitverkocht",
+      "quantity": "Aantal",
+      "view_3d": "3D",
+      "unavailable": "Niet beschikbaar",
+      "preview_badge": "Conceptvoorbeeld — nog niet live"
     }
   }
 }

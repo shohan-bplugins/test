@@ -34,6 +34,25 @@
       "added_to_cart": "장바구니에 담았습니다",
       "view_cart": "장바구니 보기",
       "add_failed": "장바구니에 담지 못했습니다"
+    },
+    "configurator": {
+      "heading": "맞춤 설정",
+      "required": "필수",
+      "choose": "선택…",
+      "base_price": "가격",
+      "addons": "추가 옵션",
+      "total": "합계",
+      "reset": "선택 초기화",
+      "missing": "선택해 주세요: {names}",
+      "add_to_cart": "장바구니에 담기",
+      "adding": "담는 중…",
+      "added": "장바구니에 담았습니다",
+      "add_failed": "장바구니에 담지 못했습니다",
+      "sold_out": "품절",
+      "quantity": "수량",
+      "view_3d": "3D",
+      "unavailable": "이용 불가",
+      "preview_badge": "초안 미리보기 — 아직 게시되지 않음"
     }
   }
 }

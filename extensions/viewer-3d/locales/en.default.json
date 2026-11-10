@@ -34,6 +34,25 @@
       "added_to_cart": "Added to your cart",
       "view_cart": "View cart",
       "add_failed": "Could not add to cart"
+    },
+    "configurator": {
+      "heading": "Customize",
+      "required": "Required",
+      "choose": "Choose…",
+      "base_price": "Price",
+      "addons": "Add-ons",
+      "total": "Total",
+      "reset": "Reset choices",
+      "missing": "Please choose: {names}",
+      "add_to_cart": "Add to cart",
+      "adding": "Adding…",
+      "added": "Added to cart",
+      "add_failed": "Could not add to cart",
+      "sold_out": "Sold out",
+      "quantity": "Quantity",
+      "view_3d": "3D",
+      "unavailable": "Unavailable",
+      "preview_badge": "Draft preview — not live yet"
     }
   }
 }

@@ -87,5 +87,6 @@
   "variantPlaceholder": "déjalo vacío para usar el predeterminado",
   "variantDetails": "Nombre de una variante KHR_materials_variants del modelo.",
   "fixSkinnedLabel": "Corregir el cuadro delimitador de modelos con skinning",
-  "fixSkinnedDetails": "Recalcula el cuadro delimitador con los pesos del esqueleto (modelos con rig)."
+  "fixSkinnedDetails": "Recalcula el cuadro delimitador con los pesos del esqueleto (modelos con rig).",
+  "noSettingsMatch": "Ningún ajuste coincide con «{query}»."
 }

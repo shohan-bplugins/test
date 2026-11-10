@@ -27,28 +27,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   switch (topic) {
     /*
-     * This app stores no shopper data at all. It holds a shop's 3D model files,
-     * the viewer settings for them, and the shop's plan — nothing keyed to a
-     * customer, and nothing a shopper ever submits. The storefront viewer is
-     * read-only: it renders a model and records nothing.
+     * The only shopper data this app holds is the configurator's Design rows:
+     * a shopper's option picks and personalization text, keyed to their
+     * customer id when they were logged in. Everything else — model files,
+     * viewer settings, the shop's plan — is the merchant's.
      *
-     * So the honest answer to both customer topics is "we hold none", and the
-     * required response is a 200 acknowledging that. Logged rather than silently
-     * dropped, so a merchant asking what we did with a request has an answer.
+     * A data request is answered by the merchant from their admin, so it is
+     * logged with what we hold; a redact deletes the customer's designs.
+     * OrderDesign rows hold no customer id — they belong to the merchant's
+     * order record, which Shopify redacts itself.
      */
-    case "CUSTOMERS_DATA_REQUEST":
-      console.log(
-        `[compliance] customers/data_request for ${shop} — no customer data stored`,
-        { customerId: (payload as any)?.customer?.id ?? null },
-      );
+    case "CUSTOMERS_DATA_REQUEST": {
+      const customerId = String((payload as any)?.customer?.id ?? "");
+      const designs = customerId
+        ? await db.design.count({ where: { shop, customerId } })
+        : 0;
+      console.log(`[compliance] customers/data_request for ${shop}`, {
+        customerId: customerId || null,
+        designs,
+      });
       break;
+    }
 
-    case "CUSTOMERS_REDACT":
-      console.log(
-        `[compliance] customers/redact for ${shop} — no customer data stored`,
-        { customerId: (payload as any)?.customer?.id ?? null },
-      );
+    case "CUSTOMERS_REDACT": {
+      const customerId = String((payload as any)?.customer?.id ?? "");
+      const deleted = customerId
+        ? await db.design.deleteMany({ where: { shop, customerId } })
+        : { count: 0 };
+      console.log(`[compliance] customers/redact for ${shop}`, {
+        customerId: customerId || null,
+        designs: deleted.count,
+      });
       break;
+    }
 
     /*
      * Sent 48 hours after an uninstall. Everything this app keeps is keyed by
@@ -67,6 +78,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         db.charge.deleteMany({ where: { shop } }),
         db.appUser.deleteMany({ where: { shop } }),
         db.webhookCall.deleteMany({ where: { shop } }),
+        db.productConfig.deleteMany({ where: { shop } }),
+        db.design.deleteMany({ where: { shop } }),
+        db.orderDesign.deleteMany({ where: { shop } }),
+        db.preset.deleteMany({ where: { shop } }),
       ]);
       console.log(
         `[compliance] shop/redact for ${shop} — erased`,

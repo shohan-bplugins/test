@@ -34,6 +34,25 @@
       "added_to_cart": "Aggiunto al carrello",
       "view_cart": "Vedi carrello",
       "add_failed": "Impossibile aggiungere al carrello"
+    },
+    "configurator": {
+      "heading": "Personalizza",
+      "required": "Obbligatorio",
+      "choose": "Scegli…",
+      "base_price": "Prezzo",
+      "addons": "Extra",
+      "total": "Totale",
+      "reset": "Reimposta scelte",
+      "missing": "Scegli: {names}",
+      "add_to_cart": "Aggiungi al carrello",
+      "adding": "Aggiunta…",
+      "added": "Aggiunto al carrello",
+      "add_failed": "Impossibile aggiungere al carrello",
+      "sold_out": "Esaurito",
+      "quantity": "Quantità",
+      "view_3d": "3D",
+      "unavailable": "Non disponibile",
+      "preview_badge": "Anteprima bozza — non ancora online"
     }
   }
 }

@@ -52,7 +52,7 @@ api_version = "unstable"
 subscription = []
 
 [access_scopes]
-scopes = "write_products,write_files,write_themes,read_locales"
+scopes = "write_products,write_files,write_themes,read_locales,write_inventory,read_locations"
 
 # Lets the storefront reach this app on the shop's own domain:
 #

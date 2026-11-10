@@ -87,5 +87,6 @@
   "variantPlaceholder": "leeg laten voor standaard",
   "variantDetails": "Naam van een KHR_materials_variants-variant in het model.",
   "fixSkinnedLabel": "Begrenzingsvak van skinned modellen corrigeren",
-  "fixSkinnedDetails": "Herberekent het begrenzingsvak met skeletgewichten (gerigde modellen)."
+  "fixSkinnedDetails": "Herberekent het begrenzingsvak met skeletgewichten (gerigde modellen).",
+  "noSettingsMatch": "Geen instellingen gevonden voor ‘{query}’."
 }

@@ -40,6 +40,10 @@
       "background_color": {
         "label": "Couleur d’arrière-plan"
       }
+    },
+    "configurator_block": {
+      "name": "Configurateur de produit",
+      "paragraph": "Affiche le modèle 3D avec les options client définies dans l’éditeur 3D, le prix en direct et l’ajout au panier."
     }
   }
 }

@@ -40,6 +40,10 @@
       "background_color": {
         "label": "Achtergrondkleur"
       }
+    },
+    "configurator_block": {
+      "name": "Productconfigurator",
+      "paragraph": "Toont het 3D-model met de klantopties uit de 3D-editor, live prijs en een knop voor de winkelwagen."
     }
   }
 }

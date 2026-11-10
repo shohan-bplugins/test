@@ -87,5 +87,6 @@
   "variantPlaceholder": "デフォルトの場合は空欄",
   "variantDetails": "モデル内のKHR_materials_variantsバリアントの名前。",
   "fixSkinnedLabel": "スキンメッシュのバウンディングボックスを修正",
-  "fixSkinnedDetails": "スケルトンのウェイトを使ってバウンディングボックスを再計算します (リグ付きモデル)。"
+  "fixSkinnedDetails": "スケルトンのウェイトを使ってバウンディングボックスを再計算します (リグ付きモデル)。",
+  "noSettingsMatch": "「{query}」に一致する設定はありません。"
 }
