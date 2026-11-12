@@ -288,5 +288,18 @@
   "previewVariant": "{name}을(를) 실시간 미리보기에 표시",
   "previewingVariant": "미리보기: {name}",
   "previewShowDefault": "제품 기본값 표시",
-  "previewButton": "미리보기"
+  "previewButton": "미리보기",
+  "priceHeading": "가격",
+  "quantityHeading": "수량",
+  "savePrice": "가격 저장",
+  "saveQuantity": "수량 저장",
+  "setQuantities": "옵션별 수량 설정",
+  "setQuantitiesHelp": "하나 또는 두 개 옵션의 값을 선택하면 해당 옵션만 재고를 설정하고, 모두 '모두'로 두면 전체에 설정합니다. 가격은 변경되지 않습니다.",
+  "applyQuantity": "수량 적용",
+  "variantStockSet": "수량이 업데이트되었습니다",
+  "editVariantHeading": "{name} 편집",
+  "editVariantHelp": "여기서의 변경은 이 옵션 조합에만 적용됩니다. 각 섹션은 개별적으로 저장됩니다.",
+  "optionsHeading": "옵션 값",
+  "optionsThisVariantOnly": "이 옵션 조합만 변경됩니다. 다른 조합은 값을 유지하며, 새 값은 옵션에 추가됩니다.",
+  "saveOptions": "옵션 값 저장"
 }

@@ -275,6 +275,19 @@
   left: 8px;
 }
 
+/* Corner columns hug their edge rather than centering, so a wider item (the
+   animation-name button) doesn't leave the square icons floating in the middle
+   of the column. Matches the admin preview's barClasses(). */
+.viewer-3d .viewer-3d-mini-toolbar.pos-top-left,
+.viewer-3d .viewer-3d-mini-toolbar.pos-bottom-left {
+  align-items: flex-start;
+}
+
+.viewer-3d .viewer-3d-mini-toolbar.pos-top-right,
+.viewer-3d .viewer-3d-mini-toolbar.pos-bottom-right {
+  align-items: flex-end;
+}
+
 /* A bar moved to a middle spot lays its buttons out in a row along the edge;
    a column hanging from the middle of the top or bottom edge would reach far
    into the model. The corners stay columns. */
@@ -344,6 +357,26 @@
 
 .viewer-3d--pseudo-fullscreen .view3d-gizmo {
   top: 52px !important;
+}
+
+/*
+ * When other controls share the top-right bar with the close button, that
+ * column can be any height, so pushing the gizmo down isn't enough. Put it
+ * beside the column instead (36px button + 8px offset + 8px gap = 52px).
+ */
+.viewer-3d--tr-stacked:fullscreen .view3d-gizmo {
+  top: 10px !important;
+  right: 52px !important;
+}
+
+.viewer-3d--tr-stacked:-webkit-full-screen .view3d-gizmo {
+  top: 10px !important;
+  right: 52px !important;
+}
+
+.viewer-3d--tr-stacked.viewer-3d--pseudo-fullscreen .view3d-gizmo {
+  top: 10px !important;
+  right: 52px !important;
 }
 
 /*

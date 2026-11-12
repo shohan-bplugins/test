@@ -288,5 +288,18 @@
   "previewVariant": "在实时预览中显示 {name}",
   "previewingVariant": "正在预览：{name}",
   "previewShowDefault": "显示产品默认效果",
-  "previewButton": "预览"
+  "previewButton": "预览",
+  "priceHeading": "价格",
+  "quantityHeading": "数量",
+  "savePrice": "保存价格",
+  "saveQuantity": "保存数量",
+  "setQuantities": "按选项设置数量",
+  "setQuantitiesHelp": "为一个或两个选项选择值，仅为这些变体设置库存；全部保留为“任意”则设置所有变体。价格不会更改。",
+  "applyQuantity": "应用数量",
+  "variantStockSet": "数量已更新",
+  "editVariantHeading": "编辑 {name}",
+  "editVariantHelp": "此处的更改仅适用于此变体。每个部分单独保存。",
+  "optionsHeading": "选项值",
+  "optionsThisVariantOnly": "仅此变体会更改。其他变体保留其值；新值会添加到该选项中。",
+  "saveOptions": "保存选项值"
 }

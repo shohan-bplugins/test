@@ -288,5 +288,18 @@
   "previewVariant": "{name} in het livevoorbeeld tonen",
   "previewingVariant": "Voorbeeld: {name}",
   "previewShowDefault": "Productstandaard tonen",
-  "previewButton": "Voorbeeld"
+  "previewButton": "Voorbeeld",
+  "priceHeading": "Prijs",
+  "quantityHeading": "Aantal",
+  "savePrice": "Prijs opslaan",
+  "saveQuantity": "Aantal opslaan",
+  "setQuantities": "Aantal per optie instellen",
+  "setQuantitiesHelp": "Kies een waarde voor een of twee opties om alleen voor die varianten de voorraad in te stellen, of laat alles op Elke staan om ze allemaal in te stellen. Prijzen worden niet gewijzigd.",
+  "applyQuantity": "Aantal toepassen",
+  "variantStockSet": "Aantal bijgewerkt",
+  "editVariantHeading": "{name} bewerken",
+  "editVariantHelp": "Wijzigingen hier gelden alleen voor deze variant. Elk onderdeel wordt apart opgeslagen.",
+  "optionsHeading": "Optiewaarden",
+  "optionsThisVariantOnly": "Alleen deze variant verandert. Andere varianten houden hun waarden; een nieuwe waarde wordt aan de optie toegevoegd.",
+  "saveOptions": "Optiewaarden opslaan"
 }

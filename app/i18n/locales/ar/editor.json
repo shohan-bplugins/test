@@ -288,5 +288,18 @@
   "previewVariant": "عرض {name} في المعاينة المباشرة",
   "previewingVariant": "معاينة: {name}",
   "previewShowDefault": "عرض الإعداد الافتراضي للمنتج",
-  "previewButton": "معاينة"
+  "previewButton": "معاينة",
+  "priceHeading": "السعر",
+  "quantityHeading": "الكمية",
+  "savePrice": "حفظ السعر",
+  "saveQuantity": "حفظ الكمية",
+  "setQuantities": "تعيين الكمية حسب الخيار",
+  "setQuantitiesHelp": "اختر قيمة لخيار أو خيارين لتعيين المخزون لتلك الصيغ فقط، أو اترك كل شيء على \"أي\" لتعيينه للجميع. لا تتغير الأسعار.",
+  "applyQuantity": "تطبيق الكمية",
+  "variantStockSet": "تم تحديث الكمية",
+  "editVariantHeading": "تعديل {name}",
+  "editVariantHelp": "تنطبق التغييرات هنا على هذه الصيغة فقط. يُحفظ كل قسم على حدة.",
+  "optionsHeading": "قيم الخيار",
+  "optionsThisVariantOnly": "تتغير هذه الصيغة فقط. تحتفظ الصيغ الأخرى بقيمها؛ وتُضاف القيمة الجديدة إلى الخيار.",
+  "saveOptions": "حفظ قيم الخيار"
 }

@@ -244,6 +244,18 @@
   top: 52px !important;
 }
 
+/* Other controls share the top-right bar with the close button, so the column
+   can be any height: put the gizmo beside it instead of below. */
+.view3d-wrapper:fullscreen:has(.preview-toolbar-tr-stacked) .view3d-gizmo {
+  top: 10px !important;
+  right: 52px !important;
+}
+
+.view3d-wrapper:-webkit-full-screen:has(.preview-toolbar-tr-stacked) .view3d-gizmo {
+  top: 10px !important;
+  right: 52px !important;
+}
+
 /*
  * Animation-selector motion, kept here rather than as Tailwind utilities so it
  * is literally the same declarations as the storefront widget's

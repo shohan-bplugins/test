@@ -288,5 +288,18 @@
   "previewVariant": "Mostrar {name} na pré-visualização ao vivo",
   "previewingVariant": "Pré-visualizando: {name}",
   "previewShowDefault": "Mostrar o padrão do produto",
-  "previewButton": "Pré-visualizar"
+  "previewButton": "Pré-visualizar",
+  "priceHeading": "Preço",
+  "quantityHeading": "Quantidade",
+  "savePrice": "Salvar preço",
+  "saveQuantity": "Salvar quantidade",
+  "setQuantities": "Definir quantidade por opção",
+  "setQuantitiesHelp": "Escolha um valor para uma ou duas opções para definir o estoque só dessas variantes, ou deixe tudo em Qualquer para definir todas. Os preços não são alterados.",
+  "applyQuantity": "Aplicar quantidade",
+  "variantStockSet": "Quantidade atualizada",
+  "editVariantHeading": "Editar {name}",
+  "editVariantHelp": "As alterações aqui valem só para esta variante. Cada seção é salva separadamente.",
+  "optionsHeading": "Valores de opção",
+  "optionsThisVariantOnly": "Só esta variante muda. As outras mantêm seus valores; um valor novo é adicionado à opção.",
+  "saveOptions": "Salvar valores de opção"
 }

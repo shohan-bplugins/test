@@ -863,13 +863,10 @@
     return out;
   }
 
-  // The fullscreen close button's spot: top-right unless a control was moved
-  // there, then the first spot no control is using.
-  function fullscreenCloseSlot(layout) {
-    var order = ['top-right', 'top-left', 'top-center', 'bottom-right', 'bottom-left', 'bottom-center'];
-    for (var i = 0; i < order.length; i++) {
-      if (!layout[order[i]].length) return order[i];
-    }
+  // The fullscreen close button's spot: always top-right, where people look for
+  // it. When controls were moved there too, the caller puts the button at the
+  // top of that bar, so they stack instead of overlapping.
+  function fullscreenCloseSlot() {
     return 'top-right';
   }
 
@@ -1808,7 +1805,7 @@
 
       // A dedicated close button in the top-right corner, shown only while
       // fullscreen is active. Its own bar rather than a member of an existing
-      // one, because it's the only control in that corner — and a child of `el`
+      // one when no other control is in that corner — and a child of `el`
       // so it's inside the fullscreen element and therefore actually painted
       // (in native fullscreen the browser renders nothing outside that subtree).
       // Visibility is driven entirely by CSS off :fullscreen / the fallback
@@ -1823,14 +1820,16 @@
         t('exit_fullscreen'), CLOSE_ICON, exitFullscreen, closeSlot.indexOf('top') === 0
       );
       if (bars[closeSlot]) {
-        // Every spot has controls, so a bar of its own would sit on top of
-        // them. Join that spot's bar as its first button instead; the button
+        // Controls were placed top-right too, so a bar of its own would sit on
+        // top of them. Join that bar as its first button instead; the button
         // carries the fs-only class itself so it still shows only in
         // fullscreen. The bar is attached now in case none of its own
-        // controls ever arrive.
+        // controls ever arrive. The marker class lets the CSS move the axis
+        // gizmo beside this taller column rather than under it.
         closeBtn.className += ' viewer-3d-fs-only';
         bars[closeSlot].insertBefore(closeBtn, bars[closeSlot].firstChild);
         if (!bars[closeSlot].parentNode) el.appendChild(bars[closeSlot]);
+        el.classList.add('viewer-3d--tr-stacked');
       } else {
         var closeBar = document.createElement('div');
         closeBar.className =

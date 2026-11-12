@@ -288,5 +288,18 @@
   "previewVariant": "{name} をライブプレビューに表示",
   "previewingVariant": "プレビュー中: {name}",
   "previewShowDefault": "商品のデフォルトを表示",
-  "previewButton": "プレビュー"
+  "previewButton": "プレビュー",
+  "priceHeading": "価格",
+  "quantityHeading": "数量",
+  "savePrice": "価格を保存",
+  "saveQuantity": "数量を保存",
+  "setQuantities": "オプション別に数量を設定",
+  "setQuantitiesHelp": "1つまたは2つのオプションの値を選ぶとそのバリエーションだけの在庫を設定します。すべて「指定なし」のままなら全バリエーションに設定します。価格は変更されません。",
+  "applyQuantity": "数量を適用",
+  "variantStockSet": "数量を更新しました",
+  "editVariantHeading": "{name} を編集",
+  "editVariantHelp": "ここでの変更はこのバリエーションのみに適用されます。各セクションは個別に保存されます。",
+  "optionsHeading": "オプションの値",
+  "optionsThisVariantOnly": "変更されるのはこのバリエーションのみです。他のバリエーションの値はそのままで、新しい値はオプションに追加されます。",
+  "saveOptions": "オプションの値を保存"
 }

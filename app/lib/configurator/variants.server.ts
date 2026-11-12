@@ -33,11 +33,13 @@ export type VariantOp =
       compareAtPrice?: string | null;
       sku?: string;
       stock?: Stock;
+      /** This variant's own option values, by option name. */
+      options?: Record<string, string>;
     }
   | { op: "delete"; variantId: string };
 
 export type VariantResult =
-  | { ok: true; done: "optionCreated" | "valuesAdded" | "valueRemoved" | "optionRemoved" | "pricesSet" | "created" | "updated" | "deleted" }
+  | { ok: true; done: "optionCreated" | "valuesAdded" | "valueRemoved" | "optionRemoved" | "pricesSet" | "stockSet" | "created" | "updated" | "deleted" }
   | { ok: false; error: string };
 
 const PRICE = /^\d{1,9}(\.\d{1,2})?$/;
@@ -161,6 +163,13 @@ export function parseVariantOp(raw: any): VariantOp | null {
       out.compareAtPrice = c || null;
     }
     if (raw.sku !== undefined) out.sku = clean(raw.sku, 255);
+    if (raw.options !== undefined) {
+      if (!raw.options || typeof raw.options !== "object") return null;
+      const entries = Object.entries(raw.options)
+        .map(([k, v]) => [clean(k), clean(v)] as const);
+      if (!entries.length || entries.some(([k, v]) => !k || !v)) return null;
+      out.options = Object.fromEntries(entries);
+    }
     const stock = parseStock(raw.stock);
     if (stock === null) return null;
     if (stock) out.stock = stock;
@@ -371,7 +380,9 @@ export async function applyVariantOp(
       if (error) return bad(error);
     }
     const stockError = await applyQuantity(admin, op.variantIds, op.stock);
-    return stockError ? bad(stockError) : { ok: true, done: "pricesSet" };
+    if (stockError) return bad(stockError);
+    const stockOnly = op.price === undefined && op.compareAtPrice === undefined;
+    return { ok: true, done: stockOnly ? "stockSet" : "pricesSet" };
   }
 
   if (op.op === "create") {
@@ -408,6 +419,14 @@ export async function applyVariantOp(
     if (op.sku !== undefined) inventoryItem.sku = op.sku;
     if (op.stock) inventoryItem.tracked = !op.stock.unlimited;
     if (Object.keys(inventoryItem).length) variant.inventoryItem = inventoryItem;
+    // Moves only this variant to the given values; a value the option does not
+    // have yet is added to it. Other variants keep theirs.
+    if (op.options) {
+      variant.optionValues = Object.entries(op.options).map(([optionName, name]) => ({
+        optionName,
+        name,
+      }));
+    }
     const error = await mutate(
       admin,
       `#graphql
@@ -421,17 +440,49 @@ export async function applyVariantOp(
     );
     if (error) return bad(error);
     const stockError = await applyQuantity(admin, [op.variantId], op.stock);
-    return stockError ? bad(stockError) : { ok: true, done: "updated" };
+    if (stockError) return bad(stockError);
+    const stockOnly =
+      !!op.stock &&
+      op.price === undefined &&
+      op.compareAtPrice === undefined &&
+      op.sku === undefined &&
+      op.options === undefined;
+    return { ok: true, done: stockOnly ? "stockSet" : "updated" };
   }
 
-  // delete — never the product's last variant
+  // delete. Shopify keeps at least one variant, so deleting the last one
+  // removes the product's options instead: the product goes back to a single
+  // default variant ("Default Title"), as Shopify admin does.
   const countRes = await admin.graphql(
     `#graphql
-      query VariantCount($id: ID!) { product(id: $id) { variantsCount { count } } }`,
+      query VariantCount($id: ID!) {
+        product(id: $id) { variantsCount { count } options { id name optionValues { name } } }
+      }`,
     { variables: { id: product } },
   );
-  const count = ((await countRes.json()) as any)?.data?.product?.variantsCount?.count;
-  if (typeof count === "number" && count <= 1) return bad(messages.lastVariant);
+  const info = ((await countRes.json()) as any)?.data?.product;
+  const count = info?.variantsCount?.count;
+  if (typeof count === "number" && count <= 1) {
+    const options: any[] = info?.options ?? [];
+    const defaultOnly =
+      options.length === 1 &&
+      options[0].name === "Title" &&
+      options[0].optionValues?.length === 1 &&
+      options[0].optionValues[0].name === "Default Title";
+    if (!options.length || defaultOnly) return bad(messages.lastVariant);
+    const error = await mutate(
+      admin,
+      `#graphql
+        mutation RemoveAllOptions($productId: ID!, $options: [ID!]!) {
+          productOptionsDelete(productId: $productId, options: $options, strategy: NON_DESTRUCTIVE) {
+            userErrors { field message }
+          }
+        }`,
+      { productId: product, options: options.map((o) => o.id) },
+      "productOptionsDelete",
+    );
+    return error ? bad(error) : { ok: true, done: "deleted" };
+  }
   const error = await mutate(
     admin,
     `#graphql
@@ -466,6 +517,7 @@ export async function runVariantOp(
     valueRemoved: t("variantValueRemoved"),
     optionRemoved: t("variantOptionRemoved"),
     pricesSet: t("variantPricesSet"),
+    stockSet: t("variantStockSet"),
     created: t("variantCreated"),
     updated: t("variantSaved"),
     deleted: t("variantDeleted"),

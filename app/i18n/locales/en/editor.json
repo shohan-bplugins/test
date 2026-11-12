@@ -309,5 +309,18 @@
   "previewVariant": "Show {name} in the live preview",
   "previewingVariant": "Previewing: {name}",
   "previewShowDefault": "Show product default",
-  "previewButton": "Preview"
+  "previewButton": "Preview",
+  "priceHeading": "Price",
+  "quantityHeading": "Quantity",
+  "savePrice": "Save price",
+  "saveQuantity": "Save quantity",
+  "setQuantities": "Set quantity by option",
+  "setQuantitiesHelp": "Choose a value for one or two options to set stock for only those variants, or leave everything on Any to set all of them. Prices are not changed.",
+  "applyQuantity": "Apply quantity",
+  "variantStockSet": "Quantity updated",
+  "editVariantHeading": "Edit {name}",
+  "editVariantHelp": "Changes here apply to this variant only. Each section saves on its own.",
+  "optionsHeading": "Option values",
+  "optionsThisVariantOnly": "Only this variant changes. Other variants keep their values; a new value is added to the option.",
+  "saveOptions": "Save option values"
 }

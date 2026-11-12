@@ -551,6 +551,10 @@ function barClasses(slot: ControlSlot) {
   return cn(
     CORNER_POSITION_CLASSES[slot],
     slot.endsWith("center") ? "flex-row" : "flex-col",
+    // Corner columns hug their edge, so a wider item (the animation-name
+    // button) doesn't leave the square icons floating centered beneath it.
+    slot.endsWith("left") && "items-start",
+    slot.endsWith("right") && "items-end",
   );
 }
 
@@ -2106,8 +2110,7 @@ export function ViewerPreview({
             ) as Record<ControlSlot, ReactNode[]>;
             /*
               Dedicated close button, shown only while fullscreen is active.
-              It takes the first spot with nothing on screen (top-right if
-              free); if every spot has controls it joins that spot's bar as
+              Always top-right; if controls are there too it joins that bar as
               its first button instead of being drawn over them. Mirrors the
               storefront widget's, which is driven by CSS off :fullscreen.
             */
@@ -2138,6 +2141,7 @@ export function ViewerPreview({
                   "preview-toolbar absolute z-10 flex items-center gap-2",
                   "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 duration-200",
                   barClasses(slot),
+                  slot === "top-right" && nodes.length > 1 && "preview-toolbar-tr-stacked",
                 )}
               >
                 {nodes}

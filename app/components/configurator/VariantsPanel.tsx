@@ -7,6 +7,8 @@ import { fieldChecked, fieldValue, flag } from "~/components/polaris/helpers";
 import { useT } from "~/i18n";
 import type { EditorProduct } from "~/lib/configurator/editor-state";
 
+import { VariantEditModal, type VariantSave } from "./VariantEditModal";
+
 /*
  * Creates, updates and deletes the product's real Shopify variants from the
  * product page. Each change is posted to that route's action as JSON (intent
@@ -22,6 +24,7 @@ type Form =
   | { kind: "option" }
   | { kind: "values"; name: string }
   | { kind: "prices" }
+  | { kind: "stock" }
   | { kind: "edit"; id: string }
   | { kind: "copy3d"; id: string }
   | null;
@@ -74,6 +77,8 @@ export function VariantsPanel({
     value?: string;
   } | null>(null);
   const busy = fetcher.state !== "idle";
+  /** Which of the edit modal's saves is running, for its spinner. */
+  const [saving, setSaving] = useState<VariantSave | null>(null);
   const defaultOnly = isDefaultOnly(product);
 
   const send = (body: Record<string, unknown>, intent = "variant") =>
@@ -85,9 +90,12 @@ export function VariantsPanel({
   useEffect(() => {
     const d = fetcher.data;
     if (!d || fetcher.state !== "idle") return;
+    setSaving(null);
     if (d.ok) {
       shopify.toast.show(d.message ?? t("variantSaved"));
-      setForm(null);
+      // Options, price and quantity save separately, so the edit modal stays
+      // open for the others.
+      setForm((f) => (f?.kind === "edit" ? f : null));
       setConfirm(null);
       setResetting(null);
       setRemoving(null);
@@ -125,16 +133,7 @@ export function VariantsPanel({
     setOptionRows(1);
     open({ kind: "option" });
   };
-  const openEdit = (v: Variant) => {
-    setFields({
-      price: v.price ?? "",
-      compareAt: v.compareAtPrice ?? "",
-      sku: v.sku ?? "",
-      unlimited: v.tracked === false ? "1" : "",
-      qty: v.quantity != null ? String(v.quantity) : "",
-    });
-    setForm({ kind: "edit", id: v.id });
-  };
+  const openEdit = (v: Variant) => setForm({ kind: "edit", id: v.id });
   const openCopy = (v: Variant) => {
     setCopyTo([]);
     setForm({ kind: "copy3d", id: v.id });
@@ -214,6 +213,9 @@ export function VariantsPanel({
         <s-button icon="money" onClick={() => open({ kind: "prices" })}>
           {t("setPrices")}
         </s-button>
+        <s-button icon="inventory" onClick={() => open({ kind: "stock" })}>
+          {t("setQuantities")}
+        </s-button>
         {product.options.length < 3 ? (
           <s-button icon="plus" onClick={openOption}>
             {t("addAnotherOption")}
@@ -268,66 +270,6 @@ export function VariantsPanel({
         )}
       </s-stack>
     </s-box>
-  );
-
-  const editForm = (v: Variant) => (
-    <s-stack gap="small">
-      <s-grid gridTemplateColumns="1fr 1fr" gap="small">
-        <s-text-field
-          label={t("variantPrice")}
-          value={field("price")}
-          onInput={set("price")}
-        />
-        <s-text-field
-          label={t("variantCompareAt")}
-          value={field("compareAt")}
-          onInput={set("compareAt")}
-        />
-      </s-grid>
-      <s-text-field
-        label={t("variantSku")}
-        value={field("sku")}
-        onInput={set("sku")}
-      />
-      <s-checkbox
-        label={t("unlimitedQuantity")}
-        checked={flag(!!field("unlimited"))}
-        onInput={toggle("unlimited")}
-      />
-      {field("unlimited") ? null : (
-        <s-text-field
-          label={t("variantQuantity")}
-          value={field("qty")}
-          onInput={set("qty")}
-        />
-      )}
-      {formButtons(
-        t("saveVariant"),
-        !field("price").trim() ||
-          (!field("unlimited") &&
-            !!field("qty").trim() &&
-            !QTY_OK.test(field("qty").trim())),
-        () => {
-          // Only send stock that changed, so a price edit never touches
-          // inventory (or needs its permission).
-          const was = v.tracked === false;
-          const stock = stockOf(field("unlimited"), field("qty"));
-          const changed =
-            stock &&
-            (stock.unlimited !== was ||
-              (!stock.unlimited &&
-                String(stock.quantity) !== String(v.quantity ?? "")));
-          send({
-            op: "update",
-            variantId: v.id,
-            price: field("price"),
-            compareAtPrice: field("compareAt"),
-            sku: field("sku"),
-            ...(changed ? { stock } : {}),
-          });
-        },
-      )}
-    </s-stack>
   );
 
   const copyForm = (v: Variant) => {
@@ -461,11 +403,7 @@ export function VariantsPanel({
               ) : null}
             </s-stack>
           ) : null}
-          {editing === "edit"
-            ? editForm(v)
-            : editing === "copy3d"
-              ? copyForm(v)
-              : null}
+          {editing === "copy3d" ? copyForm(v) : null}
         </s-stack>
         <s-menu
           id={menuId}
@@ -473,7 +411,7 @@ export function VariantsPanel({
         >
           <s-button
             icon="edit"
-            onClick={() => (editing === "edit" ? setForm(null) : openEdit(v))}
+            onClick={() => openEdit(v)}
           >
             {t("editDetails")}
           </s-button>
@@ -506,7 +444,7 @@ export function VariantsPanel({
           <s-button
             tone="critical"
             icon="delete"
-            disabled={flag(product.variants.length <= 1)}
+            disabled={flag(defaultOnly)}
             commandFor={menuId}
             command="--hide"
             onClick={() => requestAnimationFrame(() => setConfirm(v))}
@@ -591,26 +529,29 @@ export function VariantsPanel({
     </s-box>
   );
 
+  // Picks which variants a bulk price / quantity applies to.
+  const optionFilters = product.options.map((o) => (
+    <s-select
+      key={o.name}
+      label={o.name}
+      value={field(`pm:${o.name}`)}
+      onInput={set(`pm:${o.name}`)}
+    >
+      <s-option value="">{t("anyOption", { name: o.name })}</s-option>
+      {o.values.map((val) => (
+        <s-option key={val} value={val}>
+          {val}
+        </s-option>
+      ))}
+    </s-select>
+  ));
+
   const pricesForm = (
     <s-box padding="small" borderWidth="base" borderRadius="base">
       <s-stack gap="small">
         <s-text type="strong">{t("setPrices")}</s-text>
         <s-paragraph color="subdued">{t("setPricesHelp")}</s-paragraph>
-        {product.options.map((o) => (
-          <s-select
-            key={o.name}
-            label={o.name}
-            value={field(`pm:${o.name}`)}
-            onInput={set(`pm:${o.name}`)}
-          >
-            <s-option value="">{t("anyOption", { name: o.name })}</s-option>
-            {o.values.map((val) => (
-              <s-option key={val} value={val}>
-                {val}
-              </s-option>
-            ))}
-          </s-select>
-        ))}
+        {optionFilters}
         <s-grid gridTemplateColumns="1fr 1fr" gap="small">
           <s-text-field
             label={t("variantPrice")}
@@ -624,6 +565,36 @@ export function VariantsPanel({
             onInput={set("pc")}
           />
         </s-grid>
+        <s-text color="subdued">
+          {t("appliesTo", { count: priceTargets.length })}
+        </s-text>
+        {formButtons(
+          t("applyPrices"),
+          !priceTargets.length ||
+            (!!field("pp").trim() && !PRICE_OK.test(field("pp").trim())) ||
+            (!!field("pc").trim() && !PRICE_OK.test(field("pc").trim())) ||
+            !(field("pp").trim() || field("pc").trim()),
+          () =>
+            send({
+              op: "setPrices",
+              variantIds: priceTargets.map((v) => v.id),
+              ...(field("pp").trim() ? { price: field("pp").trim() } : {}),
+              ...(field("pc").trim()
+                ? { compareAtPrice: field("pc").trim() }
+                : {}),
+            }),
+        )}
+      </s-stack>
+    </s-box>
+  );
+
+  // Same option filter as prices, but only the stock level is applied.
+  const stockForm = (
+    <s-box padding="small" borderWidth="base" borderRadius="base">
+      <s-stack gap="small">
+        <s-text type="strong">{t("setQuantities")}</s-text>
+        <s-paragraph color="subdued">{t("setQuantitiesHelp")}</s-paragraph>
+        {optionFilters}
         <s-checkbox
           label={t("unlimitedQuantity")}
           checked={flag(!!field("pu"))}
@@ -632,7 +603,6 @@ export function VariantsPanel({
         {field("pu") ? null : (
           <s-text-field
             label={t("variantQuantity")}
-            details={t("stockKeep")}
             value={field("pq")}
             onInput={set("pq")}
           />
@@ -641,27 +611,15 @@ export function VariantsPanel({
           {t("appliesTo", { count: priceTargets.length })}
         </s-text>
         {formButtons(
-          t("applyPrices"),
+          t("applyQuantity"),
           !priceTargets.length ||
-            (!!field("pp").trim() && !PRICE_OK.test(field("pp").trim())) ||
             (!field("pu") &&
-              !!field("pq").trim() &&
-              !QTY_OK.test(field("pq").trim())) ||
-            !(
-              field("pp").trim() ||
-              field("pc").trim() ||
-              field("pu") ||
-              field("pq").trim()
-            ),
+              (!field("pq").trim() || !QTY_OK.test(field("pq").trim()))),
           () => {
             const stock = stockOf(field("pu"), field("pq"));
             send({
               op: "setPrices",
               variantIds: priceTargets.map((v) => v.id),
-              ...(field("pp").trim() ? { price: field("pp").trim() } : {}),
-              ...(field("pc").trim()
-                ? { compareAtPrice: field("pc").trim() }
-                : {}),
               ...(stock ? { stock } : {}),
             });
           },
@@ -740,13 +698,32 @@ export function VariantsPanel({
 
           {form?.kind === "prices"
             ? pricesForm
-            : form?.kind === "create"
+            : form?.kind === "stock"
+              ? stockForm
+              : form?.kind === "create"
               ? createForm
               : form?.kind === "option"
                 ? optionForm
                 : actions}
         </>
       )}
+
+      <VariantEditModal
+        variant={
+          form?.kind === "edit"
+            ? (product.variants.find((v) => v.id === form.id) ?? null)
+            : null
+        }
+        options={product.options}
+        showOptions={!defaultOnly}
+        busy={busy}
+        saving={saving}
+        onSave={(kind, body) => {
+          setSaving(kind);
+          send(body);
+        }}
+        onClose={() => setForm((f) => (f?.kind === "edit" ? null : f))}
+      />
 
       <ConfirmModal
         id="ed-remove-option"

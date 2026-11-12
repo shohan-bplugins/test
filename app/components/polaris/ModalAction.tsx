@@ -30,7 +30,8 @@ export function ModalAction({
   onClick,
   children,
 }: {
-  slot: "primary-action" | "secondary-actions";
+  /** Omitted for a button in the modal's body rather than its footer. */
+  slot?: "primary-action" | "secondary-actions";
   variant?: "primary" | "secondary" | "tertiary";
   tone?: "critical" | "neutral" | "auto";
   disabled?: boolean;

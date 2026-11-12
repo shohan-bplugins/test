@@ -139,7 +139,6 @@ const NAV_ITEMS: NavItem[] = [
   // so dismissing a card deleted the only route into the wizard.
   { href: "/app/onboarding", label: "getStarted" },
   { href: "/app/products", label: "products" },
-  { href: "/app/product-3d", label: "product3d", newUntil: "2027-01-31" },
   { href: "/app/models", label: "models" },
   { href: "/app/analytics", label: "analytics", newUntil: "2026-12-31" },
   { href: "/app/documentation", label: "documentation" },
