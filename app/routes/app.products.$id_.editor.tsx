@@ -52,7 +52,11 @@ import {
 } from "~/lib/configurator/product-config.server";
 import { configuratorModules } from "~/lib/configurator/modules.server";
 import { sanitizeOptionGroups } from "~/lib/configurator/options";
-import { MAX_VARIANT_IMAGE_BYTES, setVariantImage } from "~/lib/configurator/variants.server";
+import {
+  MAX_VARIANT_IMAGE_BYTES,
+  runVariantOp,
+  setVariantImage,
+} from "~/lib/configurator/variants.server";
 import { CubeLoader } from "~/components/CubeLoader";
 import { Grid3x3, Rotate3d, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { formatFileSize } from "~/lib/files";
@@ -240,6 +244,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   } catch {
     return { ok: false as const, error: t("errSave") };
   }
+
+  // A variant's own Shopify details (option values, price, SKU, quantity),
+  // from the left panel when the editor is opened on one variant.
+  if (body?.intent === "variant") return runVariantOp(admin, id, body, t);
 
   // Publish what is already saved (a draft) — no config in the body.
   if (body?.intent === "publish") {

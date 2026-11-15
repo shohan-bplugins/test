@@ -36,6 +36,7 @@ import {
   useEd,
   type SceneNode,
 } from "~/lib/configurator/editor-state";
+import { VariantDetailsPanel } from "./VariantDetailsPanel";
 import { ENV_PRESET_IDS } from "~/lib/configurator/constants";
 import { MAX_OPTION_CHOICES, MAX_OPTION_GROUPS } from "~/lib/configurator/options";
 import { priceSummary } from "~/lib/configurator/pricing";
@@ -575,6 +576,7 @@ export function Sidebar({ hasModel, locked = false }: { hasModel: boolean; locke
   return (
     <>
       <TargetSwitcher locked={locked} />
+      {locked ? <VariantDetailsPanel /> : null}
       <div className="ed-panel">
         <h2 className="ed-h">
           {t("parts")}{" "}

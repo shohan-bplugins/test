@@ -66,7 +66,7 @@ import { runVariantOp } from "~/lib/configurator/variants.server";
 import { ViewerPreview, type ViewerConfig } from "~/components/ViewerPreview";
 import view3dStylesUrl from "@egjs/view3d/css/view3d-bundle.min.css?url";
 import appStylesUrl from "~/app.css?url";
-import { parseConfig } from "~/lib/viewer-config";
+import { parseConfig, resetModelSpecificConfig } from "~/lib/viewer-config";
 import type { FileItem } from "~/routes/api.files";
 import { ViewerSettings } from "~/components/ViewerSettings";
 import { BackButton } from "~/components/BackButton";
@@ -547,6 +547,72 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       console.error("[products] configurator model sync failed", err),
     );
 
+  /*
+   * The product's current model and saved viewer settings, read before the
+   * model changes so resetModelSettings can tell whether it really changed.
+   */
+  const readModelState = async (): Promise<{
+    model: string | null;
+    config: string | null;
+  }> => {
+    const res = await admin.graphql(
+      `#graphql
+        query ModelState($id: ID!) {
+          product(id: $id) {
+            model: metafield(namespace: "${NS}", key: "${KEY_MODEL}") { value }
+            config: metafield(namespace: "${NS}", key: "${KEY_CONFIG}") { value }
+          }
+        }`,
+      { variables: { id: productGid } },
+    );
+    const json = await res.json();
+    const p = json?.data?.product;
+    return { model: p?.model?.value ?? null, config: p?.config?.value ?? null };
+  };
+
+  /*
+   * A different model (or none) is now on the product: hotspots and the
+   * Camera / Controls settings were tuned on the old one, so they go back to
+   * their defaults. The control bar and the rest of the look are kept. Never
+   * fails the save: the model change itself has already succeeded.
+   */
+  const resetModelSettings = async (
+    before: { model: string | null; config: string | null },
+    fileGid: string | null,
+  ) => {
+    if (before.model === fileGid || !before.config) return;
+    const config = resetModelSpecificConfig(parseConfig(before.config));
+    try {
+      const res = await admin.graphql(
+        `#graphql
+          mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id }
+              userErrors { field message }
+            }
+          }`,
+        {
+          variables: {
+            metafields: [
+              {
+                ownerId: productGid,
+                namespace: NS,
+                key: KEY_CONFIG,
+                type: "json",
+                value: JSON.stringify(config),
+              },
+            ],
+          },
+        },
+      );
+      const json = await res.json();
+      const errs = json?.data?.metafieldsSet?.userErrors ?? [];
+      if (errs.length) console.error("[products] model settings reset failed", errs);
+    } catch (err) {
+      console.error("[products] model settings reset failed", err);
+    }
+  };
+
   if (intent === "assign_existing") {
     const fileGid = String(formData.get("fileGid") ?? "");
     if (!fileGid.startsWith("gid://shopify/")) {
@@ -554,6 +620,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     }
     const guardErr = await checkAssignOrError(fileGid);
     if (guardErr) return guardErr;
+    const before = await readModelState();
     const metaRes = await admin.graphql(
       `#graphql
         mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -585,7 +652,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
       };
     }
     invalidateAssignedModels(session?.shop ?? "");
-    await syncConfigurator(fileGid);
+    await Promise.all([syncConfigurator(fileGid), resetModelSettings(before, fileGid)]);
     return {
       ok: true,
       message: t("assignedFromFiles"),
@@ -594,6 +661,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   }
 
   if (intent === "remove") {
+    const before = await readModelState();
     const delRes = await admin.graphql(
       `#graphql
         mutation MetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
@@ -613,7 +681,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
     invalidateAssignedModels(session?.shop ?? "");
-    await syncConfigurator(null);
+    await Promise.all([syncConfigurator(null), resetModelSettings(before, null)]);
     return { ok: true, message: t("modelRemoved") };
   }
 
@@ -626,6 +694,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
 
   const guardErr = await checkAssignOrError(null);
   if (guardErr) return guardErr;
+  const before = await readModelState();
 
   // Smaller and faster to load before it goes anywhere; falls back to the
   // original on any failure. See optimize-model.server.ts.
@@ -693,7 +762,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     return { ok: false, error: metaErrs.map((e: any) => e.message).join("; ") };
 
   invalidateAssignedModels(session?.shop ?? "");
-  await syncConfigurator(fileGid);
+  await Promise.all([syncConfigurator(fileGid), resetModelSettings(before, fileGid)]);
   const saving = describeSaving(optimized.originalSize, optimized.file.size, tf);
   return {
     ok: true,
@@ -1125,15 +1194,6 @@ export default function ProductDetail() {
           onClick={handleSaveAndView}
         >
           {t("saveAndView")}
-        </s-button>
-      ) : null}
-      {has ? (
-        <s-button
-          slot="secondary-actions"
-          icon="edit"
-          onClick={() => editorWindow.open(String(product.id).split("/").pop() ?? "")}
-        >
-          {te("openEditor")}
         </s-button>
       ) : null}
       {editorWindow.element}

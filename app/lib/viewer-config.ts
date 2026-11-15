@@ -206,28 +206,17 @@ export function controlVisibilityPatch(
 }
 
 /**
- * Where the fullscreen close button goes: its usual top-right unless a control
- * was moved there, then the first spot no control is using. If every spot is in
- * use it falls back to top-right, and the caller must put the button *in* that
- * spot's bar rather than over it, or the two overlap.
+ * Where the fullscreen close button goes: always top-right. When controls were
+ * moved there too, the caller must put the button *in* that spot's bar (as its
+ * first button) rather than over it, or the two overlap.
  *
- * `isTaken` lets the caller count only the controls actually on screen (a
- * switched-off control still has a spot in the layout); by default any control
- * listed in a spot takes it.
+ * The arguments are unused and kept so existing callers don't change.
  */
 export function fullscreenCloseSlot(
-  layout: ControlsLayout,
-  isTaken: (slot: ControlSlot) => boolean = (s) => layout[s].length > 0,
+  _layout?: ControlsLayout,
+  _isTaken?: (slot: ControlSlot) => boolean,
 ): ControlSlot {
-  const order: ControlSlot[] = [
-    "top-right",
-    "top-left",
-    "top-center",
-    "bottom-right",
-    "bottom-left",
-    "bottom-center",
-  ];
-  return order.find((s) => !isTaken(s)) ?? "top-right";
+  return "top-right";
 }
 
 export const DEFAULT_CONFIG: ViewerConfig = {
@@ -326,6 +315,41 @@ export function resolveDefaultClipIndex(
   if (!Number.isFinite(setting) || setting < 1) return -1;
   const idx = Math.floor(setting) - 1;
   return idx < clipCount ? idx : -1;
+}
+
+/*
+ * Settings that only make sense for the model they were tuned on: hotspots are
+ * pinned to points on its surface, and the Camera / Controls sections frame and
+ * drive that particular mesh. When the product's model is replaced or removed
+ * these go back to their defaults. Everything else — display, environment, the
+ * control bar, animation, AR — is the merchant's look for the product and stays.
+ */
+const MODEL_SPECIFIC_KEYS = [
+  // Hotspots
+  "hotspots",
+  // Camera
+  "fovMode",
+  "fov",
+  "yaw",
+  "pitch",
+  "initialZoom",
+  "maintainSize",
+  // Controls
+  "rotate",
+  "translate",
+  "zoom",
+  "autoRotate",
+  "scrollable",
+  "wheelScrollable",
+  "useGrabCursor",
+] as const satisfies readonly (keyof ViewerConfig)[];
+
+export function resetModelSpecificConfig(config: ViewerConfig): ViewerConfig {
+  const out: ViewerConfig = { ...config };
+  for (const key of MODEL_SPECIFIC_KEYS) {
+    (out as any)[key] = structuredClone(DEFAULT_CONFIG[key]);
+  }
+  return out;
 }
 
 export function parseConfig(raw: string | undefined | null): ViewerConfig {
