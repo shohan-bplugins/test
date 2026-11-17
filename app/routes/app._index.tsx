@@ -22,6 +22,7 @@ import {
 } from "~/lib/review-prompt.server";
 import { useReviewPrompt } from "~/components/ReviewPrompt";
 import { AnalyticsOverviewCard } from "~/components/AnalyticsOverview";
+import { CatalogCoverageCard } from "~/components/CatalogCoverageCard";
 import { getAnalyticsOverview } from "~/lib/viewer-stats.server";
 import type { AnalyticsOverview } from "~/lib/viewer-stats";
 import { checkDefsReadyCached } from "~/lib/metafields.server";
@@ -1274,6 +1275,19 @@ export default function Dashboard() {
       </s-section>
 
       <AnalyticsOverviewCard overview={analytics} />
+
+      <CatalogCoverageCard
+        assigned={assigned}
+        totalProducts={totalProducts}
+        distinctModelsUsed={distinctModelsUsed}
+        modelLimit={modelLimit}
+        productLimit={productLimit}
+        planTitle={planTitle}
+        uploadsThisMonth={uploadsThisMonth}
+        uploadsLastMonth={uploadsLastMonth}
+        monthStartLabel={monthStartLabel}
+        lastMonthLabel={lastMonthLabel}
+      />
 
       <s-section heading={t("recent.heading")}>
         <s-paragraph color="subdued">{t("recent.body")}</s-paragraph>
