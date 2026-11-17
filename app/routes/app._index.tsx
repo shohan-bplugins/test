@@ -1106,9 +1106,9 @@ export default function Dashboard() {
       <style>{`
         .db-container {
           width: 100%;
-          max-width: 1680px;
+          max-width: 1480px;
           margin: 0 auto;
-          padding: 0 12px;
+          padding: 0 24px;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
