@@ -1061,7 +1061,7 @@ export default function Dashboard() {
   const uploadDelta = uploadsThisMonth - uploadsLastMonth;
 
   return (
-    <s-page heading={t("heading")} inlineSize="large">
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       {/*
         The page's one primary action, in the primary-action slot rather than
         styled primary inside the secondary group — a page gets a single primary
@@ -1106,8 +1106,10 @@ export default function Dashboard() {
       <style>{`
         .db-container {
           width: 100%;
-          max-width: 1360px;
+          max-width: 1680px;
           margin: 0 auto;
+          padding: 0 12px;
+          box-sizing: border-box;
           display: flex;
           flex-direction: column;
           gap: 16px;
