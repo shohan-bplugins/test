@@ -1061,7 +1061,7 @@ export default function Dashboard() {
   const uploadDelta = uploadsThisMonth - uploadsLastMonth;
 
   return (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large">
       {/*
         The page's one primary action, in the primary-action slot rather than
         styled primary inside the secondary group — a page gets a single primary
@@ -1103,29 +1103,21 @@ export default function Dashboard() {
       ) : null}
       <SupportAction />
 
-      <s-section>
-        <s-grid
-          gridTemplateColumns="1fr auto"
-          gap="small"
-          alignItems="center"
-        >
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <s-text color="subdued">{shop}</s-text>
-            <s-badge icon="wand">{t("planBadge", { plan: planTitle })}</s-badge>
-          </s-stack>
-          <LanguagePicker compact />
-        </s-grid>
-      </s-section>
-
       <style>{`
+        .db-container {
+          width: 100%;
+          max-width: 1360px;
+          margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
         .db-layout {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 300px;
+          grid-template-columns: minmax(0, 1fr) 320px;
           gap: 16px;
           align-items: start;
           width: 100%;
-          max-width: 1200px;
-          margin: 0 auto;
         }
         .db-main {
           display: flex;
@@ -1146,7 +1138,22 @@ export default function Dashboard() {
         }
       `}</style>
 
-      <div className="db-layout">
+      <div className="db-container">
+        <s-section>
+          <s-grid
+            gridTemplateColumns="1fr auto"
+            gap="small"
+            alignItems="center"
+          >
+            <s-stack direction="inline" gap="small" alignItems="center">
+              <s-text color="subdued">{shop}</s-text>
+              <s-badge icon="wand">{t("planBadge", { plan: planTitle })}</s-badge>
+            </s-stack>
+            <LanguagePicker compact />
+          </s-grid>
+        </s-section>
+
+        <div className="db-layout">
         <div className="db-main">
           {!onboardingDone ? (
             <s-section heading={t("gettingStarted.heading")}>
@@ -1463,6 +1470,7 @@ export default function Dashboard() {
           ) : null}
         </div>
       </div>
+    </div>
 
       <FeatureRequestModal />
 
