@@ -1061,7 +1061,7 @@ export default function Dashboard() {
   const uploadDelta = uploadsThisMonth - uploadsLastMonth;
 
   return (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large">
       {/*
         The page's one primary action, in the primary-action slot rather than
         styled primary inside the secondary group — a page gets a single primary
@@ -1339,96 +1339,98 @@ export default function Dashboard() {
         <UploadsChart dates={uploadDates} />
       </s-section>
 
-      <s-section slot="aside" heading={t("links.heading")}>
-        <QuickLinkList
-          onNavigate={navigate}
-          items={[
-            {
-              href: "/app/products",
-              icon: "product",
-              label: t("links.products"),
-            },
-            {
-              href: "/app/models",
-              icon: "three-d-environment",
-              label: t("links.models"),
-            },
-            {
-              href: "/app/analytics",
-              icon: "chart-line",
-              label: t("links.analytics"),
-            },
-            {
-              href: "/app/setup",
-              icon: "settings",
-              label: t("links.setup"),
-            },
-            ...(planTitle === FREE_PLAN_NAME
-              ? [
-                  {
-                    href: "/app/pricing",
-                    icon: "credit-card",
-                    label: t("links.pricing"),
-                  },
-                ]
-              : []),
-          ]}
-        />
-      </s-section>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: "16px" }}>
+        <s-section heading={t("links.heading")}>
+          <QuickLinkList
+            onNavigate={navigate}
+            items={[
+              {
+                href: "/app/products",
+                icon: "product",
+                label: t("links.products"),
+              },
+              {
+                href: "/app/models",
+                icon: "three-d-environment",
+                label: t("links.models"),
+              },
+              {
+                href: "/app/analytics",
+                icon: "chart-line",
+                label: t("links.analytics"),
+              },
+              {
+                href: "/app/setup",
+                icon: "settings",
+                label: t("links.setup"),
+              },
+              ...(planTitle === FREE_PLAN_NAME
+                ? [
+                    {
+                      href: "/app/pricing",
+                      icon: "credit-card",
+                      label: t("links.pricing"),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </s-section>
 
-      <s-section slot="aside" heading={t("help.heading")}>
-        <s-paragraph color="subdued">{t("help.body")}</s-paragraph>
-        <QuickLinkList
-          onNavigate={navigate}
-          items={[
-            {
-              href: "/app/documentation",
-              icon: "book",
-              label: t("help.documentation"),
-            },
-            // Sits with the docs because it is the same errand — learning how
-            // the app works — rather than in the page header beside the actions.
-            {
-              icon: "play-circle",
-              label: t("help.tutorial"),
-              onSelect: () => setTutorialOpen(true),
-            },
-            {
-              icon: "question-circle",
-              label: t("help.support"),
-              // Opens the same ticket form as the Support button in the header.
-              commandFor: "support-form",
-            },
-            {
-              href: COMMUNITY_URL,
-              icon: "chat",
-              label: t("help.community"),
-              external: true,
-            },
-            {
-              icon: "lightbulb",
-              label: t("help.featureRequests"),
-              // The support form, in its feature-request version.
-              commandFor: FEATURE_FORM_ID,
-            },
-            {
-              icon: "star",
-              label: t("help.review"),
-              href: APP_STORE_REVIEW_URL,
-              external: true,
-            },
-          ]}
-        />
-      </s-section>
+        <s-section heading={t("help.heading")}>
+          <s-paragraph color="subdued">{t("help.body")}</s-paragraph>
+          <QuickLinkList
+            onNavigate={navigate}
+            items={[
+              {
+                href: "/app/documentation",
+                icon: "book",
+                label: t("help.documentation"),
+              },
+              // Sits with the docs because it is the same errand — learning how
+              // the app works — rather than in the page header beside the actions.
+              {
+                icon: "play-circle",
+                label: t("help.tutorial"),
+                onSelect: () => setTutorialOpen(true),
+              },
+              {
+                icon: "question-circle",
+                label: t("help.support"),
+                // Opens the same ticket form as the Support button in the header.
+                commandFor: "support-form",
+              },
+              {
+                href: COMMUNITY_URL,
+                icon: "chat",
+                label: t("help.community"),
+                external: true,
+              },
+              {
+                icon: "lightbulb",
+                label: t("help.featureRequests"),
+                // The support form, in its feature-request version.
+                commandFor: FEATURE_FORM_ID,
+              },
+              {
+                icon: "star",
+                label: t("help.review"),
+                href: APP_STORE_REVIEW_URL,
+                external: true,
+              },
+            ]}
+          />
+        </s-section>
+
+        {fileTypes.length > 0 ? (
+          <s-section heading={t("fileTypes.heading")}>
+            <s-paragraph color="subdued">{t("fileTypes.body")}</s-paragraph>
+            <FileTypeBars data={fileTypes} />
+          </s-section>
+        ) : null}
+      </div>
 
       <FeatureRequestModal />
-
-      {fileTypes.length > 0 ? (
-        <s-section slot="aside" heading={t("fileTypes.heading")}>
-          <s-paragraph color="subdued">{t("fileTypes.body")}</s-paragraph>
-          <FileTypeBars data={fileTypes} />
-        </s-section>
-      ) : null}
 
       {/*
         One instance for the whole page, so both entry points drive the same
