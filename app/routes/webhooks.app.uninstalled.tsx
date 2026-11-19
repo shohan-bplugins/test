@@ -28,6 +28,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.session.deleteMany({ where: { shop } });
   }
 
+  // Record uninstall state and lifecycle event for Admin Dashboard
+  try {
+    await db.appUser.updateMany({
+      where: { shop },
+      data: {
+        isInstalled: false,
+        uninstalledAt: new Date(),
+      },
+    });
+    await db.appStoreEvent.create({
+      data: {
+        shop,
+        type: "uninstall",
+        detail: JSON.stringify({
+          uninstalledAt: new Date().toISOString(),
+          payload: payload ?? null,
+        }),
+      },
+    });
+  } catch (err) {
+    console.error("[uninstalled] failed to record uninstall event:", err);
+  }
+
   // Nothing cached about the old install may outlive it — a reinstall reads
   // the store fresh.
   invalidateSubscription(shop);

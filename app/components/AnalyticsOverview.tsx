@@ -262,6 +262,7 @@ const AO_CSS = `
 .ao-stat {
   display: flex; flex-direction: column; gap: 6px;
   padding: 10px 12px; border: 1px solid #e3e3e3; border-radius: 10px; min-width: 0;
+  background-color: #ffffff;
 }
 .ao-stat-views { --ao-line: #2a78d6; --ao-fill: rgba(42, 120, 214, 0.10); }
 .ao-label {

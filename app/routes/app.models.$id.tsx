@@ -311,7 +311,7 @@ export default function ModelDetail() {
   const embedSnippet = buildEmbedSnippet(sharedUrl, config.height, embedMode);
 
   return (
-    <s-page heading={model.name}>
+    <s-page heading={model.name} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app/models" label={t("backToLibrary")} />
 
       {/*
@@ -399,7 +399,46 @@ export default function ModelDetail() {
         </s-paragraph>
       </ConfirmModal>
 
-      <s-section slot="aside" heading={t("detailsHeading")}>
+      <div className="app-container">
+        <div className="page-two-col">
+          <div className="page-two-col-sticky">
+            <s-section heading={t("livePreviewHeading")}>
+              <s-paragraph color="subdued">
+                {t("livePreviewIntro")}
+              </s-paragraph>
+              {model.fileUrl ? (
+                <ViewerPreview
+                  modelUrl={model.fileUrl}
+                  config={config}
+                  arShareUrl={viewerUrl}
+                  onLayoutChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
+                  placingHotspot={placingHotspot}
+                  onPlaceHotspot={(anchor) => {
+                    setConfig((c) => ({
+                      ...c,
+                      hotspots: [
+                        ...c.hotspots,
+                        createHotspot(anchor, c.hotspots.length),
+                      ],
+                    }));
+                    setPlacingHotspot(false);
+                  }}
+                  focusHotspotId={hotspotFocus?.id ?? null}
+                  focusNonce={hotspotFocus?.n ?? 0}
+                  locale={hotspotLocale}
+                />
+              ) : (
+                <s-banner tone="info">
+                  <s-paragraph>
+                    {t("stillProcessing")}
+                  </s-paragraph>
+                </s-banner>
+              )}
+            </s-section>
+          </div>
+
+          <div className="page-two-col-aside">
+            <s-section heading={t("detailsHeading")}>
         <s-stack direction="block" gap="base">
           <s-text-field
             label={t("nameLabel")}
@@ -449,7 +488,7 @@ export default function ModelDetail() {
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading={t("shareHeading")}>
+      <s-section heading={t("shareHeading")}>
         <s-paragraph color="subdued">
           {t("shareIntro")}
         </s-paragraph>
@@ -553,14 +592,14 @@ export default function ModelDetail() {
         </s-stack>
       </s-section>
 
-      <s-section slot="aside" heading={t("viewerSettingsHeading")}>
+      <s-section heading={t("viewerSettingsHeading")}>
         <s-paragraph color="subdued">
           {t("viewerSettingsIntro")}
         </s-paragraph>
         <ViewerSettings config={config} onChange={setConfig} />
       </s-section>
 
-      <s-section slot="aside" heading={t("hotspotsHeading")}>
+      <s-section heading={t("hotspotsHeading")}>
         <HotspotsEditor
           config={config}
           onChange={setConfig}
@@ -575,55 +614,8 @@ export default function ModelDetail() {
           onEditLocaleChange={setHotspotLocale}
         />
       </s-section>
-
-      {/*
-        Sticky, so the canvas stays in view while the merchant works down the
-        settings column beside it — the whole point of a live preview is seeing
-        a change land, which is no use if tweaking a control near the bottom of
-        the form has scrolled the viewer off screen.
-
-        A plain div, and wrapping the section rather than sitting inside it:
-        Polaris's Box exposes no position or inset props, and the sticky element
-        has to be the column's own child so its containing block is the full
-        column — the two columns share a grid row, so this one is as tall as the
-        settings beside it and there is room to stick. Nested inside the section
-        it could only stick within that card's own height, which is to say not
-        at all.
-      */}
-      <div style={{ position: "sticky", top: 16 }}>
-        <s-section heading={t("livePreviewHeading")}>
-          <s-paragraph color="subdued">
-            {t("livePreviewIntro")}
-          </s-paragraph>
-          {model.fileUrl ? (
-            <ViewerPreview
-              modelUrl={model.fileUrl}
-              config={config}
-              arShareUrl={viewerUrl}
-              onLayoutChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
-              placingHotspot={placingHotspot}
-              onPlaceHotspot={(anchor) => {
-                setConfig((c) => ({
-                  ...c,
-                  hotspots: [
-                    ...c.hotspots,
-                    createHotspot(anchor, c.hotspots.length),
-                  ],
-                }));
-                setPlacingHotspot(false);
-              }}
-              focusHotspotId={hotspotFocus?.id ?? null}
-              focusNonce={hotspotFocus?.n ?? 0}
-              locale={hotspotLocale}
-            />
-          ) : (
-            <s-banner tone="info">
-              <s-paragraph>
-                {t("stillProcessing")}
-              </s-paragraph>
-            </s-banner>
-          )}
-        </s-section>
+          </div>
+        </div>
       </div>
     </s-page>
   );

@@ -469,7 +469,7 @@ export default function ProductsIndex() {
   const allDone = metafieldDefsReady && assigned > 0;
 
   return (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("backDashboard")} />
 
       {/* Same reasoning as the dashboard: one primary action per page, and it
@@ -494,6 +494,7 @@ export default function ProductsIndex() {
       ) : null}
       <SupportAction />
 
+      <div className="app-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <s-section>
         <s-stack direction="block" gap="base">
           <s-paragraph color="subdued">
@@ -762,6 +763,7 @@ export default function ProductsIndex() {
           </s-grid>
         </s-stack>
       </s-section>
+      </div>
     </s-page>
   );
 }

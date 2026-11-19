@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
 import {
+  Link,
   useActionData,
   useFetcher,
   useLoaderData,
@@ -45,7 +46,13 @@ import {
   STARTER_PLAN_NAME,
 } from "~/lib/billing-constants";
 import { fetchShopInfo, notifySwipeone } from "~/lib/swipeone.server";
-import { couponToDiscount, findCoupon } from "~/lib/coupons.server";
+import {
+  couponToDiscount,
+  findCoupon,
+  getAutoApplyCoupon,
+  getActiveBanner,
+  type BannerInfo,
+} from "~/lib/coupons.server";
 import {
   LAUNCH_OFFER,
   LAUNCH_OFFER_PERCENT_LABEL,
@@ -60,9 +67,8 @@ import { getServerT } from "~/i18n/i18n.server";
 import { BackButton } from "~/components/BackButton";
 import { ConfirmModal } from "~/components/polaris/ConfirmModal";
 import { ModalAction } from "~/components/polaris/ModalAction";
-import { SupportAction } from "~/components/SupportAction";
+import { SupportAction, SUPPORT_FORM_ID } from "~/components/SupportAction";
 import {
-  BUTTON_FILL,
   fieldChecked,
   fieldValue,
   flag,
@@ -93,17 +99,23 @@ type LoaderData = {
   plans: PlanRow[];
   subscription: SubscriptionInfo | null;
   currentPlanName: string;
-  /**
-   * Whether the launch discount is still open, decided on the server so the
-   * server render and the hydration agree on it. A `launchOfferActive()` call
-   * inside the component tree would be evaluated twice, and around the deadline
-   * the two answers would differ — which React reports as a hydration mismatch.
-   *
-   * Only ever what is *displayed*. What the merchant is actually charged is
-   * decided by the `subscribe` action below, at the moment the charge is
-   * created, so a page left open across the deadline cannot buy a stale price.
-   */
   offerActive: boolean;
+  autoApplyCoupon: {
+    code: string;
+    description: string;
+    percentage: number;
+    durationLimitInIntervals: number | null;
+    applicablePlans?: string[];
+  } | null;
+  initialCoupon: {
+    code: string;
+    description: string;
+    percentage: number;
+    durationLimitInIntervals: number | null;
+    isAutoApply?: boolean;
+    applicablePlans?: string[];
+  } | null;
+  promotionBanner: BannerInfo | null;
 };
 
 export const loader = async ({
@@ -182,6 +194,34 @@ export const loader = async ({
   const currentPlanName =
     subscription?.status === "active" ? subscription.name : FREE_PLAN_NAME;
 
+  const url = new URL(request.url);
+  const paramCode = url.searchParams.get("coupon")?.trim();
+  const urlCoupon = paramCode ? await findCoupon(paramCode) : null;
+  const autoApply = await getAutoApplyCoupon();
+  const effectiveCoupon = urlCoupon || autoApply;
+
+  const initialCoupon = effectiveCoupon
+    ? {
+        code: effectiveCoupon.code,
+        description: effectiveCoupon.description,
+        percentage: effectiveCoupon.percentage,
+        durationLimitInIntervals:
+          effectiveCoupon.durationLimitInIntervals ?? null,
+        isAutoApply: effectiveCoupon.autoApply ?? false,
+        applicablePlans: effectiveCoupon.applicablePlans ?? [],
+      }
+    : null;
+
+  const autoApplyCouponData = autoApply
+    ? {
+        code: autoApply.code,
+        description: autoApply.description,
+        percentage: autoApply.percentage,
+        durationLimitInIntervals: autoApply.durationLimitInIntervals ?? null,
+        applicablePlans: autoApply.applicablePlans ?? [],
+      }
+    : null;
+
   return {
     usage,
     offerActive: launchOfferActive(),
@@ -199,6 +239,9 @@ export const loader = async ({
     })),
     subscription,
     currentPlanName,
+    autoApplyCoupon: autoApplyCouponData,
+    initialCoupon,
+    promotionBanner: await getActiveBanner("pricing"),
   };
 };
 
@@ -213,7 +256,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Checked before a plan is chosen, so the merchant sees what a code is worth
   // rather than discovering it on Shopify's approval screen.
   if (intent === "validate_coupon") {
-    const coupon = findCoupon(String(form.get("coupon") ?? ""));
+    const coupon = await findCoupon(String(form.get("coupon") ?? ""));
     if (!coupon) {
       return { ok: false, error: t("couponInvalid") };
     }
@@ -227,6 +270,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // this copy only drives what is displayed.
         percentage: coupon.percentage,
         durationLimitInIntervals: coupon.durationLimitInIntervals ?? null,
+        applicablePlans: coupon.applicablePlans ?? [],
       },
     };
   }
@@ -249,14 +293,80 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect("/app");
   }
 
+  const handleDowngradeToFree = async () => {
+    const live = await fetchActiveSubscription(admin);
+    const subscriptionGid =
+      live?.id ||
+      (user.chargeId ? `gid://shopify/AppSubscription/${user.chargeId}` : "");
+
+    if (subscriptionGid) {
+      const chargeId = subscriptionGid.split("/").pop() ?? "";
+      const res = await admin.graphql(
+        `#graphql
+          mutation AppSubscriptionCancel($id: ID!) {
+            appSubscriptionCancel(id: $id) {
+              userErrors { field message }
+              appSubscription { id status }
+            }
+          }`,
+        { variables: { id: subscriptionGid } },
+      );
+      const json = await res.json();
+      const errs = json?.data?.appSubscriptionCancel?.userErrors ?? [];
+      if (errs.length) {
+        return {
+          ok: false,
+          error: errs.map((e: any) => e.message).join("; "),
+        };
+      }
+
+      const status =
+        json?.data?.appSubscriptionCancel?.appSubscription?.status ?? "CANCELLED";
+
+      await prisma.charge.updateMany({
+        where: { shop, chargeId },
+        data: { status },
+      });
+    }
+
+    const freePlan = await getPlanByName(FREE_PLAN_NAME);
+    await prisma.appUser.update({
+      where: { id: user.id },
+      data: {
+        planId: freePlan?.id ?? null,
+        chargeId: null,
+        modelLimit: freePlan?.modelLimit ?? FREE_MODEL_LIMIT,
+        productLimit: freePlan?.productLimit ?? FREE_PRODUCT_LIMIT,
+      },
+    });
+
+    invalidateSubscription(shop);
+    return { ok: true, cancelled: true };
+  };
+
+  if (intent === "cancel") {
+    return handleDowngradeToFree();
+  }
+
   if (intent === "subscribe") {
     const planId = String(form.get("planId") ?? "");
     const yearly = String(form.get("interval") ?? "") === "yearly";
     // Re-checked here, never trusted from the form: the browser sends a code,
     // not a discount, so an invented code buys nothing.
-    const coupon = findCoupon(String(form.get("coupon") ?? ""));
     const plan = await getPlanById(planId);
     if (!plan) return { ok: false, error: t("planNotFound") };
+
+    // Re-checked here, never trusted from the form: the browser sends a code,
+    // not a discount, so an invented code buys nothing.
+    const couponInput = String(form.get("coupon") ?? "");
+    let coupon = await findCoupon(couponInput, plan.name);
+    if (!coupon && !couponInput) {
+      coupon = await getAutoApplyCoupon(plan.name);
+    }
+
+    if (plan.name === FREE_PLAN_NAME || Number(plan.price) === 0) {
+      return handleDowngradeToFree();
+    }
 
     /*
      * The launch discount, applied without anyone entering a code.
@@ -285,16 +395,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ? launch
         : entered;
 
-    // await prisma.appUser.update({
-    //   where: { id: user.id },
-    //   data: { planId: plan.id },
-    // });
-
-    // Where Shopify sends the merchant after they approve or decline the
-    // charge. Must be an absolute admin URL built from the app's *handle* — the
-    // literal "3d-viewer-15" that used to sit here was a dev app's handle, so
-    // every approval in production would have landed on an admin 404.
-    const returnUrl = adminAppUrl(shop, "/app/SuccessBilling");
+    const appliedCode = discount === entered && coupon ? coupon.code : "";
+    const returnUrl = adminAppUrl(
+      shop,
+      `/app/SuccessBilling${appliedCode ? `?coupon=${encodeURIComponent(appliedCode)}` : ""}`,
+    );
 
     const res = await admin.graphql(
       `#graphql
@@ -364,75 +469,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
   }
 
-  if (intent === "cancel") {
-    /*
-     * Which subscription to cancel comes from Shopify, not from `user.chargeId`.
-     *
-     * That column is only ever written by the billing return page and the
-     * subscriptions_update webhook, so it is null for any shop whose charge was
-     * approved outside that path (a webhook that failed, a subscription started
-     * from the admin, a reset database). The page itself reads
-     * `currentAppInstallation.activeSubscriptions`, so it would show an active
-     * plan and a Cancel button while this branch refused with "No active
-     * subscription" — the plan was uncancellable from inside the app.
-     *
-     * Read live rather than through the cache: a stale "no subscription" answer
-     * here would refuse a cancel the merchant is entitled to.
-     */
-    const live = await fetchActiveSubscription(admin);
-    const subscriptionGid =
-      live?.id ||
-      (user.chargeId ? `gid://shopify/AppSubscription/${user.chargeId}` : "");
-    if (!subscriptionGid) {
-      return { ok: false, error: t("noActiveSubscription") };
-    }
-    // The numeric half, for the local Charge rows, which are keyed by it.
-    const chargeId = subscriptionGid.split("/").pop() ?? "";
-    const res = await admin.graphql(
-      `#graphql
-        mutation AppSubscriptionCancel($id: ID!) {
-          appSubscriptionCancel(id: $id) {
-            userErrors { field message }
-            appSubscription { id status }
-          }
-        }`,
-      { variables: { id: subscriptionGid } },
-    );
-    const json = await res.json();
-    const errs = json?.data?.appSubscriptionCancel?.userErrors ?? [];
-    if (errs.length) {
-      return {
-        ok: false,
-        error: errs.map((e: any) => e.message).join("; "),
-      };
-    }
-
-    const status =
-      json?.data?.appSubscriptionCancel?.appSubscription?.status ?? "CANCELLED";
-
-    await prisma.charge.updateMany({
-      where: { shop, chargeId },
-      data: { status },
-    });
-
-    const freePlan = await getPlanByName(FREE_PLAN_NAME);
-    await prisma.appUser.update({
-      where: { id: user.id },
-      data: {
-        planId: freePlan?.id ?? null,
-        // Cleared alongside the plan, the way the subscriptions_update webhook
-        // clears it — leaving the id of a cancelled charge behind is what makes
-        // this column untrustworthy in the first place.
-        chargeId: null,
-        modelLimit: freePlan?.modelLimit ?? FREE_MODEL_LIMIT,
-        productLimit: freePlan?.productLimit ?? FREE_PRODUCT_LIMIT,
-      },
-    });
-
-    invalidateSubscription(shop);
-    return { ok: true, cancelled: true };
-  }
-
   return { ok: false, error: t("unknownIntent") };
 };
 
@@ -441,22 +477,176 @@ export const action = async ({ request }: ActionFunctionArgs) => {
  * buys volume — so it belongs in a shared band rather than repeated down four
  * feature lists where it would read as a per-tier upsell.
  */
-/*
- * Yearly billing and coupon codes, both switched off in the UI.
- *
- * A flag rather than commented-out JSX: the block carries JSX comments of its
- * own and those do not nest, so commenting it out would mean mangling the
- * comment markers inside it — exactly the kind of edit that does not survive
- * being put back. Flipping this to `true` restores the row intact.
- *
- * Only the controls are hidden; the server side of both features is untouched.
- * `subscribe` still reads `interval` and `coupon` from the form and the
- * `validate_coupon` intent still answers, so nothing has to be rebuilt to turn
- * them back on. With the row gone `yearly` stays false and `coupon` stays null,
- * so every card quotes the monthly price at full rate and the applied-coupon
- * banner further down can never render.
- */
-const SHOW_BILLING_OPTIONS = false;
+
+const INCLUDED_PLAN_CARDS = [
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    ),
+    title: "GLB and glTF models",
+    description: "Upload files up to 20 MB each. We host them on the Shopify CDN.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+        <line x1="12" y1="18" x2="12.01" y2="18" />
+      </svg>
+    ),
+    title: "Augmented reality",
+    description: "Shoppers see products in their space with Quick Look, Scene Viewer, or WebXR. No app needed.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 9h18M9 21V9" />
+      </svg>
+    ),
+    title: "Theme app blocks",
+    description: "Add the viewer to product pages or any page. Use the iframe snippet everywhere else.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <line x1="4" y1="21" x2="4" y2="14" />
+        <line x1="4" y1="10" x2="4" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12" y2="3" />
+        <line x1="20" y1="21" x2="20" y2="16" />
+        <line x1="20" y1="12" x2="20" y2="3" />
+        <line x1="1" y1="14" x2="7" y2="14" />
+        <line x1="9" y1="8" x2="15" y2="8" />
+        <line x1="17" y1="16" x2="23" y2="16" />
+      </svg>
+    ),
+    title: "Full viewer control",
+    description: "Set the camera angle, zoom, auto-rotate, and which control buttons shoppers see.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+      </svg>
+    ),
+    title: "Studio lighting",
+    description: "Adjust the HDR skybox, environment maps, exposure, tone mapping, and shadows.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <polygon points="5 3 19 12 5 21 5 3" />
+      </svg>
+    ),
+    title: "Animation playback",
+    description: "Play built-in animations with a switcher. Choose to loop or play once.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="2" y="7" width="14" height="14" rx="2" />
+        <path d="M8 3h12a2 2 0 0 1 2 2v12" />
+      </svg>
+    ),
+    title: "Material variants",
+    description: "Show one glTF material variant, so a single file can cover every color.",
+    href: "/app/documentation",
+  },
+  {
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+    title: "Live admin preview",
+    description: "See changes in the same viewer your customers see, before you save.",
+    href: "/app/documentation",
+  },
+];
 
 const INCLUDED_FEATURES: { icon: string; title: string; body: string }[] = [
   {
@@ -553,8 +743,16 @@ function formatPrice(p: PlanRow, free: string) {
 }
 
 export default function Pricing() {
-  const { plans, subscription, currentPlanName, usage, offerActive } =
-    useLoaderData<typeof loader>();
+  const {
+    plans,
+    subscription,
+    currentPlanName,
+    usage,
+    offerActive,
+    autoApplyCoupon,
+    initialCoupon,
+    promotionBanner,
+  } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -600,6 +798,7 @@ export default function Pricing() {
      * `open` attribute would be stringified by React 18 and pin it open.
      */
     if (actionData) {
+      setDowngradeTo(null);
       const dialog = document.getElementById(
         "cancel-subscription",
       ) as OverlayElement | null;
@@ -621,7 +820,9 @@ export default function Pricing() {
    * it is confirmed first and the dialog states exactly what would be lost.
    */
   const [downgradeTo, setDowngradeTo] = useState<PlanRow | null>(null);
-  const [yearly, setYearly] = useState(false);
+  const [yearly, setYearly] = useState(
+    subscription?.interval === "ANNUAL",
+  );
   const [couponInput, setCouponInput] = useState("");
   /** The field is revealed on request — most merchants have no code to enter. */
   const [couponOpen, setCouponOpen] = useState(false);
@@ -632,13 +833,33 @@ export default function Pricing() {
    * invalid, while they typed the right one.
    */
   const [couponError, setCouponError] = useState<string | null>(null);
+
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && promotionBanner?.code && promotionBanner.dismissible) {
+      if (localStorage.getItem(`dismissed_banner_${promotionBanner.code}`) === "true") {
+        setBannerDismissed(true);
+      }
+    }
+  }, [promotionBanner]);
+
+  const handleDismissBanner = () => {
+    setBannerDismissed(true);
+    if (typeof window !== "undefined" && promotionBanner?.code) {
+      localStorage.setItem(`dismissed_banner_${promotionBanner.code}`, "true");
+    }
+  };
+
   /** The code once the server has confirmed it, with what it is worth. */
   const [coupon, setCoupon] = useState<{
     code: string;
     description: string;
     percentage: number;
     durationLimitInIntervals: number | null;
-  } | null>(null);
+    isAutoApply?: boolean;
+    applicablePlans?: string[];
+  } | null>(initialCoupon ?? null);
 
   /*
    * The discount actually in force on this page, which is what every card
@@ -650,10 +871,8 @@ export default function Pricing() {
    * the current plan's card all already worked off an applied coupon, and they
    * keep working unchanged.
    *
-   * The ordering mirrors the `subscribe` action exactly — whichever takes more
-   * off wins, ties to the launch offer, and nothing applies on a yearly charge.
-   * If these two disagreed, the card would quote a price the charge did not
-   * honour.
+   * Whichever active promotion is applied (coupon takes precedence if provided,
+   * else launch offer if active).
    */
   // LAUNCH_OFFER.endsLabel, in the merchant's language. endsAt is UTC midnight
   // on the closing day, so it is formatted in UTC to name that same day.
@@ -674,13 +893,14 @@ export default function Pricing() {
           durationLimitInIntervals: LAUNCH_OFFER.months,
         }
       : null;
-  const appliedDiscount =
-    launchDiscount &&
-    (!coupon || coupon.percentage <= launchDiscount.percentage)
-      ? launchDiscount
-      : coupon;
+  const appliedDiscount = coupon || launchDiscount;
   /** True when the price shown is the launch offer rather than a typed code. */
-  const showingLaunchOffer = appliedDiscount === launchDiscount;
+  const showingLaunchOffer = !coupon && appliedDiscount === launchDiscount;
+  const showingAutoApply = Boolean(
+    coupon &&
+      (coupon.isAutoApply ||
+        (autoApplyCoupon && coupon.code.toUpperCase() === autoApplyCoupon.code.toUpperCase())),
+  );
 
   // Its own fetcher: checking a code must not disturb the page's own
   // navigation state, which drives every plan button's loading spinner.
@@ -692,6 +912,7 @@ export default function Pricing() {
       description: string;
       percentage: number;
       durationLimitInIntervals: number | null;
+      applicablePlans?: string[];
     };
   }>();
 
@@ -721,11 +942,15 @@ export default function Pricing() {
     fd.set("intent", "subscribe");
     fd.set("planId", planId);
     fd.set("interval", yearly ? "yearly" : "monthly");
-    if (coupon) fd.set("coupon", coupon.code);
+    if (appliedDiscount && !showingLaunchOffer) {
+      fd.set("coupon", appliedDiscount.code);
+    }
     submit(fd, { method: "post" });
   }
 
   function cancelSubscription() {
+    const freePlan = plans.find((p) => p.name === FREE_PLAN_NAME);
+    if (freePlan) setPendingPlanId(freePlan.id);
     const fd = new FormData();
     fd.set("intent", "cancel");
     submit(fd, { method: "post" });
@@ -760,10 +985,135 @@ export default function Pricing() {
    */
   const currentPrice = Number(currentPlan?.price ?? 0);
 
+  const suggestedPlan = useMemo(() => {
+    if (!subscriptionActive || !currentPlan) return null;
+    const cheaper = plans.filter(
+      (p) =>
+        Number(p.price) > 0 &&
+        Number(p.price) < currentPrice &&
+        usage.products <= p.productLimit &&
+        usage.models <= p.modelLimit,
+    );
+    if (!cheaper.length) return null;
+    return cheaper.find((p) => p.name === GROWTH_PLAN_NAME) ?? cheaper[cheaper.length - 1];
+  }, [subscriptionActive, currentPlan, currentPrice, plans, usage]);
+
+  const savings = suggestedPlan
+    ? (currentPrice - Number(suggestedPlan.price)).toFixed(2)
+    : "0.00";
+
+  const sortedPlans = useMemo(() => {
+    return [...plans].sort((a, b) => {
+      const aActive = a.name === currentPlanName;
+      const bActive = b.name === currentPlanName;
+      if (aActive) return -1;
+      if (bActive) return 1;
+
+      // When current plan is Free, show Starter next, then Growth, then Advance
+      if (currentPlanName === FREE_PLAN_NAME) {
+        return Number(a.price) - Number(b.price);
+      }
+
+      // Free plan always shows last, unless it was the active one (handled above)
+      const aIsFree = a.name === FREE_PLAN_NAME;
+      const bIsFree = b.name === FREE_PLAN_NAME;
+      if (aIsFree) return 1;
+      if (bIsFree) return -1;
+
+      // Recommended plan (Growth) shows next
+      const aIsRec = a.name === GROWTH_PLAN_NAME;
+      const bIsRec = b.name === GROWTH_PLAN_NAME;
+      if (aIsRec) return -1;
+      if (bIsRec) return 1;
+
+      return Number(a.price) - Number(b.price);
+    });
+  }, [plans, currentPlanName]);
+
   return (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("dashboard")} />
       <SupportAction />
+
+      <style>{`
+        .pricing-container {
+          width: 100%;
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 32px;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        @media (max-width: 640px) {
+          .pricing-container {
+            padding: 0 16px;
+          }
+        }
+        .pricing-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          align-items: stretch;
+          width: 100%;
+          margin-top: 6px;
+          margin-bottom: 16px;
+        }
+        @media (max-width: 1024px) {
+          .pricing-cards-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 640px) {
+          .pricing-cards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .included-features-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          align-items: stretch;
+          width: 100%;
+        }
+        @media (max-width: 1024px) {
+          .included-features-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 640px) {
+          .included-features-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <div className="pricing-container">
+
+      <div style={{ marginBottom: "20px" }}>
+        <h1
+          style={{
+            fontSize: "20px",
+            fontWeight: 700,
+            color: "var(--p-color-text, #202223)",
+            margin: "0 0 6px 0",
+            lineHeight: 1.3,
+          }}
+        >
+          {t("heading")}
+        </h1>
+        <div
+          style={{
+            fontSize: "14px",
+            color: "var(--p-color-text-subdued, #6d7175)",
+            margin: 0,
+            lineHeight: 1.4,
+          }}
+        >
+          Choose a plan based on how many products you show in 3D. Every plan includes every feature.
+        </div>
+      </div>
 
       {/*
         Rendered as well as toasted. A toast is gone in seconds, and a refused
@@ -777,78 +1127,305 @@ export default function Pricing() {
         </s-banner>
       ) : null}
 
-      <s-section heading={t("currentPlanHeading")}>
-        <s-stack direction="block" gap="base">
-          <s-paragraph>{currentDescription}</s-paragraph>
-
-          {/*
-            What the shop is using, stated plainly. Comparing plans is guesswork
-            without it — every card quotes a limit, and nothing on the page said
-            how much of the current one was already spent.
-          */}
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <s-badge
-              tone={
-                currentPlan &&
-                !isUnlimited(currentPlan.productLimit) &&
-                usage.products >= currentPlan.productLimit
-                  ? "warning"
-                  : "neutral"
-              }
+      {promotionBanner && (!promotionBanner.dismissible || !bannerDismissed) ? (
+        <s-banner
+          tone={promotionBanner.tone || "success"}
+          heading={promotionBanner.heading}
+          dismissible={promotionBanner.dismissible ? true : undefined}
+          onDismiss={promotionBanner.dismissible ? handleDismissBanner : undefined}
+        >
+          <s-paragraph>
+            {promotionBanner.text}
+          </s-paragraph>
+          {promotionBanner.dismissible ? (
+            <s-button
+              slot="secondary-actions"
+              onClick={handleDismissBanner}
             >
-              {t("productsInUse", {
-                used: usage.products,
-                limit: limitText(currentPlan?.productLimit ?? 0),
-              })}
-            </s-badge>
-            <s-badge
-              tone={
-                currentPlan &&
-                !isUnlimited(currentPlan.modelLimit) &&
-                usage.models >= currentPlan.modelLimit
-                  ? "warning"
-                  : "neutral"
-              }
-            >
-              {t("modelsInUse", {
-                used: usage.models,
-                limit: limitText(currentPlan?.modelLimit ?? 0),
-              })}
-            </s-badge>
-          </s-stack>
-
-          {/*
-            Cancelling sits in the section body, not its primary-action slot.
-            That slot is where a merchant's eye goes first, and pointing it at
-            the one irreversible action on the page — on a page whose purpose is
-            choosing a plan — was exactly backwards. It is only rendered while
-            there is a subscription to cancel, rather than shown permanently
-            disabled on the free plan.
-
-            The confirmation opens declaratively with command/commandFor: React
-            18 stringifies every value it sets on a custom element, so a boolean
-            `open` would render open="false" and pin the dialog open.
-          */}
-          {subscriptionActive ? (
-            <s-stack direction="block" gap="small-500">
-              <s-text color="subdued">
-                {t("keepAccess")}
-              </s-text>
-              <s-stack direction="inline" gap="small">
-                <s-button
-                  variant="secondary"
-                  tone="critical"
-                  disabled={flag(submitting)}
-                  commandFor="cancel-subscription"
-                  command="--show"
-                >
-                  {t("cancelSubscription")}
-                </s-button>
-              </s-stack>
-            </s-stack>
+              Dismiss
+            </s-button>
           ) : null}
-        </s-stack>
+        </s-banner>
+      ) : null}
+
+      <s-section>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Top row: Left details & Right stat tiles */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "24px",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Left Column */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                flex: "1 1 300px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <s-heading>{t("currentPlanHeading")}</s-heading>
+                {subscriptionActive ? (
+                  <s-badge tone="success">Active</s-badge>
+                ) : (
+                  <s-badge tone="neutral">{FREE_PLAN_NAME}</s-badge>
+                )}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "10px",
+                  marginTop: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "var(--p-color-text, #202223)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {currentPlan ? planTitle(tb, currentPlan) : "Free"}
+                </span>
+                <span
+                  style={{
+                    fontSize: "14px",
+                    color: "var(--p-color-text-subdued, #6d7175)",
+                  }}
+                >
+                  {subscriptionActive && Number(subscription?.price) > 0
+                    ? `$${formatMoney(subscription.price)} ${
+                        subscription?.interval === "ANNUAL"
+                          ? "per year"
+                          : "per month"
+                      }`
+                    : currentPrice > 0
+                    ? `$${formatMoney(currentPrice)} per month`
+                    : "Free"}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "var(--p-color-text-subdued, #6d7175)",
+                  marginTop: "2px",
+                  lineHeight: 1.4,
+                }}
+              >
+                {isUnlimited(currentPlan?.productLimit ?? 0)
+                  ? "No limits on products or 3D models. Each product can have one model."
+                  : `Up to ${limitText(currentPlan?.productLimit ?? 0)} products and ${limitText(currentPlan?.modelLimit ?? 0)} 3D models. Each product can have one model.`}
+              </div>
+            </div>
+
+            {/* Right Column: Stat Cards */}
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  border: "1px solid var(--p-color-border, #e1e3e5)",
+                  borderRadius: "8px",
+                  padding: "14px 18px",
+                  minWidth: "150px",
+                  backgroundColor: "var(--p-color-bg-surface, #ffffff)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--p-color-text-subdued, #6d7175)",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  Products with a 3D model
+                </div>
+                <div
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "var(--p-color-text, #202223)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {usage.products}
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--p-color-text-subdued, #6d7175)",
+                  }}
+                >
+                  {isUnlimited(currentPlan?.productLimit ?? 0)
+                    ? "No limit"
+                    : `${currentPlan?.productLimit ?? 0} limit`}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  border: "1px solid var(--p-color-border, #e1e3e5)",
+                  borderRadius: "8px",
+                  padding: "14px 18px",
+                  minWidth: "150px",
+                  backgroundColor: "var(--p-color-bg-surface, #ffffff)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--p-color-text-subdued, #6d7175)",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  Models in your library
+                </div>
+                <div
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "var(--p-color-text, #202223)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {usage.models}
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--p-color-text-subdued, #6d7175)",
+                  }}
+                >
+                  {isUnlimited(currentPlan?.modelLimit ?? 0)
+                    ? "No limit"
+                    : `${currentPlan?.modelLimit ?? 0} limit`}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <s-divider />
+
+          {/* Bottom row: Keep access notice & Cancel button */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "16px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                color: "var(--p-color-text-subdued, #6d7175)",
+              }}
+            >
+              {t("keepAccess")}
+            </div>
+
+            {/* Cancel Button */}
+            <button
+              type="button"
+              disabled={submitting}
+              commandFor="cancel-subscription"
+              command="--show"
+              onClick={() => {
+                const dialog = document.getElementById(
+                  "cancel-subscription",
+                ) as any;
+                dialog?.showOverlay?.();
+              }}
+              style={{
+                backgroundColor: "#ffffff",
+                border: "1px solid #dcdcdc",
+                color: "#bc2200",
+                borderRadius: "8px",
+                padding: "7px 16px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: submitting ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                boxSizing: "border-box",
+                transition: "background 0.15s ease, border-color 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#fff8f8";
+                e.currentTarget.style.borderColor = "#bc2200";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#ffffff";
+                e.currentTarget.style.borderColor = "#dcdcdc";
+              }}
+            >
+              Cancel subscription
+            </button>
+          </div>
+        </div>
       </s-section>
+
+      {/* Recommendation Banner */}
+      {suggestedPlan ? (
+        <div
+          style={{
+            backgroundColor: "#edf5ff",
+            border: "1px solid #cfe2fe",
+            borderRadius: "12px",
+            padding: "16px 20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "16px",
+            flexWrap: "wrap",
+            marginTop: "16px",
+            marginBottom: "16px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                color: "#1a1a1a",
+              }}
+            >
+              {suggestedPlan.name} fits your store and costs less
+            </div>
+            <div style={{ fontSize: "13px", color: "#4a4d50" }}>
+              You use {usage.products} products and {usage.models} models.{" "}
+              {suggestedPlan.name} includes up to{" "}
+              {suggestedPlan.productLimit} of each and costs ${savings} less
+              each month.
+            </div>
+          </div>
+
+          <s-button
+            variant="primary"
+            loading={flag(submitting && pendingPlanId === suggestedPlan.id)}
+            disabled={flag(submitting)}
+            onClick={() => startSubscription(suggestedPlan.id)}
+          >
+            Switch to {suggestedPlan.name}
+          </s-button>
+        </div>
+      ) : null}
 
       <ConfirmModal
         id="confirm-downgrade"
@@ -860,7 +1437,16 @@ export default function Pricing() {
         cancelLabel={t("keepMyPlan")}
         loading={submitting}
         onConfirm={() => {
-          if (downgradeTo) startSubscription(downgradeTo.id);
+          if (downgradeTo) {
+            if (
+              downgradeTo.name === FREE_PLAN_NAME ||
+              Number(downgradeTo.price) <= 0
+            ) {
+              cancelSubscription();
+            } else {
+              startSubscription(downgradeTo.id);
+            }
+          }
           setDowngradeTo(null);
         }}
         onCancel={() => setDowngradeTo(null)}
@@ -936,103 +1522,221 @@ export default function Pricing() {
         entire card for a code of about eight characters, which read as the most
         important input on a page whose purpose is choosing a plan.
       */}
-      {SHOW_BILLING_OPTIONS ? (
-        <div style={{ marginBottom: "18px", marginTop: "28px" }}>
-          <s-grid
-            gridTemplateColumns="repeat(auto-fit, minmax(min(100%, 260px), 1fr))"
-            gap="base"
-            alignItems="center"
-            inlineSize="100%"
+      {/* Billing Cycle Toggle & Optional Coupon */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "28px 0 6px 0",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            display: "inline-grid",
+            gridTemplateColumns: "1fr 1fr",
+            backgroundColor: "#ebecef",
+            padding: "4px",
+            borderRadius: "12px",
+            border: "1px solid #dfe1e5",
+            userSelect: "none",
+            boxSizing: "border-box",
+          }}
+        >
+          {/* Smooth sliding indicator */}
+          <div
+            style={{
+              position: "absolute",
+              top: "4px",
+              bottom: "4px",
+              left: "4px",
+              width: "calc(50% - 4px)",
+              backgroundColor: "#ffffff",
+              borderRadius: "8px",
+              boxShadow:
+                "0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)",
+              transform: yearly ? "translateX(100%)" : "translateX(0%)",
+              transition: "transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)",
+              pointerEvents: "none",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setYearly(false)}
+            style={{
+              position: "relative",
+              zIndex: 1,
+              padding: "8px 22px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: !yearly ? 600 : 500,
+              backgroundColor: "transparent",
+              color: !yearly ? "#202223" : "#6d7175",
+              border: "none",
+              cursor: "pointer",
+              transition: "color 0.2s ease",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              whiteSpace: "nowrap",
+            }}
           >
-            <s-switch
-              label={t("payYearly", { count: 12 - ANNUAL_MONTHS_CHARGED })}
-              checked={flag(yearly)}
-              onInput={(e) => setYearly(fieldChecked(e))}
-            />
-
-            {/*
-          Revealed on request, not always on show. A permanently visible coupon
-          field asks every merchant about a code most of them do not have, and
-          it competes for the header with the billing period — which everyone
-          uses. Behind a link it costs nothing until it is wanted, and when it
-          is wanted it gets enough width to show what is being typed.
-        */}
-
-            {couponOpen ? (
-              /*
-            The cap is on the whole control, and the Apply and dismiss buttons
-            take a fixed share of it — so the input is what grows when this
-            number does, to roughly 560px here.
-
-            Still a max rather than a fixed width: it shrinks to fit a phone,
-            where this row stacks under the billing switch.
-          */
-
-              <s-box maxInlineSize="680px">
-                {/*
-              The Enter handler sits on a plain wrapper, not on the field.
-              `keydown` bubbles, so it still catches the key pressed inside the
-              input — but s-text-field's React binding does not declare
-              onKeyDown, and a div is a cheaper way through that than casting
-              the prop past the type.
-            */}
-                <div
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    event.preventDefault();
-                    if (couponInput.trim()) applyCoupon();
-                  }}
-                >
-                  <s-grid
-                    gridTemplateColumns="1fr auto auto"
-                    gap="small"
-                    alignItems="end"
-                    inlineSize="100%"
-                  >
-                    <s-text-field
-                      label={t("couponLabel")}
-                      placeholder={t("couponPlaceholder")}
-                      value={couponInput}
-                      error={couponError ?? undefined}
-                      onInput={(e) => {
-                        setCouponInput(fieldValue(e));
-                        setCouponError(null);
-                      }}
-                    />
-                    <s-button
-                      variant="primary"
-                      loading={flag(couponCheck.state !== "idle")}
-                      disabled={flag(!couponInput.trim())}
-                      onClick={applyCoupon}
-                    >
-                      {t("apply")}
-                    </s-button>
-                    <s-button
-                      variant="tertiary"
-                      accessibilityLabel={t("couponDismiss")}
-                      icon="x"
-                      onClick={() => {
-                        setCouponOpen(false);
-                        setCouponInput("");
-                        setCouponError(null);
-                      }}
-                    />
-                  </s-grid>
-                </div>
-              </s-box>
-            ) : coupon ? null : (
-              <div className="align-end-from-tablet">
-                <s-button
-                  variant="tertiary"
-                  onClick={() => setCouponOpen(true)}
-                >
-                  {t("haveCoupon")}
-                </s-button>
-              </div>
-            )}
-          </s-grid>
+            Monthly billing
+          </button>
+          <button
+            type="button"
+            onClick={() => setYearly(true)}
+            style={{
+              position: "relative",
+              zIndex: 1,
+              padding: "8px 22px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: yearly ? 600 : 500,
+              backgroundColor: "transparent",
+              color: yearly ? "#202223" : "#6d7175",
+              border: "none",
+              cursor: "pointer",
+              transition: "color 0.2s ease",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span>Yearly billing</span>
+            <span
+              style={{
+                backgroundColor: "#e4f8ed",
+                color: "#108043",
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: "9999px",
+                lineHeight: "14px",
+                letterSpacing: "0.2px",
+              }}
+            >
+              Save 17%
+            </span>
+          </button>
         </div>
-      ) : null}
+
+        {/* Have coupon toggle */}
+        {!coupon && !couponOpen ? (
+          <button
+            type="button"
+            onClick={() => setCouponOpen(true)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#005bd3",
+              fontSize: "13px",
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: "4px",
+            }}
+          >
+            {t("haveCoupon")}
+          </button>
+        ) : null}
+
+        {couponOpen ? (
+          <div
+            style={{
+              maxWidth: "460px",
+              width: "100%",
+              margin: "6px auto 0 auto",
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (couponInput.trim()) applyCoupon();
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
+              }}
+            >
+              <input
+                type="text"
+                placeholder={t("couponPlaceholder")}
+                value={couponInput}
+                onChange={(e) => {
+                  setCouponInput(e.target.value);
+                  setCouponError(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: couponError
+                    ? "1px solid #d82c0d"
+                    : "1px solid #c9cccf",
+                  fontSize: "13px",
+                  outline: "none",
+                  backgroundColor: "#ffffff",
+                  color: "#202223",
+                }}
+              />
+              <button
+                type="button"
+                disabled={!couponInput.trim() || couponCheck.state !== "idle"}
+                onClick={applyCoupon}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: "#202223",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: !couponInput.trim() ? "not-allowed" : "pointer",
+                  opacity: !couponInput.trim() ? 0.6 : 1,
+                }}
+              >
+                {t("apply")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCouponOpen(false);
+                  setCouponInput("");
+                  setCouponError(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#6d7175",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {couponError ? (
+              <div
+                style={{
+                  color: "#d82c0d",
+                  fontSize: "12px",
+                  marginTop: "4px",
+                }}
+              >
+                {couponError}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {/*
         One banner for whichever discount is in force.
@@ -1046,7 +1750,9 @@ export default function Pricing() {
         <s-banner
           tone="success"
           heading={
-            showingLaunchOffer
+            showingAutoApply
+              ? `🎉 Special Promotion: ${Math.round(appliedDiscount.percentage * 100)}% Discount Auto-Applied!`
+              : showingLaunchOffer
               ? t("launchOfferHeading", {
                   percent: LAUNCH_OFFER_PERCENT_LABEL,
                   date: offerEnds,
@@ -1054,7 +1760,11 @@ export default function Pricing() {
               : t("couponApplied", { code: appliedDiscount.code })
           }
         >
-          <s-paragraph>{appliedDiscount.description}</s-paragraph>
+          <s-paragraph>
+            {showingAutoApply
+              ? `Coupon ${appliedDiscount.code} has been automatically applied to your subscription: ${appliedDiscount.description}`
+              : appliedDiscount.description}
+          </s-paragraph>
           {showingLaunchOffer ? null : (
             <s-button
               slot="secondary-actions"
@@ -1082,383 +1792,733 @@ export default function Pricing() {
         the Plan table, so it is handed to CSS as a custom property rather than
         being baked into the rule.
       */}
-      <div
-        className="plan-grid"
-        style={{ "--plan-count": plans.length } as CSSProperties}
-      >
-        {plans.map((plan) => {
+
+      <div className="pricing-cards-grid">
+        {sortedPlans.map((plan) => {
           const isActive = plan.name === currentPlanName;
           const isPaid = Number(plan.price) > 0;
           const isPopular = plan.name === GROWTH_PLAN_NAME;
-          const trialDays = Number(plan.trialDays ?? 0);
-          const price = Number(plan.price);
-          // Says what the button does, rather than assuming every move is up.
-          const changeLabel =
-            price > currentPrice
-              ? tc("upgrade")
-              : price < currentPrice
-                ? t("downgrade")
-                : t("switchToPlan");
+          const isCurrentPlanActive =
+            isActive &&
+            (!isPaid ||
+              (subscription?.interval === "ANNUAL" ? yearly : !yearly));
 
-          /*
-           * What this plan costs, before and after any coupon.
-           *
-           * The discount is applied by Shopify on the charge itself, so this is
-           * not an estimate — it is what the merchant will be billed. Rounded to
-           * cents for the same reason annualPrice is: a percentage of a price is
-           * rarely a clean number in binary floating point.
-           */
           const listPrice = yearly
             ? annualPrice(plan.price)
             : Number(plan.price);
-          const payPrice = appliedDiscount
-            ? Math.round(listPrice * (1 - appliedDiscount.percentage) * 100) /
-              100
-            : listPrice;
-          const discounted =
-            isPaid && appliedDiscount !== null && payPrice < listPrice;
 
-          /*
-           * Would this plan fit what the shop already publishes? A plan below
-           * current usage is still offered — a merchant may intend to trim —
-           * but it says so, and it asks before it is applied.
-           */
-          /*
-           * The one badge a card can carry. Current wins over Recommended: a
-           * merchant already on the popular plan is told what they have, not
-           * what to buy.
-           */
-          const badgeLabel = isActive
-            ? t("badgeCurrent")
-            : isPopular
-              ? tb("recommended")
-              : null;
-          const badgeTone = isActive ? "success" : "info";
+          const hasDiscount = isPaid && Boolean(appliedDiscount) && (
+            !appliedDiscount?.applicablePlans ||
+            appliedDiscount.applicablePlans.length === 0 ||
+            appliedDiscount.applicablePlans.includes(plan.name)
+          );
+
+          const discountPct = hasDiscount ? appliedDiscount!.percentage : 0;
+          const payPrice = hasDiscount
+            ? Math.round(listPrice * (1 - discountPct) * 100) / 100
+            : listPrice;
+
+          const durationCycles = appliedDiscount?.durationLimitInIntervals;
+          const isLifetime = durationCycles === null || durationCycles === undefined;
 
           const tooSmall =
             (!isUnlimited(plan.productLimit) &&
               plan.productLimit < usage.products) ||
             (!isUnlimited(plan.modelLimit) && plan.modelLimit < usage.models);
 
-          /*
-           * The plan's own feature copy, not a synthesized list.
-           *
-           * This used to prepend the limits — "15 products", "15 3D models" —
-           * ahead of plan.features, which already states them in its own words
-           * ("15 products with a 3D model", "15 models in your library"). Every
-           * card therefore listed each limit twice, in two different phrasings,
-           * which read as five entitlements where there are two.
-           *
-           * The derived lines survive only as a fallback, for a plan whose
-           * feature copy has not been filled in — an empty card would be worse
-           * than a terse one.
-           */
-          const includes = [
-            ...(trialDays > 0 && !isActive
-              ? [tb("trialDays", { count: trialDays })]
-              : []),
-            ...(plan.features.length > 0
-              ? plan.features.map((f) => planFeature(tb, f))
-              : [
-                  productsText(plan.productLimit),
-                  modelsText(plan.modelLimit),
-                  tb("featureOneModelPerProduct"),
-                ]),
-          ];
+          const excessProducts = Math.max(0, usage.products - plan.productLimit);
+          const excessModels = Math.max(0, usage.models - plan.modelLimit);
+          let warningText = "";
+          if (excessProducts > 0 && excessModels > 0) {
+            warningText = `Remove ${excessProducts} products and ${excessModels} models to switch.`;
+          } else if (excessProducts > 0) {
+            warningText = `Remove ${excessProducts} products to switch.`;
+          } else if (excessModels > 0) {
+            warningText = `Remove ${excessModels} models to switch.`;
+          }
 
           return (
-            /*
-              The card, in a positioned wrapper so the badge can sit astride its
-              top border — half above the line, half below it.
-
-              The wrapper exists because the badge has to be taken out of the
-              card's flow to overlap its own edge, and `position: absolute`
-              resolves against the nearest positioned ancestor. s-box takes no
-              position prop, so a plain div supplies the containing block. It is
-              also what carries the React key now, being the outermost element of
-              the card.
-            */
             <div
               key={plan.id}
-              style={{ position: "relative", blockSize: "100%" }}
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "12px",
+                padding: "24px 20px",
+                display: "flex",
+                flexDirection: "column",
+                border: isCurrentPlanActive
+                  ? "2px solid #202223"
+                  : isPopular
+                  ? "2px solid #005bd3"
+                  : "1px solid #e1e3e5",
+                boxShadow:
+                  isPopular || isCurrentPlanActive
+                    ? "0 4px 12px rgba(0, 0, 0, 0.05)"
+                    : "none",
+                position: "relative",
+                height: "100%",
+                boxSizing: "border-box",
+              }}
             >
-              {badgeLabel ? (
-                /*
-                  `top: 0` puts the badge's own top edge on the card's border
-                  line; translateY(-50%) then lifts it by half its height, so
-                  exactly half hangs outside and half sits inside — without this
-                  file needing to know how tall a badge is.
+              {/* Badge Area */}
+              <div style={{ minHeight: "26px", marginBottom: "8px" }}>
+                {isCurrentPlanActive ? (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      backgroundColor: "#e4f8ed",
+                      color: "#108043",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: "9999px",
+                      lineHeight: "16px",
+                    }}
+                  >
+                    Current plan
+                  </span>
+                ) : isPopular ? (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      backgroundColor: "#e0f2fe",
+                      color: "#005bd3",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: "9999px",
+                      lineHeight: "16px",
+                    }}
+                  >
+                    Recommended
+                  </span>
+                ) : null}
+              </div>
 
-                  Left-aligned to the card's inline padding rather than centred,
-                  which is where the badge sat on the line above the title before
-                  it moved onto the border.
-                */
+              {/* Title & Price */}
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color: "#202223",
+                  lineHeight: "1.2",
+                }}
+              >
+                {planTitle(tb, plan)}
+              </div>
+
+              {/* Price Container */}
+              <div style={{ margin: "10px 0 4px 0" }}>
+                {hasDiscount ? (
+                  <div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "30px",
+                          fontWeight: 800,
+                          color: "#108043",
+                          lineHeight: "1",
+                        }}
+                      >
+                        ${formatMoney(payPrice)}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: 600,
+                          color: "#8c9196",
+                          textDecoration: "line-through",
+                          lineHeight: "1",
+                        }}
+                        title="Regular price before discount"
+                      >
+                        ${formatMoney(listPrice)}
+                      </span>
+                      <span
+                        style={{
+                          backgroundColor: "#dcfce7",
+                          color: "#15803d",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          padding: "3px 8px",
+                          borderRadius: "12px",
+                          border: "1px solid #86efac",
+                          lineHeight: "1",
+                        }}
+                      >
+                        {Math.round(discountPct * 100)}% OFF
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#6d7175",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {yearly ? "billed annually" : "billed every 30 days"}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "28px",
+                        fontWeight: 800,
+                        color: "#202223",
+                        lineHeight: "1",
+                      }}
+                    >
+                      ${formatMoney(isPaid ? listPrice : 0)}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        color: "#6d7175",
+                      }}
+                    >
+                      {isPaid && yearly ? "per year" : isPaid ? "per month" : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sub-price breakdown */}
+              <div
+                style={{
+                  minHeight: "18px",
+                  marginBottom: hasDiscount ? "8px" : "14px",
+                  fontSize: "12px",
+                }}
+              >
+                {isPaid && yearly ? (
+                  <span style={{ color: "#108043", fontWeight: 600 }}>
+                    ${formatMoney(payPrice / 12)}/mo • {hasDiscount ? `Includes ${Math.round(discountPct * 100)}% coupon discount + annual savings` : "Save 17%"}
+                  </span>
+                ) : isPaid && !hasDiscount ? (
+                  <span style={{ color: "#6d7175" }}>
+                    Billed every 30 days
+                  </span>
+                ) : !isPaid ? (
+                  <span style={{ color: "#6d7175" }}>Free forever</span>
+                ) : null}
+              </div>
+
+              {/* Discount Duration Breakdown Banner */}
+              {hasDiscount ? (
                 <div
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    insetInlineStart: "12px",
-                    transform: "translateY(-50%)",
-                    // Above the card's background and border, which are painted
-                    // by the s-box below and would otherwise cross the badge.
-                    zIndex: 1,
+                    backgroundColor: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "8px",
+                    padding: "8px 10px",
+                    marginBottom: "14px",
+                    fontSize: "12px",
+                    lineHeight: "1.35",
                   }}
                 >
-                  <s-badge tone={badgeTone}>{badgeLabel}</s-badge>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: "#166534",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    <span>{isLifetime ? "♾️" : "⏳"}</span>
+                    <span>
+                      {isLifetime
+                        ? "Lifetime Recurring Discount"
+                        : durationCycles === 1
+                        ? `1 Billing Cycle (${yearly ? "1 Year" : "1 Month"})`
+                        : `${durationCycles} Billing Cycles (${durationCycles} ${yearly ? "Years" : "Months"})`}
+                    </span>
+                  </div>
+                  <div style={{ color: "#15803d" }}>
+                    {isLifetime ? (
+                      <>
+                        Discount applies to <strong>every recurring charge</strong> (${formatMoney(payPrice)}/{yearly ? "yr" : "mo"}) for as long as your subscription stays active.
+                      </>
+                    ) : durationCycles === 1 ? (
+                      <>
+                        Pay <strong>${formatMoney(payPrice)}</strong> for the <strong>1st {yearly ? "year" : "month"}</strong> (1 charge), then renews at regular price of <strong>${formatMoney(listPrice)}/{yearly ? "yr" : "mo"}</strong>.
+                      </>
+                    ) : (
+                      <>
+                        Pay <strong>${formatMoney(payPrice)}/{yearly ? "yr" : "mo"}</strong> for the <strong>first ${durationCycles} {yearly ? "years" : "months"}</strong> (${durationCycles} charges), then renews at regular price of <strong>${formatMoney(listPrice)}/{yearly ? "yr" : "mo"}</strong>.
+                      </>
+                    )}
+                  </div>
                 </div>
               ) : null}
 
-              <s-box
-                /*
-                  Every card the height of the tallest, so the row's bottom edges
-                  line up however many features each plan lists.
-
-                  Grid items stretch to their row by default, so the wrapper div
-                  already fills the row — but the s-box inside it is a block
-                  element sized by its own content, and stops short. Both halves
-                  are needed: `blockSize: 100%` on the wrapper (which resolves
-                  against the stretched grid area) and this on the card.
-                */
-                blockSize="100%"
-                padding="small"
-                /*
-                  Extra room at the top, on every card and not only the badged
-                  ones. The badge's lower half lands in this padding, and card
-                  padding alone is shorter than half a badge, so without it the
-                  badge would touch the plan name. Applying it everywhere keeps
-                  the four titles on one line across the row.
-                */
-                paddingBlockStart="base"
-                borderWidth="base"
-                borderStyle="solid"
-                borderColor={isActive || isPopular ? "strong" : "base"}
-                borderRadius="large"
-                background={isPopular && !isActive ? "subdued" : "base"}
+              {/* Features List */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  marginBottom: "20px",
+                  fontSize: "13px",
+                  color: "#202223",
+                  lineHeight: "1.4",
+                }}
               >
-                <s-stack direction="block" gap="small">
-                  <s-stack direction="block" gap="small-500">
-                    {/*
-                    Name and price on one line. `1fr auto` rather than a flex row
-                    with space-between: the row has no spare width for
-                    space-between to distribute, so the price would sit against
-                    the name instead of at the card's edge.
-                  */}
-                    <s-grid
-                      gridTemplateColumns="1fr auto"
-                      gap="small"
-                      alignItems="baseline"
-                      inlineSize="100%"
+                {[
+                  {
+                    boldPrefix: isUnlimited(plan.productLimit)
+                      ? "Unlimited"
+                      : `${plan.productLimit}`,
+                    boldSuffix: "products with a 3D model",
+                  },
+                  {
+                    boldPrefix: isUnlimited(plan.modelLimit)
+                      ? "Unlimited"
+                      : `${plan.modelLimit}`,
+                    boldSuffix: "models in your library",
+                  },
+                  { label: "1 model per product" },
+                  { label: "GLB & glTF models (up to 20 MB)" },
+                  { label: "Augmented reality (iOS & Android AR)" },
+                  { label: "Theme app blocks & embed snippet" },
+                  { label: "Full viewer controls & studio lighting" },
+                  { label: "Animation playback & material variants" },
+                  {
+                    label:
+                      plan.name === ADVANCE_PLAN_NAME
+                        ? "Premium priority support"
+                        : plan.name === FREE_PLAN_NAME
+                        ? "Standard email support"
+                        : "Priority email support",
+                  },
+                ].map((feat, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      style={{ flexShrink: 0, marginTop: "2px" }}
                     >
-                      <s-heading>{planTitle(tb, plan)}</s-heading>
-                      <s-stack
-                        direction="inline"
-                        gap="small-500"
-                        alignItems="baseline"
-                      >
-                        {/*
-                        A plain span with an explicit size, and the only place
-                        on this page that leaves the component set.
+                      <circle cx="8" cy="8" r="7.5" fill="#e4f8ed" />
+                      <path
+                        d="M11 5.5L6.5 10L5 8.5"
+                        stroke="#108043"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span>
+                      {feat.boldPrefix ? (
+                        <>
+                          <strong>{feat.boldPrefix}</strong> {feat.boldSuffix}
+                        </>
+                      ) : (
+                        feat.label
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-                        The price is the number a pricing card exists to
-                        communicate and it should be the largest thing on the
-                        card — but Polaris exposes no font size on s-text, so as
-                        an s-text it rendered at body size, no bigger than the
-                        feature rows beneath it. Colour and family are inherited
-                        rather than declared, so it still follows the admin's
-                        type and theme; only the scale is ours.
-                      */}
-                        {/*
-                        The list price, struck through, when a coupon has
-                        changed it. `type="redundant"` renders an <s> element —
-                        the component set's own way of saying "no longer
-                        applies" — so the discount is legible rather than the
-                        price silently becoming a different number.
-                      */}
-                        {discounted ? (
-                          <s-text type="redundant" color="subdued">
-                            {`$${formatMoney(listPrice)}`}
-                          </s-text>
-                        ) : null}
-                        <span
-                          style={{
-                            fontSize: "1.25rem",
-                            fontWeight: 600,
-                            lineHeight: 1.1,
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          {isPaid
-                            ? `$${formatMoney(payPrice)}`
-                            : formatPrice(plan, tb("free"))}
-                        </span>
-                        {isPaid ? (
-                          <s-text color="subdued">
-                            {yearly ? t("perYear") : t("perMonth")}
-                          </s-text>
-                        ) : null}
-                      </s-stack>
-                    </s-grid>
+              {/* Notice / Warning / Savings Box */}
+              <div
+                style={{
+                  marginTop: "auto",
+                  marginBottom: "18px",
+                  minHeight: "52px",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {hasDiscount && !isActive && !tooSmall ? (
+                  <div
+                    style={{
+                      backgroundColor: "#dcfce7",
+                      color: "#166534",
+                      borderRadius: "8px",
+                      padding: "10px 12px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      lineHeight: "1.3",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    🎉 Coupon applied! You save ${formatMoney(listPrice - payPrice)} {yearly ? "this year" : "every month"}.
+                  </div>
+                ) : isPopular &&
+                !isActive &&
+                currentPrice > Number(plan.price) &&
+                !tooSmall ? (
+                  <div
+                    style={{
+                      backgroundColor: "#dcfce7",
+                      color: "#166534",
+                      borderRadius: "8px",
+                      padding: "10px 12px",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      lineHeight: "1.3",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    Fits your store. Save ${savings} a month.
+                  </div>
+                ) : tooSmall && !isActive ? (
+                  <div
+                    style={{
+                      backgroundColor: "#fef3c7",
+                      color: "#92400e",
+                      borderRadius: "8px",
+                      padding: "10px 12px",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      lineHeight: "1.3",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {warningText}
+                  </div>
+                ) : null}
+              </div>
 
-                    {/*
-                    The badge that used to share this line now sits beside the
-                    title, so this renders only when there is a description to
-                    render — an empty stack would still occupy a row's gap.
-                  */}
-                    {plan.description ? (
-                      <s-text color="subdued">
-                        {planDescription(tb, plan)}
-                      </s-text>
-                    ) : null}
-
-                    {isPaid && yearly ? (
-                      <s-text color="subdued">
-                        {t("worksOutAt", {
-                          price: `$${formatMoney(payPrice / 12)}`,
-                        })}
-                      </s-text>
-                    ) : null}
-                    {/*
-                    A discount that expires has to say so on the card. Without
-                    it the price shown is the price for a few periods only, and
-                    the merchant finds out when the bill changes.
-                  */}
-                    {discounted && appliedDiscount?.durationLimitInIntervals ? (
-                      <s-text color="subdued">
-                        {t(
-                          yearly ? "discountForYears" : "discountForMonths",
-                          {
-                            count: appliedDiscount.durationLimitInIntervals,
-                            price: `$${formatMoney(listPrice)}`,
-                          },
-                        )}
-                      </s-text>
-                    ) : null}
-                    {tooSmall && !isActive ? (
-                      <s-text tone="warning">
-                        {t("belowUsage")}
-                      </s-text>
-                    ) : null}
-                  </s-stack>
-
-                  {/* Spans the card, as in the reference. */}
-                  {isActive ? (
-                    /*
-                    The plan they are already on. Normally there is nothing to
-                    do here, so the button is inert — but a coupon changes the
-                    terms of this plan too, and re-subscribing is the only way
-                    to take it up.
-
-                    Without this the discount was unreachable for exactly the
-                    people most likely to be given one: every other card offered
-                    a repriced plan, while the card for the plan they actually
-                    hold sat disabled saying "Current plan".
-
-                    Entered codes only. The launch offer applies to itself
-                    automatically at checkout, and a merchant who subscribed
-                    after it opened already has it on their charge — so offering
-                    them "Apply discount" would push them to replace a working
-                    subscription to buy a discount they are already getting.
-                    Nothing Shopify returns says whether a live subscription
-                    carries a discount, so the safe reading is the one that does
-                    not restart anyone's billing.
-                  */
-                    discounted && !showingLaunchOffer ? (
-                      <s-button
-                        {...BUTTON_FILL}
-                        variant="primary"
-                        loading={flag(submitting && pendingPlanId === plan.id)}
-                        disabled={flag(submitting && pendingPlanId !== plan.id)}
-                        onClick={() => startSubscription(plan.id)}
-                      >
-                        {t("applyDiscount")}
-                      </s-button>
-                    ) : (
-                      <s-button {...BUTTON_FILL} disabled={flag(true)}>
-                        {t("currentPlanButton")}
-                      </s-button>
-                    )
-                  ) : isPaid ? (
-                    <s-button
-                      {...BUTTON_FILL}
-                      variant={isPopular ? "primary" : "secondary"}
-                      loading={flag(submitting && pendingPlanId === plan.id)}
-                      disabled={flag(submitting && pendingPlanId !== plan.id)}
-                      onClick={() =>
-                        tooSmall
-                          ? setDowngradeTo(plan)
-                          : startSubscription(plan.id)
-                      }
-                    >
-                      {changeLabel}
-                    </s-button>
-                  ) : (
-                    /*
-                    The free plan, while a paid subscription is running: this is
-                    the only way down to it, so the card offers it rather than
-                    sitting inert. It opens the same confirmation as "Cancel
-                    subscription", because that is exactly what it does — the
-                    two used to be the same action wearing different names, with
-                    only one of them reachable from here.
-                  */
-                    <s-button
-                      {...BUTTON_FILL}
-                      variant="secondary"
-                      disabled={flag(submitting)}
-                      commandFor="cancel-subscription"
-                      command="--show"
-                    >
-                      {t("downgradeTo", { plan: tb("planFree") })}
-                    </s-button>
-                  )}
-
-                  {/*
-                  Rows ruled between, not bulleted. A divider per row is what
-                  makes these scan as a comparable list down the row of cards —
-                  the same item sits at the same height in every card.
-                */}
-                  <s-stack direction="block" gap="none">
-                    {includes.map((item, i) => (
-                      <Fragment key={i}>
-                        {i > 0 ? <s-divider /> : null}
-                        <s-box paddingBlock="small-500">
-                          <s-text>{item}</s-text>
-                        </s-box>
-                      </Fragment>
-                    ))}
-                  </s-stack>
-                </s-stack>
-              </s-box>
+              {/* Action Button */}
+              {isCurrentPlanActive ? (
+                hasDiscount && !showingLaunchOffer ? (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => startSubscription(plan.id)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 16px",
+                      borderRadius: "8px",
+                      border: "1px solid #16a34a",
+                      background: "#f0fdf4",
+                      color: "#15803d",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      boxSizing: "border-box",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Apply {Math.round(discountPct * 100)}% Discount to Current Plan
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    style={{
+                      width: "100%",
+                      padding: "10px 16px",
+                      borderRadius: "8px",
+                      border: "1px solid #e1e3e5",
+                      background: "#f1f2f3",
+                      color: "#8c9196",
+                      fontWeight: 600,
+                      fontSize: "14px",
+                      cursor: "default",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    Your current plan
+                  </button>
+                )
+              ) : isPopular ? (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() =>
+                    tooSmall
+                      ? setDowngradeTo(plan)
+                      : startSubscription(plan.id)
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#202223",
+                    color: "#ffffff",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    opacity: submitting ? 0.7 : 1,
+                    boxSizing: "border-box",
+                    transition: "background 0.15s ease",
+                  }}
+                >
+                  {plan.name === currentPlanName && isPaid
+                    ? yearly
+                      ? "Switch to Yearly"
+                      : "Switch to Monthly"
+                    : hasDiscount
+                    ? `Switch to ${plan.name} (${Math.round(discountPct * 100)}% OFF)`
+                    : `Switch to ${plan.name}`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    if (tooSmall) {
+                      setDowngradeTo(plan);
+                    } else if (isPaid) {
+                      startSubscription(plan.id);
+                    } else {
+                      cancelSubscription();
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    border: hasDiscount ? "1px solid #16a34a" : "1px solid #dcdcdc",
+                    background: hasDiscount ? "#f0fdf4" : "#ffffff",
+                    color: hasDiscount ? "#15803d" : "#202223",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    opacity: submitting ? 0.7 : 1,
+                    boxSizing: "border-box",
+                    transition:
+                      "background 0.15s ease, border-color 0.15s ease",
+                  }}
+                >
+                  {isPaid
+                    ? hasDiscount
+                      ? `Switch to ${plan.name} (${Math.round(discountPct * 100)}% OFF)`
+                      : `Switch to ${plan.name}`
+                    : "Downgrade to Free"}
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
-      <div style={{ margin: "20px 0" }}>
-        <s-section heading={t("includedHeading")}>
-          <s-paragraph color="subdued">{t("includedBody")}</s-paragraph>
+      {/* Row Below Cards */}
+      <div
+        style={{
+          marginTop: "16px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div style={{ fontSize: "13px", color: "#6d7175" }}>
+          Starter and Growth include a 7-day free trial and priority email support. Advance includes premium priority support.
+        </div>
+        <Link
+          to="/app/pricing/compare"
+          style={{
+            color: "#005bd3",
+            fontSize: "13px",
+            fontWeight: 600,
+            textDecoration: "none",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
+          Compare plan details
+        </Link>
+      </div>
 
-          <s-grid
-            gridTemplateColumns="repeat(auto-fit, minmax(min(100%, 240px), 1fr))"
-            gap="base"
+      {/* "Included in every plan" section */}
+      <div style={{ marginTop: "40px", marginBottom: "40px" }}>
+        <div style={{ marginBottom: "20px" }}>
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "#202223",
+              margin: "0 0 6px 0",
+              lineHeight: 1.3,
+            }}
           >
-            {INCLUDED_FEATURES.map((f) => (
-              <s-stack
-                key={f.title}
-                direction="inline"
-                gap="small"
-                alignItems="start"
+            Included in every plan
+          </h2>
+          <div
+            style={{
+              fontSize: "14px",
+              color: "#6d7175",
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            Every feature is on every plan, including Free. Plans only differ by how many products and models you can show.
+          </div>
+        </div>
+
+        <div className="included-features-grid">
+          {INCLUDED_PLAN_CARDS.map((feat, idx) => (
+            <div
+              key={idx}
+              style={{
+                backgroundColor: "#ffffff",
+                border: "1px solid #e1e3e5",
+                borderRadius: "12px",
+                padding: "20px",
+                display: "flex",
+                flexDirection: "column",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  backgroundColor: "#f6f6f7",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#202223",
+                  marginBottom: "14px",
+                }}
               >
-                <s-icon type={f.icon as any} tone="info" />
-                <s-stack direction="block" gap="small-500">
-                  <s-text type="strong">{t(f.title)}</s-text>
-                  <s-text color="subdued">
-                    {t(f.body, { size: MAX_MODEL_FILE_SIZE_MB })}
-                  </s-text>
-                </s-stack>
-              </s-stack>
-            ))}
-          </s-grid>
-        </s-section>
+                {feat.icon}
+              </div>
+
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "#202223",
+                  marginBottom: "8px",
+                  lineHeight: 1.3,
+                }}
+              >
+                {feat.title}
+              </div>
+
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#6d7175",
+                  lineHeight: 1.45,
+                  marginBottom: "18px",
+                }}
+              >
+                {feat.description}
+              </div>
+
+              <div style={{ marginTop: "auto" }}>
+                <Link
+                  to={feat.href}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #dcdcdc",
+                    backgroundColor: "#ffffff",
+                    color: "#202223",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    boxSizing: "border-box",
+                    transition:
+                      "background 0.15s ease, border-color 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#f6f6f7";
+                    e.currentTarget.style.borderColor = "#c9cccf";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#ffffff";
+                    e.currentTarget.style.borderColor = "#dcdcdc";
+                  }}
+                >
+                  Learn more
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M3.5 2.5H9.5V8.5M9.5 2.5L2.5 9.5"
+                      stroke="#5c5f62"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer Support Row */}
+        <div
+          style={{
+            marginTop: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "12px",
+            paddingTop: "8px",
+          }}
+        >
+          <div style={{ fontSize: "14px", color: "#6d7175" }}>
+            Not sure which plan to choose? We can help.
+          </div>
+          <button
+            type="button"
+            commandFor={SUPPORT_FORM_ID}
+            command="--show"
+            style={{
+              background: "none",
+              border: "none",
+              color: "#005bd3",
+              fontSize: "14px",
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: 0,
+              textDecoration: "none",
+            }}
+          >
+            Contact support
+          </button>
+        </div>
+      </div>
       </div>
     </s-page>
   );

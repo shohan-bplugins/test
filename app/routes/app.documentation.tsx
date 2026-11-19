@@ -182,7 +182,7 @@ function DocsEmbed() {
 export default function Documentation() {
   const t = useT("documentation");
   return (
-    <s-page heading={t("heading")} inlineSize="large">
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("backLabel")} />
       <s-button
         slot="primary-action"
@@ -195,7 +195,9 @@ export default function Documentation() {
       </s-button>
       <SupportAction />
 
-      <DocsEmbed />
+      <div className="app-container">
+        <DocsEmbed />
+      </div>
     </s-page>
   );
 }

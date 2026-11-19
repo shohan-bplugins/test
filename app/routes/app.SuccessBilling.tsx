@@ -11,6 +11,7 @@ import {
   invalidateSubscription,
   rememberPlanChosen,
 } from "~/lib/billing.server";
+import { recordCouponRedemption } from "~/lib/coupons.server";
 
 import { BackButton } from "~/components/BackButton";
 import { SupportAction } from "~/components/SupportAction";
@@ -109,7 +110,33 @@ export const loader = async ({
         })
       : null,
   ]);
-  if (active) rememberPlanChosen(shop);
+  if (active) {
+    rememberPlanChosen(shop);
+
+    const couponCode = url.searchParams.get("coupon");
+    if (couponCode) {
+      await recordCouponRedemption({
+        code: couponCode,
+        shop,
+        planName: subscription.name,
+        chargeId,
+        discountPct: 0,
+      });
+    }
+
+    await prisma.appStoreEvent.create({
+      data: {
+        shop,
+        type: "plan_change",
+        detail: JSON.stringify({
+          planName: subscription.name,
+          price: subscription.price,
+          chargeId,
+          coupon: couponCode ?? null,
+        }),
+      },
+    }).catch((e) => console.error("[billing] plan_change event log error:", e));
+  }
 
   // This loader confirms the charge live (it passes a chargeId, so it never
   // reads the cache). Every other page does read it, and would otherwise show
@@ -136,10 +163,11 @@ export default function SuccessBilling() {
       : t("successPending");
 
   return (
-    <s-page heading={heading}>
+    <s-page heading={heading} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("dashboard")} />
       <SupportAction />
 
+      <div className="app-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <s-section>
         <s-stack direction="block" gap="base">
           {/*
@@ -182,6 +210,7 @@ export default function SuccessBilling() {
           </s-stack>
         </s-stack>
       </s-section>
+      </div>
     </s-page>
   );
 }

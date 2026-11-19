@@ -51,8 +51,10 @@ export function CatalogCoverageCard({
       <div className="cc-container">
         {/* Top Header Row */}
         <div className="cc-header">
-          <h2 className="cc-title">3D catalog coverage</h2>
-          <span className="cc-badge">{modelBadgeText}</span>
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-heading>3D catalog coverage</s-heading>
+            <s-badge tone="info">{modelBadgeText}</s-badge>
+          </s-stack>
         </div>
 
         {/* Coverage Progress Section */}

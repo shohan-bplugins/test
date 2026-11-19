@@ -5,6 +5,7 @@ import {
   DRAFT_KEY,
   PRICING_KEY,
   RENDER_KEY,
+  VIEWER_DRAFT_KEY,
 } from "./constants";
 import { configuratorModules } from "./modules.server";
 import {
@@ -29,6 +30,7 @@ export type ProductConfigData = {
   publishedAt: Date | null;
   /** Unpublished changes were saved after the last publish. */
   draftAt: Date | null;
+  viewerConfig?: Record<string, unknown> | null;
 };
 
 const CUSTOMIZER = ["inherit", "on", "off"] as const;
@@ -194,6 +196,7 @@ export async function saveProductConfig(
     config: data.config,
     rules: data.optionRules,
     variants: data.variantConfigs,
+    ...(data.viewerConfig ? { viewerConfig: data.viewerConfig } : {}),
   };
 
   const ownerId = `gid://shopify/Product/${data.productId}`;
@@ -206,12 +209,26 @@ export async function saveProductConfig(
   });
   const metafields =
     mode === "draft"
-      ? [metafield(DRAFT_KEY, render)]
+      ? [
+          metafield(DRAFT_KEY, render),
+          ...(data.viewerConfig ? [metafield(VIEWER_DRAFT_KEY, data.viewerConfig)] : []),
+        ]
       : [
           metafield(RENDER_KEY, render),
           // Same payload, so a published product has no draft difference.
           metafield(DRAFT_KEY, render),
           metafield(PRICING_KEY, pricing),
+          ...(data.viewerConfig
+            ? [
+                {
+                  ownerId,
+                  namespace: "custom",
+                  key: "viewer_3d_config",
+                  type: "json",
+                  value: JSON.stringify(data.viewerConfig),
+                },
+              ]
+            : []),
         ];
   const res = await admin.graphql(
     `#graphql
@@ -232,6 +249,24 @@ export async function saveProductConfig(
   }
 
   if (mode === "publish") {
+    // If published, clean up any draft viewer metafield
+    try {
+      await admin.graphql(
+        `#graphql
+          mutation DeleteDraftViewer($metafields: [MetafieldIdentifierInput!]!) {
+            metafieldsDelete(metafields: $metafields) {
+              userErrors { field message }
+            }
+          }`,
+        {
+          variables: {
+            metafields: [{ ownerId, namespace: CONFIGURATOR_NAMESPACE, key: VIEWER_DRAFT_KEY }],
+          },
+        },
+      );
+    } catch {
+      // non-blocking
+    }
     await prisma.productConfig.update({
       where: { shop_productId: { shop, productId: data.productId } },
       data: { publishedAt: new Date(), draftAt: null },
@@ -248,6 +283,28 @@ export async function publishStoredConfig(
 ): Promise<SaveResult> {
   const data = await getProductConfig(shop, productId);
   if (!data) return { ok: false, error: "Nothing saved to publish." };
+
+  // Check if a draft viewer config was saved
+  try {
+    const ownerId = `gid://shopify/Product/${productId}`;
+    const res = await admin.graphql(
+      `#graphql
+        query StoredViewerDraft($id: ID!) {
+          product(id: $id) {
+            draft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${VIEWER_DRAFT_KEY}") { value }
+          }
+        }`,
+      { variables: { id: ownerId } },
+    );
+    const json: any = await res.json();
+    const rawDraft = json?.data?.product?.draft?.value;
+    if (rawDraft) {
+      data.viewerConfig = JSON.parse(rawDraft);
+    }
+  } catch {
+    // ignore
+  }
+
   return saveProductConfig(admin, shop, data, "publish");
 }
 

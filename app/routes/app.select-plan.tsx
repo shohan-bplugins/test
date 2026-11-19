@@ -144,7 +144,8 @@ export default function SelectPlan() {
   }
 
   return (
-    <s-page heading={t("selectPlanHeading")}>
+    <s-page heading={t("selectPlanHeading")} inlineSize="large" {...{ "inline-size": "large" }}>
+      <div className="app-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <s-section>
         <s-stack direction="block" gap="small-200">
           <s-heading>{t("selectPlanWelcome")}</s-heading>
@@ -259,6 +260,7 @@ export default function SelectPlan() {
             </div>
           );
         })}
+      </div>
       </div>
     </s-page>
   );

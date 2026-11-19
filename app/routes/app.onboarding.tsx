@@ -397,10 +397,11 @@ export default function Onboarding() {
       pointing at an unnamed parent. The encouraging line moved into the section
       below, where the rest of the supporting copy already lives.
     */
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("backLabel")} />
       <SupportAction />
 
+      <div className="app-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <s-section>
         <s-stack direction="block" gap="base">
           <s-heading>
@@ -569,6 +570,7 @@ export default function Onboarding() {
           ) : null}
         </s-stack>
       </s-section>
+      </div>
     </s-page>
   );
 }

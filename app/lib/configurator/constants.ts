@@ -23,6 +23,8 @@ export const CONFIGURATOR_NAMESPACE = "$app:configurator";
 export const RENDER_KEY = "render";
 /** The saved-but-unpublished config, read by the storefront only in preview mode. */
 export const DRAFT_KEY = "render_draft";
+/** The saved-but-unpublished viewer & hotspots config. */
+export const VIEWER_DRAFT_KEY = "viewer_draft";
 /** Compact price rules for the Cart Transform Function (pricing.ts). */
 export const PRICING_KEY = "pricing";
 

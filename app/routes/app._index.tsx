@@ -40,7 +40,6 @@ import {
   FREE_PLAN_NAME,
   FREE_PRODUCT_LIMIT,
   formatMoney,
-  isUnlimited,
 } from "~/lib/billing-constants";
 import {
   addThemeBlock,
@@ -48,8 +47,10 @@ import {
   invalidateThemeBlocks,
   type ThemeBlockStatus,
 } from "~/lib/theme-blocks.server";
+import { getAutoApplyCoupon, getActiveBanner } from "~/lib/coupons.server";
 
 import {
+  BUTTON_FILL,
   useOverlay,
   useRouteNav,
   type OverlayElement,
@@ -61,6 +62,7 @@ import {
 } from "~/components/SupportAction";
 import { LanguagePicker } from "~/components/LanguagePicker";
 import { ModalAction } from "~/components/polaris/ModalAction";
+import { isSuperAdminShop } from "~/lib/admin-auth.server";
 import { useLocale, useT, type TFunction } from "~/i18n";
 import { getServerT, resolveAdminLocale } from "~/i18n/i18n.server";
 
@@ -338,6 +340,9 @@ export const loader = async ({
     // rejection stays inside the promise, where the card's errorElement shows
     // it, instead of failing the whole dashboard.
     analytics: getAnalyticsOverview(shop, activeSub?.status === "active"),
+    isAdmin: isSuperAdminShop(shop),
+    autoApplyCoupon: await getAutoApplyCoupon(),
+    promotionBanner: await getActiveBanner("dashboard"),
   };
 };
 
@@ -397,79 +402,6 @@ function formatDate(iso: string, locale: string) {
   } catch {
     return "";
   }
-}
-
-/**
- * Tone of the badge beside a tile's value. `warn`/`bad` are what turn the row
- * into a warning as a limit gets close, so a merchant sees it without reading
- * the numbers.
- */
-type Tone = "muted" | "good" | "warn" | "bad";
-
-/** Maps the tile's own vocabulary onto Polaris badge tones. */
-const BADGE_TONE: Record<Tone, "neutral" | "success" | "warning" | "critical"> =
-  {
-    muted: "neutral",
-    good: "success",
-    warn: "warning",
-    bad: "critical",
-  };
-
-/** Ratio -> tone, so every part of a tile agrees about how bad it is. */
-function usageTone(ratio: number): Tone {
-  if (ratio >= 1) return "bad";
-  if (ratio >= 0.8) return "warn";
-  return "muted";
-}
-
-function StatTile({
-  icon,
-  label,
-  value,
-  meta,
-  metaTone = "muted",
-  sub,
-  footer,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  meta?: string;
-  metaTone?: Tone;
-  sub?: string;
-  footer?: React.ReactNode;
-}) {
-  return (
-    <s-box
-      padding="base"
-      borderWidth="base"
-      borderStyle="solid"
-      borderColor="base"
-      borderRadius="base"
-      blockSize="100%"
-    >
-      <s-stack direction="block" gap="small">
-        <s-stack direction="inline" gap="small-500" alignItems="center">
-          <s-icon type={icon as never} color="subdued" />
-          <s-text color="subdued">{label}</s-text>
-        </s-stack>
-
-        <s-stack
-          direction="inline"
-          gap="small"
-          alignItems="baseline"
-          justifyContent="space-between"
-          inlineSize="100%"
-        >
-          <s-heading>{value}</s-heading>
-          {meta ? <s-badge tone={BADGE_TONE[metaTone]}>{meta}</s-badge> : null}
-        </s-stack>
-
-        {sub ? <s-text color="subdued">{sub}</s-text> : null}
-        {footer}
-      </s-stack>
-    </s-box>
-  );
 }
 
 type Granularity = "day" | "week" | "month";
@@ -1030,6 +962,9 @@ export default function Dashboard() {
     themeBlocks,
     reviewPrompt,
     analytics,
+    isAdmin,
+    autoApplyCoupon,
+    promotionBanner,
   } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   useReviewPrompt(reviewPrompt);
@@ -1037,6 +972,24 @@ export default function Dashboard() {
   const submit = useSubmit();
   const routeTo = useRouteNav();
   const shopify = useAppBridge();
+
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && promotionBanner?.code && promotionBanner.dismissible) {
+      if (localStorage.getItem(`dismissed_banner_${promotionBanner.code}`) === "true") {
+        setBannerDismissed(true);
+      }
+    }
+  }, [promotionBanner]);
+
+  const handleDismissBanner = () => {
+    setBannerDismissed(true);
+    if (typeof window !== "undefined" && promotionBanner?.code) {
+      localStorage.setItem(`dismissed_banner_${promotionBanner.code}`, "true");
+    }
+  };
+
   // Owned here rather than inside a trigger component: the walkthrough is now
   // reachable from the header, and a second entry point (a Help & feedback row)
   // would drive the same lightbox.
@@ -1044,21 +997,11 @@ export default function Dashboard() {
   const t = useT("dashboard");
   const tc = useT("common");
   const locale = useLocale();
-  const limitText = (limit: number) =>
-    isUnlimited(limit) ? t("usage.unlimited") : String(limit);
-
   useEffect(() => {
     if (actionData?.ok) {
       shopify.toast.show(t("toast.onboardingDismissed"));
     }
   }, [actionData, shopify, t]);
-
-  const totalInUse = distinctModelsUsed;
-  const usageRatio = modelLimit > 0 ? totalInUse / modelLimit : 0;
-  const productUsageRatio = productLimit > 0 ? assigned / productLimit : 0;
-  const coveragePct =
-    totalProducts > 0 ? Math.round((assigned / totalProducts) * 100) : 0;
-  const uploadDelta = uploadsThisMonth - uploadsLastMonth;
 
   return (
     <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
@@ -1133,6 +1076,11 @@ export default function Dashboard() {
           gap: 16px;
           min-width: 0;
         }
+        .db-aside s-button[inline-size="fill"],
+        .db-aside s-button[inlineSize="fill"] {
+          width: 100% !important;
+          display: block !important;
+        }
         @media (max-width: 1024px) {
           .db-layout {
             grid-template-columns: 1fr;
@@ -1141,19 +1089,33 @@ export default function Dashboard() {
       `}</style>
 
       <div className="db-container">
-        <s-section>
-          <s-grid
-            gridTemplateColumns="1fr auto"
-            gap="small"
-            alignItems="center"
+        {promotionBanner && (!promotionBanner.dismissible || !bannerDismissed) ? (
+          <s-banner
+            tone={promotionBanner.tone || "success"}
+            heading={promotionBanner.heading}
+            dismissible={promotionBanner.dismissible ? true : undefined}
+            onDismiss={promotionBanner.dismissible ? handleDismissBanner : undefined}
           >
-            <s-stack direction="inline" gap="small" alignItems="center">
-              <s-text color="subdued">{shop}</s-text>
-              <s-badge icon="wand">{t("planBadge", { plan: planTitle })}</s-badge>
-            </s-stack>
-            <LanguagePicker compact />
-          </s-grid>
-        </s-section>
+            <s-paragraph>
+              {promotionBanner.text}
+            </s-paragraph>
+            <s-button
+              slot="primary-action"
+              href={`/app/pricing?coupon=${promotionBanner.code}`}
+              onClick={routeTo(`/app/pricing?coupon=${promotionBanner.code}`)}
+            >
+              {promotionBanner.buttonText || "View Plans & Upgrade"}
+            </s-button>
+            {promotionBanner.dismissible ? (
+              <s-button
+                slot="secondary-actions"
+                onClick={handleDismissBanner}
+              >
+                Dismiss
+              </s-button>
+            ) : null}
+          </s-banner>
+        ) : null}
 
         <div className="db-layout">
         <div className="db-main">
@@ -1206,113 +1168,6 @@ export default function Dashboard() {
           </s-stack>
         </s-section>
       ) : null}
-
-      <s-section heading={t("usage.heading")}>
-        <s-grid
-          gridTemplateColumns="repeat(auto-fit, minmax(min(100%, 220px), 1fr))"
-          gap="base"
-        >
-          <StatTile
-            icon="package"
-            label={t("usage.products")}
-            value={`${assigned} / ${limitText(productLimit)}`}
-            meta={
-              isUnlimited(productLimit)
-                ? t("usage.unlimited")
-                : productUsageRatio >= 1
-                  ? t("usage.limitReached")
-                  : t("usage.left", { count: productLimit - assigned })
-            }
-            metaTone={
-              isUnlimited(productLimit) ? "good" : usageTone(productUsageRatio)
-            }
-            sub={
-              totalProducts > 0
-                ? t("usage.coverage", {
-                    percent: coveragePct,
-                    count: totalProducts,
-                  })
-                : t("usage.noProducts")
-            }
-          />
-          {/*
-            The usage count lives here and nowhere else — it used to be
-            duplicated between a header badge and the plan card, and both of
-            those are gone. The sub-line names what the count covers, since a
-            file used both in the library and on a product is counted once.
-          */}
-          <StatTile
-            icon="three-d-environment"
-            label={t("usage.models")}
-            value={`${totalInUse} / ${limitText(modelLimit)}`}
-            meta={
-              isUnlimited(modelLimit)
-                ? t("usage.unlimited")
-                : usageRatio >= 1
-                  ? t("usage.limitReached")
-                  : t("usage.left", { count: modelLimit - totalInUse })
-            }
-            metaTone={isUnlimited(modelLimit) ? "good" : usageTone(usageRatio)}
-            sub={t("usage.modelsSub")}
-          />
-          <StatTile
-            icon="upload"
-            label={t("usage.uploads")}
-            value={String(uploadsThisMonth)}
-            meta={
-              uploadDelta === 0
-                ? undefined
-                : `${uploadDelta > 0 ? "+" : "−"}${Math.abs(uploadDelta)}`
-            }
-            metaTone={uploadDelta > 0 ? "good" : "muted"}
-            sub={t("usage.since", { date: monthStartLabel })}
-            footer={
-              <s-text color="subdued">
-                {t("usage.lastMonth", {
-                  month: lastMonthLabel,
-                  uploads: uploadsLastMonth,
-                })}
-              </s-text>
-            }
-          />
-          <StatTile
-            icon="credit-card"
-            label={t("plan.label")}
-            value={planTitle}
-            meta={
-              subscription
-                ? subscription.status === "active"
-                  ? t("plan.statusActive")
-                  : subscription.status.charAt(0).toUpperCase() +
-                    subscription.status.slice(1)
-                : undefined
-            }
-            metaTone={subscription?.status === "active" ? "good" : "muted"}
-            sub={
-              subscription
-                ? subscription.trialDays
-                  ? t("plan.priceWithTrial", {
-                      price: formatMoney(subscription.price),
-                      count: subscription.trialDays,
-                    })
-                  : t("plan.price", { price: formatMoney(subscription.price) })
-                : t("plan.noCharge")
-            }
-            footer={
-              <s-button
-                icon="credit-card"
-                href="/app/pricing"
-                onClick={routeTo("/app/pricing")}
-                accessibilityLabel={
-                  subscription ? t("plan.manage") : t("plan.viewPlans")
-                }
-              >
-                {subscription ? t("plan.manage") : t("plan.viewPlans")}
-              </s-button>
-            }
-          />
-        </s-grid>
-      </s-section>
 
       <AnalyticsOverviewCard overview={analytics} />
 
@@ -1382,6 +1237,64 @@ export default function Dashboard() {
 
         {/* Right column (Aside) */}
         <div className="db-aside">
+          <s-section>
+            <s-stack direction="block" gap="base">
+              <s-stack
+                direction="inline"
+                justifyContent="space-between"
+                alignItems="center"
+              >
+                <s-heading>{t("plan.label")}</s-heading>
+                <s-badge tone="success">
+                  {subscription?.status === "active"
+                    ? t("plan.statusActive")
+                    : subscription?.status
+                    ? subscription.status.charAt(0).toUpperCase() +
+                      subscription.status.slice(1)
+                    : t("plan.statusActive")}
+                </s-badge>
+              </s-stack>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: "20px", fontWeight: 700, lineHeight: 1.2 }}>
+                  {planTitle}
+                </div>
+                <s-text color="subdued">
+                  {subscription
+                    ? subscription.trialDays
+                      ? t("plan.priceWithTrial", {
+                          price: formatMoney(subscription.price),
+                          count: subscription.trialDays,
+                        })
+                      : t("plan.price", {
+                          price: formatMoney(subscription.price),
+                        })
+                    : t("plan.noCharge")}
+                </s-text>
+              </div>
+
+              <div style={{ width: "100%" }}>
+                <s-button
+                  {...BUTTON_FILL}
+                  href="/app/pricing"
+                  onClick={routeTo("/app/pricing")}
+                  accessibilityLabel={
+                    subscription ? t("plan.manage") : t("plan.viewPlans")
+                  }
+                  style={{ width: "100%", display: "block" }}
+                >
+                  {subscription ? t("plan.manage") : t("plan.viewPlans")}
+                </s-button>
+              </div>
+
+              <s-divider />
+
+              <s-text color="subdued">{shop}</s-text>
+
+              <LanguagePicker  />
+            </s-stack>
+          </s-section>
+
           <s-section heading={t("links.heading")}>
             <QuickLinkList
               onNavigate={navigate}
@@ -1412,6 +1325,15 @@ export default function Dashboard() {
                         href: "/app/pricing",
                         icon: "credit-card",
                         label: t("links.pricing"),
+                      },
+                    ]
+                  : []),
+                ...(isAdmin
+                  ? [
+                      {
+                        href: "/app/admin",
+                        icon: "shield",
+                        label: "Super Admin",
                       },
                     ]
                   : []),

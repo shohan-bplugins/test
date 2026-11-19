@@ -15,7 +15,9 @@ import {
   ShopperViewerStage,
   ViewModeSwitch,
   useShopperViewer,
+  type ShopperViewerState,
 } from "~/components/configurator/ShopperViewerPanel";
+import type { ViewerConfig } from "~/components/ViewerPreview";
 import { parseConfig } from "~/lib/viewer-config";
 import type { ViewportApi } from "~/components/configurator/EditorViewport";
 import { useT } from "~/i18n";
@@ -57,6 +59,11 @@ import {
   runVariantOp,
   setVariantImage,
 } from "~/lib/configurator/variants.server";
+import {
+  CONFIGURATOR_NAMESPACE,
+  VIEWER_DRAFT_KEY,
+} from "~/lib/configurator/constants";
+import { hotspotsAllowed } from "~/lib/hotspots.server";
 import { CubeLoader } from "~/components/CubeLoader";
 import { Grid3x3, Rotate3d, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { formatFileSize } from "~/lib/files";
@@ -97,6 +104,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             nodes { id title price compareAtPrice sku inventoryQuantity inventoryItem { tracked } selectedOptions { name value } }
           }
           viewerConfig: metafield(namespace: "custom", key: "viewer_3d_config") { value }
+          viewerDraft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${VIEWER_DRAFT_KEY}") { value }
           model: metafield(namespace: "custom", key: "model_3d") {
             reference {
               ... on GenericFile { id url originalFileSize }
@@ -186,8 +194,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       variantConfigs: data.variantConfigs,
     },
     publishedAt: data.publishedAt ? data.publishedAt.toISOString() : null,
+    isPublished: Boolean(p.viewerConfig?.value || data.publishedAt),
     // Saved changes that are not live yet.
-    hasDraft: !!data.draftAt && (!data.publishedAt || data.draftAt > data.publishedAt),
+    hasDraft:
+      Boolean(p.viewerDraft?.value && p.viewerDraft?.value !== "null") ||
+      Boolean(data.draftAt && (!data.publishedAt || data.draftAt > data.publishedAt)),
+    hasViewerDraft: Boolean(p.viewerDraft?.value && p.viewerDraft?.value !== "null"),
     // onlineStoreUrl is null until the product is published to the Online Store
     // channel; fall back to the canonical product URL so the button stays usable.
     previewUrl: p.onlineStoreUrl ?? `https://${session.shop}/products/${p.handle}`,
@@ -197,8 +209,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     pricingAllowed: !!modules["option-pricing"],
     conditionsAllowed: !!modules["conditional-logic"],
     modelUrls,
-    // The shopper viewer's own settings (product page's save_config storage).
-    viewerConfig: parseConfig(p.viewerConfig?.value),
+    // The shopper viewer's own settings (draft if saved, or live).
+    viewerConfig: parseConfig(
+      (p.viewerDraft?.value && p.viewerDraft?.value !== "null")
+        ? p.viewerDraft.value
+        : p.viewerConfig?.value,
+    ),
   };
 };
 
@@ -249,8 +265,61 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // from the left panel when the editor is opened on one variant.
   if (body?.intent === "variant") return runVariantOp(admin, id, body, t);
 
+  let viewerConfig = isObject(body?.viewerConfig)
+    ? parseConfig(JSON.stringify(body.viewerConfig))
+    : null;
+
+  if (viewerConfig && !(await hotspotsAllowed(admin, session?.shop ?? ""))) {
+    try {
+      const prevRes = await admin.graphql(
+        `#graphql
+          query SavedConfig($id: ID!) {
+            product(id: $id) {
+              metafield(namespace: "custom", key: "viewer_3d_config") { value }
+            }
+          }`,
+        { variables: { id: `gid://shopify/Product/${id}` } },
+      );
+      const prevJson = await prevRes.json();
+      viewerConfig.hotspots = parseConfig(
+        prevJson?.data?.product?.metafield?.value,
+      ).hotspots;
+    } catch {
+      // ignore
+    }
+  }
+
   // Publish what is already saved (a draft) — no config in the body.
   if (body?.intent === "publish") {
+    if (viewerConfig) {
+      // Also publish the latest viewer settings directly
+      try {
+        const ownerId = `gid://shopify/Product/${id}`;
+        await admin.graphql(
+          `#graphql
+            mutation PublishViewerDirect($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                userErrors { field message }
+              }
+            }`,
+          {
+            variables: {
+              metafields: [
+                {
+                  ownerId,
+                  namespace: "custom",
+                  key: "viewer_3d_config",
+                  type: "json",
+                  value: JSON.stringify(viewerConfig),
+                },
+              ],
+            },
+          },
+        );
+      } catch {
+        // ignore
+      }
+    }
     const published = await publishStoredConfig(admin, session.shop, id);
     return published.ok
       ? { ok: true as const, mode: "publish" as const, message: t("saved") }
@@ -318,6 +387,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     },
     optionRules: layers(body.optionRules, (k) => k.includes("=")),
     variantConfigs: layers(body.variantConfigs, (k) => /^\d+$/.test(k)),
+    ...(viewerConfig ? { viewerConfig } : {}),
   }, mode);
   return saved.ok
     ? {
@@ -372,19 +442,62 @@ function Editor({ locked }: { locked: boolean }) {
   const ed = useEd();
   const fetcher = useFetcher<typeof action>();
   const viewportRef = useRef<ViewportApi | null>(null);
-  const viewer = useShopperViewer(data.product.id, data.viewerConfig);
   const liveColorRef = useRef<(name: string) => string | null>(() => null);
   const [autoRotate, setAutoRotate] = useState(false);
   const [grid, setGrid] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [published, setPublished] = useState(!!data.publishedAt);
+  const [published, setPublished] = useState(data.isPublished);
   // Saved but not live: set by "Save draft", cleared by "Publish".
   const [hasDraft, setHasDraft] = useState(data.hasDraft);
   const lastMode = useRef<"draft" | "publish">("publish");
   // A tab opened on click for "Preview" while unsaved changes are saved first.
   const previewTab = useRef<Window | null>(null);
+  const viewerRef = useRef<ShopperViewerState | null>(null);
 
-  const dirty = isDirty(ed);
+  const submit = useCallback(
+    (mode: "draft" | "publish", customViewerConfig?: ViewerConfig) => {
+      if (fetcher.state !== "idle") return;
+      const dirtyEd = isDirty(getEd());
+      const dirtyViewer = viewerRef.current ? viewerRef.current.dirty : false;
+      const isAnyDirty = dirtyEd || dirtyViewer || Boolean(customViewerConfig);
+      const isAnyDraft = hasDraft || (viewerRef.current ? viewerRef.current.hasDraft : false);
+
+      // Publishing with nothing new to save publishes the stored draft.
+      if (!isAnyDirty && !isAnyDraft && mode === "draft") return;
+      lastMode.current = mode;
+      setSaving(true);
+
+      const targetViewerConfig =
+        customViewerConfig ??
+        (viewerRef.current ? viewerRef.current.config : data.viewerConfig);
+
+      fetcher.submit(
+        JSON.stringify(
+          isAnyDirty || mode === "draft"
+            ? {
+                ...savePayload(getEd(), mode),
+                mode,
+                viewerConfig: targetViewerConfig,
+                viewerDirty: dirtyViewer || Boolean(customViewerConfig),
+              }
+            : { intent: "publish" },
+        ),
+        { method: "post", encType: "application/json" },
+      );
+    },
+    [fetcher, hasDraft, data.viewerConfig],
+  );
+
+  const viewer = useShopperViewer(
+    data.product.id,
+    data.viewerConfig,
+    data.hasViewerDraft,
+    data.isPublished,
+    (mode, cfg) => submit(mode, cfg),
+  );
+  viewerRef.current = viewer;
+
+  const dirty = isDirty(ed) || viewer.dirty;
   const saving = fetcher.state !== "idle";
 
   // After a variant or option changed in Shopify the loader reruns; bring the
@@ -402,21 +515,6 @@ function Editor({ locked }: { locked: boolean }) {
     ? `${data.previewUrl}${data.previewUrl.includes("?") ? "&" : "?"}e3d_preview=1`
     : null;
 
-  const submit = useCallback(
-    (mode: "draft" | "publish") => {
-      if (fetcher.state !== "idle") return;
-      const dirtyNow = isDirty(getEd());
-      // Publishing with nothing new to save publishes the stored draft.
-      if (!dirtyNow && mode === "draft") return;
-      lastMode.current = mode;
-      setSaving(true);
-      fetcher.submit(
-        JSON.stringify(dirtyNow ? savePayload(getEd(), mode) : { intent: "publish" }),
-        { method: "post", encType: "application/json" },
-      );
-    },
-    [fetcher],
-  );
   const save = useCallback(() => submit("draft"), [submit]);
 
   // "Use as variant image": snapshot the viewport and make it the image of the
@@ -460,7 +558,7 @@ function Editor({ locked }: { locked: boolean }) {
 
   const preview = () => {
     if (!previewHref) return;
-    if (!isDirty(getEd())) {
+    if (!dirty) {
       window.open(previewHref, "_blank");
       return;
     }
@@ -475,6 +573,7 @@ function Editor({ locked }: { locked: boolean }) {
     if (!d || fetcher.state !== "idle") return;
     if (d.ok) {
       markSaved();
+      viewer.markSaved(lastMode.current);
       if (lastMode.current === "publish") {
         setPublished(true);
         setHasDraft(false);
@@ -494,6 +593,11 @@ function Editor({ locked }: { locked: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.data, fetcher.state]);
+
+  const handleDiscard = () => {
+    discard();
+    viewer.discard();
+  };
 
   // Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Y, Ctrl/Cmd+S — as in the prototype.
   useEffect(() => {
@@ -522,11 +626,12 @@ function Editor({ locked }: { locked: boolean }) {
     [],
   );
 
+  const anyDraft = hasDraft || viewer.hasDraft;
   const status = saving ? (
     <s-badge tone="info">{t("saving")}</s-badge>
   ) : dirty ? (
     <s-badge tone="warning">{t("unsaved")}</s-badge>
-  ) : hasDraft ? (
+  ) : anyDraft ? (
     <s-badge tone="caution">{t("draft")}</s-badge>
   ) : (
     <s-badge tone={published ? "success" : "neutral"}>
@@ -583,15 +688,18 @@ function Editor({ locked }: { locked: boolean }) {
           >
             {t("previewStore")}
           </s-button>
-          <s-button disabled={flag(!dirty || saving)} onClick={discard}>
+          <s-button disabled={flag(!dirty || saving)} onClick={handleDiscard}>
             {t("discard")}
           </s-button>
-          <s-button disabled={flag(!dirty || saving)} onClick={() => submit("draft")}>
+          <s-button
+            disabled={flag((!dirty && !anyDraft) || saving)}
+            onClick={() => submit("draft")}
+          >
             {t("saveDraft")}
           </s-button>
           <s-button
             variant="primary"
-            disabled={flag(!dirty && !hasDraft && published)}
+            disabled={flag(!dirty && !anyDraft && published)}
             loading={flag(saving)}
             onClick={() => submit("publish")}
           >

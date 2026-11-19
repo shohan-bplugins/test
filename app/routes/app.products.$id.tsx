@@ -46,7 +46,7 @@ import {
   parseEmbedOptions,
   type EmbedOptions,
 } from "~/lib/configurator/embed-snippet";
-import { CONFIGURATOR_NAMESPACE } from "~/lib/configurator/constants";
+import { CONFIGURATOR_NAMESPACE, VIEWER_DRAFT_KEY } from "~/lib/configurator/constants";
 import { VariantsPanel } from "~/components/configurator/VariantsPanel";
 import {
   CollapsibleGroup,
@@ -426,6 +426,25 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     const errs = setJson?.data?.metafieldsSet?.userErrors ?? [];
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
+    if (formData.has("config")) {
+      try {
+        await admin.graphql(
+          `#graphql
+            mutation DeleteDraftViewer($metafields: [MetafieldIdentifierInput!]!) {
+              metafieldsDelete(metafields: $metafields) {
+                userErrors { field message }
+              }
+            }`,
+          {
+            variables: {
+              metafields: [{ ownerId: productGid, namespace: CONFIGURATOR_NAMESPACE, key: VIEWER_DRAFT_KEY }],
+            },
+          },
+        );
+      } catch {
+        // non-blocking
+      }
+    }
     return {
       ok: true,
       message: t("settingsSaved"),
@@ -458,6 +477,25 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
     const errs = delJson?.data?.metafieldsDelete?.userErrors ?? [];
     if (errs.length)
       return { ok: false, error: errs.map((e: any) => e.message).join("; ") };
+    if (formData.has("config")) {
+      try {
+        await admin.graphql(
+          `#graphql
+            mutation DeleteDraftViewer($metafields: [MetafieldIdentifierInput!]!) {
+              metafieldsDelete(metafields: $metafields) {
+                userErrors { field message }
+              }
+            }`,
+          {
+            variables: {
+              metafields: [{ ownerId: productGid, namespace: CONFIGURATOR_NAMESPACE, key: VIEWER_DRAFT_KEY }],
+            },
+          },
+        );
+      } catch {
+        // non-blocking
+      }
+    }
     return { ok: true, message: t("settingsReset") };
   }
 
@@ -981,28 +1019,30 @@ export default function ProductDetail() {
 
   if (!product) {
     return (
-      <s-page heading={t("notFoundHeading")}>
+      <s-page heading={t("notFoundHeading")} inlineSize="large" {...{ "inline-size": "large" }}>
         <BackButton to="/app/products" label={t("backProducts")} />
         <SupportAction />
 
-        <s-section>
-          <s-banner tone="critical">
-            <s-paragraph>
-              {t("notFoundBody")}
-            </s-paragraph>
-          </s-banner>
-          <s-button
-            slot="primary-action"
-            variant="primary"
-            href="/app/products"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate("/app/products");
-            }}
-          >
-            {t("backToProducts")}
-          </s-button>
-        </s-section>
+        <div className="app-container">
+          <s-section>
+            <s-banner tone="critical">
+              <s-paragraph>
+                {t("notFoundBody")}
+              </s-paragraph>
+            </s-banner>
+            <s-button
+              slot="primary-action"
+              variant="primary"
+              href="/app/products"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/app/products");
+              }}
+            >
+              {t("backToProducts")}
+            </s-button>
+          </s-section>
+        </div>
       </s-page>
     );
   }
@@ -1153,7 +1193,7 @@ export default function ProductDetail() {
   const allCardsOpen = cardKeys.every((k) => openCards[k]);
 
   return (
-    <s-page heading={product.title}>
+    <s-page heading={product.title} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app/products" label={t("backProducts")} />
 
       {/*
@@ -1184,6 +1224,16 @@ export default function ProductDetail() {
           target="_blank"
         >
           {tc("preview")}
+        </s-button>
+      ) : null}
+      {has ? (
+        <s-button
+          slot="secondary-actions"
+          icon="edit"
+          disabled={flag(submitting)}
+          onClick={() => editorWindow.open(product.id.split("/").pop()!)}
+        >
+          {te("edit3d") || "Edit 3D setup"}
         </s-button>
       ) : null}
       {storefrontBase ? (
@@ -1236,34 +1286,74 @@ export default function ProductDetail() {
         </s-paragraph>
       </ConfirmModal>
 
-      <s-section>
-        <s-stack direction="inline" gap="small" alignItems="center">
-          {product.featuredImage?.url ? (
-            <s-thumbnail
-              src={
-                product.featuredImage.thumbnailUrl ?? product.featuredImage.url
-              }
-              alt=""
-              size="small"
-            />
-          ) : null}
-          <s-text color="subdued">
-            {has ? t("modelAssigned") : t("noModelAssigned")}
-          </s-text>
-          {configCustomized ? <s-badge tone="info">{t("customized")}</s-badge> : null}
-        </s-stack>
-      </s-section>
+      <div className="app-container">
+        <div style={{ marginBottom: 16 }}>
+          <s-section>
+            <s-stack direction="inline" gap="small" alignItems="center">
+              {product.featuredImage?.url ? (
+                <s-thumbnail
+                  src={
+                    product.featuredImage.thumbnailUrl ?? product.featuredImage.url
+                  }
+                  alt=""
+                  size="small"
+                />
+              ) : null}
+              <s-text color="subdued">
+                {has ? t("modelAssigned") : t("noModelAssigned")}
+              </s-text>
+              {configCustomized ? <s-badge tone="info">{t("customized")}</s-badge> : null}
+            </s-stack>
+          </s-section>
+        </div>
 
-      {/*
-        Grouped so the space between the four cards is the app's (16px), not
-        the gap s-page puts between aside cards, which the app can't change.
-      */}
-      <CollapsibleGroup slot="aside" label={t("setupHeading")}>
-        {/*
-          Right above the cards it opens and closes; the negative margin keeps
-          it closer to them than the 16px the cards have between them.
-        */}
-        <div style={{ marginBottom: -8 }}>
+        <div className="page-two-col">
+          <div className="page-two-col-sticky">
+            <s-section heading={t("livePreviewHeading")}>
+              <s-paragraph color="subdued">
+                {t("livePreviewHelp")}
+              </s-paragraph>
+              {previewVariant ? (
+                <s-stack direction="inline" gap="small-200" alignItems="center">
+                  <s-badge tone="info" icon="view">
+                    {te("previewingVariant", { name: previewVariant.title })}
+                  </s-badge>
+                  <s-button variant="tertiary" onClick={() => setPreviewVariantId(null)}>
+                    {te("previewShowDefault")}
+                  </s-button>
+                </s-stack>
+              ) : null}
+              <ViewerPreview
+                modelUrl={previewModelUrl}
+                styleConfig={variantView?.config ?? null}
+                config={config}
+                arShareUrl={storefrontBase}
+                onLayoutChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
+                placingHotspot={placingHotspot}
+                onPlaceHotspot={(anchor) => {
+                  setConfig((c) => ({
+                    ...c,
+                    hotspots: [
+                      ...c.hotspots,
+                      createHotspot(anchor, c.hotspots.length),
+                    ],
+                  }));
+                  setPlacingHotspot(false);
+                }}
+                focusHotspotId={hotspotFocus?.id ?? null}
+                focusNonce={hotspotFocus?.n ?? 0}
+                locale={hotspotLocale}
+              />
+            </s-section>
+          </div>
+
+          <div className="page-two-col-aside">
+            <CollapsibleGroup label={t("setupHeading")}>
+              {/*
+                Right above the cards it opens and closes; the negative margin keeps
+                it closer to them than the 16px the cards have between them.
+              */}
+              <div style={{ marginBottom: -8 }}>
           <CollapsibleGroupToggle
             allOpen={searching || allCardsOpen}
             allClosed={searching || cardKeys.every((k) => !openCards[k])}
@@ -1434,84 +1524,10 @@ export default function ProductDetail() {
           <EmbedPanel handle={product.handle} value={embed} onChange={setEmbed} />
         </CollapsibleSection>
       ) : null}
-      </CollapsibleGroup>
-
-      {/*
-        The preview owns the wide main column and the controls sit in the aside.
-        s-page's aside is the admin's narrow (~1/3) column, so hosting the
-        viewer there squeezed the canvas into a third of the page while the
-        settings form took two thirds — the inverse of the 33/67 split this
-        screen was designed around, and of what the merchant is actually looking
-        at while they tune it.
-      */}
-      {/*
-        Sticky, so the canvas stays in view while the merchant works down the
-        settings column beside it — the whole point of a live preview is seeing
-        a change land, which is no use if tweaking a control near the bottom of
-        the form has scrolled the viewer off screen.
-
-        A plain div, and wrapping the section rather than sitting inside it:
-        Polaris's Box exposes no position or inset props, and the sticky element
-        has to be the column's own child so its containing block is the full
-        column — the two columns share a grid row, so this one is as tall as the
-        settings beside it and there is room to stick. Nested inside the section
-        it could only stick within that card's own height, which is to say not
-        at all.
-      */}
-      <div style={{ position: "sticky", top: 16 }}>
-        <s-section heading={t("livePreviewHeading")}>
-          <s-paragraph color="subdued">
-            {t("livePreviewHelp")}
-          </s-paragraph>
-          {previewVariant ? (
-            <s-stack direction="inline" gap="small-200" alignItems="center">
-              <s-badge tone="info" icon="view">
-                {te("previewingVariant", { name: previewVariant.title })}
-              </s-badge>
-              <s-button variant="tertiary" onClick={() => setPreviewVariantId(null)}>
-                {te("previewShowDefault")}
-              </s-button>
-            </s-stack>
-          ) : null}
-          <ViewerPreview
-            modelUrl={previewModelUrl}
-            styleConfig={variantView?.config ?? null}
-            config={config}
-            arShareUrl={storefrontBase}
-            onLayoutChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
-            placingHotspot={placingHotspot}
-            onPlaceHotspot={(anchor) => {
-              setConfig((c) => ({
-                ...c,
-                hotspots: [
-                  ...c.hotspots,
-                  createHotspot(anchor, c.hotspots.length),
-                ],
-              }));
-              setPlacingHotspot(false);
-            }}
-            focusHotspotId={hotspotFocus?.id ?? null}
-            focusNonce={hotspotFocus?.n ?? 0}
-            locale={hotspotLocale}
-          />
-        </s-section>
+            </CollapsibleGroup>
+          </div>
+        </div>
       </div>
-
-      {/* {product.featuredImage?.url ? (
-        <s-section slot="aside" heading="Product image">
-          <s-switch
-            label="Show product image"
-            checked={flag(showProductImage)}
-            onInput={(e) => setShowProductImage(fieldChecked(e))}
-          />
-          {showProductImage ? (
-            <s-image
-              src={product.featuredImage.url}
-              alt={product.featuredImage.altText ?? product.title}
-            />
-          ) : null}
-        </s-section>
-      ) : null} */}
     </s-page>
   );
 }

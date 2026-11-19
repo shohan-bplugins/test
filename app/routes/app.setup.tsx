@@ -573,10 +573,11 @@ export default function Setup() {
         : "critical";
 
   return (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("backLabel")} />
       <SupportAction />
 
+      <div className="app-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <s-paragraph color="subdued">{t("intro")}</s-paragraph>
 
       <s-section heading={t("defs.heading")}>
@@ -720,6 +721,7 @@ export default function Setup() {
       <s-section>
         <LanguagePicker />
       </s-section>
+      </div>
     </s-page>
   );
 }

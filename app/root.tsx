@@ -134,7 +134,7 @@ export default function App() {
         <Links />
         {isAdminRoute ? <AnalyticsScripts {...analytics} /> : null}
       </head>
-      <body>
+      <body style={{ backgroundColor: "#f1f1f1" }}>
         {isAdminRoute ? <BootSplash /> : null}
         {isAdminRoute ? null : <NavigationProgress />}
         <Outlet />

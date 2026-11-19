@@ -15,7 +15,7 @@ declare global {
 // hands back an instance built by the previous version of this file. Tagging the
 // cached client makes that stale case detectable instead of silently outliving
 // the edit that was supposed to fix it.
-const CLIENT_PATCH = "session-upsert-omit-id+upload-job+app-user-cache";
+const CLIENT_PATCH = "session-upsert-omit-id+upload-job+app-user-cache+coupons-v2";
 
 const APP_USER_WRITES = new Set([
   "create",
@@ -38,8 +38,29 @@ const APP_USER_WRITES = new Set([
 // session store unforked, and preserves `Session.id` as the real `_id` (see the
 // schema notes in prisma/schema.prisma). The `where` clause still carries the
 // id, so the document being updated is the same one either way.
+function getPrismaClientConstructor(): typeof PrismaClient {
+  let Client = PrismaClient;
+  if (typeof require !== "undefined" && require.cache) {
+    try {
+      const test = new Client();
+      if (!(test as any).coupon) {
+        Object.keys(require.cache).forEach((k) => {
+          if (k.includes("@prisma") || k.includes(".prisma")) {
+            delete require.cache[k];
+          }
+        });
+        Client = require("@prisma/client").PrismaClient;
+      }
+    } catch {
+      // fallback to imported Client
+    }
+  }
+  return Client;
+}
+
 function createPrismaClient(): PrismaClient {
-  return new PrismaClient().$extends({
+  const Client = getPrismaClientConstructor();
+  return new Client().$extends({
     query: {
       session: {
         upsert({ args, query }) {
@@ -69,13 +90,27 @@ function createPrismaClient(): PrismaClient {
   }) as unknown as PrismaClient;
 }
 
-if (process.env.NODE_ENV !== "production") {
-  if (!global.prismaGlobal || global.prismaGlobalPatch !== CLIENT_PATCH) {
+export function getActivePrismaClient(): PrismaClient {
+  if (
+    !global.prismaGlobal ||
+    global.prismaGlobalPatch !== CLIENT_PATCH ||
+    !(global.prismaGlobal as any).coupon
+  ) {
     global.prismaGlobal = createPrismaClient();
     global.prismaGlobalPatch = CLIENT_PATCH;
   }
+  return global.prismaGlobal;
 }
 
-const prisma = global.prismaGlobal ?? createPrismaClient();
+const prisma = new Proxy({} as PrismaClient, {
+  get(target, prop, receiver) {
+    const client = getActivePrismaClient();
+    const val = Reflect.get(client, prop, receiver);
+    if (typeof val === "function") {
+      return val.bind(client);
+    }
+    return val;
+  },
+});
 
 export default prisma;

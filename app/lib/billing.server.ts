@@ -248,27 +248,53 @@ async function loadOrCreateUser(shop: string) {
     prisma.appUser.findUnique({ where: { shop } }),
     getPlanByName(FREE_PLAN_NAME),
   ]);
-  if (existing) return existing;
-  /*
-   * Upsert rather than create, for the same reason seedPlans upserts: `shop` is
-   * unique, and two callers can reach this line for the same store at once. The
-   * /app layout seeds the row in the background while the route's own loader
-   * fetches it, so on the first request of a new install both see the findUnique
-   * miss, and a plain create would leave the loser throwing a unique-constraint
-   * error on the one request where the merchant is least able to absorb it.
-   *
-   * `update: {}` because the existing row is already right — this is only here
-   * to make losing the race a no-op that still returns the row.
-   */
-  return prisma.appUser.upsert({
+  if (existing) {
+    if (existing.isInstalled === false) {
+      // Reinstallation detected!
+      const updated = await prisma.appUser.update({
+        where: { id: existing.id },
+        data: {
+          isInstalled: true,
+          uninstalledAt: null,
+        },
+      });
+      await prisma.appStoreEvent.create({
+        data: {
+          shop,
+          type: "reinstall",
+          detail: JSON.stringify({ reinstalledAt: new Date().toISOString() }),
+        },
+      }).catch((e) => console.error("[billing] reinstall event log error:", e));
+      return updated;
+    }
+    return existing;
+  }
+
+  const created = await prisma.appUser.upsert({
     where: { shop },
-    update: {},
+    update: {
+      isInstalled: true,
+      uninstalledAt: null,
+    },
     create: {
       shop,
       modelLimit: freePlan?.modelLimit ?? FREE_MODEL_LIMIT,
       productLimit: freePlan?.productLimit ?? FREE_PRODUCT_LIMIT,
+      isInstalled: true,
+      installedAt: new Date(),
     },
   });
+
+  // Log initial install event
+  prisma.appStoreEvent.create({
+    data: {
+      shop,
+      type: "install",
+      detail: JSON.stringify({ installedAt: new Date().toISOString() }),
+    },
+  }).catch((e) => console.error("[billing] install event log error:", e));
+
+  return created;
 }
 
 /*
@@ -378,6 +404,7 @@ export type SubscriptionInfo = {
   name: string;
   status: string;
   price: string;
+  interval?: string;
   trialDays?: number;
   createdAt?: string;
   cancelledOn?: string | null;
@@ -446,6 +473,7 @@ export async function fetchActiveSubscription(
                   pricingDetails {
                     ... on AppRecurringPricing {
                       price { amount currencyCode }
+                      interval
                     }
                   }
                 }
@@ -466,8 +494,9 @@ export async function fetchActiveSubscription(
       : subs[0];
     if (!sub) return null;
 
-    const amount =
-      sub.lineItems?.[0]?.plan?.pricingDetails?.price?.amount ?? "0";
+    const details: any = sub.lineItems?.[0]?.plan?.pricingDetails;
+    const amount = details?.price?.amount ?? "0";
+    const interval = details?.interval ?? "EVERY_30_DAYS";
 
     return {
       id: String(sub.id ?? ""),
@@ -476,6 +505,7 @@ export async function fetchActiveSubscription(
       // SCREAMING_CASE. Normalise here so every call site doesn't have to.
       status: String(sub.status ?? "").toLowerCase(),
       price: String(amount),
+      interval: String(interval),
       trialDays: sub.trialDays ?? undefined,
       createdAt: sub.createdAt ?? undefined,
       // Not exposed on AppSubscription, and never meaningful here anyway: this

@@ -138,7 +138,7 @@ export function useRouteNav() {
  * Cast because the omission is in the typings, not the component: the attribute
  * is real and documented on the element.
  */
-export const BUTTON_FILL = { inlineSize: "fill" } as any;
+export const BUTTON_FILL = { inlineSize: "fill", "inline-size": "fill" } as any;
 
 /** The imperative half of an overlay element (`s-modal`, `s-menu`, …). */
 export type OverlayElement = HTMLElement & {

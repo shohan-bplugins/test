@@ -558,6 +558,8 @@ function KpiTile({
       borderColor="base"
       borderRadius="base"
       blockSize="100%"
+      background="base"
+      style={{ backgroundColor: "#ffffff" }}
     >
       <s-stack direction="block" gap="small">
         <s-stack direction="inline" gap="small-500" alignItems="center">
@@ -1257,7 +1259,7 @@ export default function Analytics() {
   );
 
   const page = (body: ReactNode) => (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <style>{PAGE_CSS}</style>
       <BackButton to="/app" label={t("dashboard")} />
 
@@ -1267,9 +1269,11 @@ export default function Analytics() {
         .an-body, both of which space their children by --an-gap and nothing
         else, so no two sections can drift to different distances apart.
       */}
-      <div className="an-stack">
-        {toolbar}
-        {body}
+      <div className="app-container">
+        <div className="an-stack">
+          {toolbar}
+          {body}
+        </div>
       </div>
     </s-page>
   );
@@ -1684,6 +1688,9 @@ const PAGE_CSS = `
 .an-kpis {
   display: grid; gap: var(--an-gap);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+}
+.an-kpis s-box {
+  background-color: #ffffff !important;
 }
 /*
  * Laptop and up: every tile on one line, as many equal columns as there are

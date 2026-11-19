@@ -14,6 +14,77 @@
  * built from. The admin pages are better off without it.
  */
 
+:root {
+  --p-color-bg-app: #f1f1f1;
+  --p-color-bg: #f1f1f1;
+  --p-color-bg-surface-secondary: #f1f1f1;
+}
+
+html,
+body {
+  background-color: #f1f1f1 !important;
+  min-height: 100vh;
+}
+
+s-page {
+  background-color: #f1f1f1 !important;
+}
+
+/*
+ * Full app container: matches Dashboard and Pricing page layout across the entire app.
+ * Caps at 1400px and ensures consistent 32px side gap (16px on mobile).
+ */
+.app-container,
+.db-container,
+.pricing-container,
+.compare-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 32px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .app-container,
+  .db-container,
+  .pricing-container,
+  .compare-container {
+    padding: 0 16px;
+  }
+}
+
+/*
+ * Details & Editor 2-column layout (Model details, Product details)
+ * Sticky live 3D preview on the left, controls & settings on the right.
+ */
+.page-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 420px);
+  gap: 16px;
+  align-items: start;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .page-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.page-two-col-sticky {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.page-two-col-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
 @keyframes nav-progress-slide {
   0% {
     transform: translateX(-100%) scaleX(0.4);
@@ -69,7 +140,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
+  background: #f1f1f1;
   color: #1a1a1a;
   transition: opacity 220ms ease;
 }

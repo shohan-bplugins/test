@@ -34,12 +34,17 @@ export type ShopperViewerState = ReturnType<typeof useShopperViewer>;
 export function useShopperViewer(
   productId: string,
   initial: ViewerConfig,
+  initialHasDraft: boolean = false,
+  initialPublished: boolean = true,
+  onSaveMode?: (mode: "draft" | "publish", config: ViewerConfig) => void,
 ) {
   const shopify = useAppBridge();
   const t = useT("editor");
   const fetcher = useFetcher<{ ok: boolean; error?: string; message?: string }>();
   const [config, setConfig] = useState<ViewerConfig>(initial);
   const [saved, setSaved] = useState<ViewerConfig>(initial);
+  const [hasDraft, setHasDraft] = useState(initialHasDraft);
+  const [published, setPublished] = useState(initialPublished);
   const [placing, setPlacing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
@@ -59,18 +64,49 @@ export function useShopperViewer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.data, fetcher.state]);
 
-  const save = () =>
-    fetcher.submit(
-      { intent: "save_config", config: JSON.stringify(config) },
-      { method: "post", action: `/app/products/${productId}` },
-    );
+  const saveDraft = () => {
+    if (onSaveMode) {
+      onSaveMode("draft", config);
+    } else {
+      fetcher.submit(
+        { intent: "save_config", mode: "draft", config: JSON.stringify(config) },
+        { method: "post", action: `/app/products/${productId}` },
+      );
+    }
+  };
+
+  const publish = () => {
+    if (onSaveMode) {
+      onSaveMode("publish", config);
+    } else {
+      fetcher.submit(
+        { intent: "save_config", mode: "publish", config: JSON.stringify(config) },
+        { method: "post", action: `/app/products/${productId}` },
+      );
+    }
+  };
+
+  const markSaved = (mode: "draft" | "publish") => {
+    setSaved(config);
+    if (mode === "publish") {
+      setPublished(true);
+      setHasDraft(false);
+    } else {
+      setHasDraft(true);
+    }
+  };
 
   return {
     config,
     setConfig,
     dirty,
+    hasDraft,
+    published,
     saving,
-    save,
+    saveDraft,
+    publish,
+    save: publish,
+    markSaved,
     discard: () => setConfig(saved),
     placing,
     setPlacing: (p: boolean) => {
@@ -92,17 +128,34 @@ function SaveBar({ v }: { v: ShopperViewerState }) {
   return (
     <s-stack direction="inline" gap="small" alignItems="center">
       <s-button
-        variant="primary"
-        disabled={flag(!v.dirty || v.saving)}
+        disabled={flag(!v.dirty && !v.hasDraft && v.published)}
         loading={flag(v.saving)}
-        onClick={v.save}
+        onClick={v.saveDraft}
       >
-        {t("viewerSave")}
+        {t("saveDraft")}
+      </s-button>
+      <s-button
+        variant="primary"
+        disabled={flag(!v.dirty && !v.hasDraft && v.published)}
+        loading={flag(v.saving)}
+        onClick={v.publish}
+      >
+        {t("publish")}
       </s-button>
       <s-button disabled={flag(!v.dirty || v.saving)} onClick={v.discard}>
         {t("discard")}
       </s-button>
-      {v.dirty ? <s-badge tone="warning">{t("unsaved")}</s-badge> : null}
+      {v.saving ? (
+        <s-badge tone="info">{t("saving")}</s-badge>
+      ) : v.dirty ? (
+        <s-badge tone="warning">{t("unsaved")}</s-badge>
+      ) : v.hasDraft ? (
+        <s-badge tone="caution">{t("draft")}</s-badge>
+      ) : (
+        <s-badge tone={v.published ? "success" : "neutral"}>
+          {v.published ? t("published") : t("notPublished")}
+        </s-badge>
+      )}
     </s-stack>
   );
 }

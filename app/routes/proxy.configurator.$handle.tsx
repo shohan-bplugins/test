@@ -11,6 +11,7 @@ import {
   CONFIGURATOR_NAMESPACE,
   DRAFT_KEY,
   RENDER_KEY,
+  VIEWER_DRAFT_KEY,
 } from "~/lib/configurator/constants";
 
 /*
@@ -116,6 +117,7 @@ async function resolveConfigurator(admin: any, handle: string): Promise<Resolved
           id
           render: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${RENDER_KEY}") { value }
           draft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${DRAFT_KEY}") { value }
+          viewerDraft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${VIEWER_DRAFT_KEY}") { value }
           viewerConfig: metafield(namespace: "custom", key: "viewer_3d_config") { value }
           model: metafield(namespace: "custom", key: "model_3d") {
             reference {
@@ -150,7 +152,9 @@ async function resolveConfigurator(admin: any, handle: string): Promise<Resolved
     modelUrl = source?.url ?? ref?.url ?? "";
   }
 
-  const viewerConfig = parseJson(p.viewerConfig?.value);
+  const viewerDraft = parseJson(p.viewerDraft?.value);
+  const liveViewerConfig = parseJson(p.viewerConfig?.value);
+  const viewerConfig = (hasDraftDiff && viewerDraft) ? viewerDraft : (liveViewerConfig ?? viewerDraft);
   return {
     renderJson: optionsOn ? JSON.stringify(render) : "null",
     draftJson: hasDraftDiff ? JSON.stringify(draft) : null,

@@ -694,7 +694,7 @@ export default function ModelsIndex() {
   const deletingCount = pendingDelete === "bulk" ? selected.size : 1;
 
   return (
-    <s-page heading={t("heading")}>
+    <s-page heading={t("heading")} inlineSize="large" {...{ "inline-size": "large" }}>
       <BackButton to="/app" label={t("backToDashboard")} />
 
       <s-button
@@ -732,6 +732,7 @@ export default function ModelsIndex() {
         </s-paragraph>
       </ConfirmModal>
 
+      <div className="app-container" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <s-section>
         <s-stack direction="block" gap="base">
           <s-paragraph color="subdued">
@@ -1206,6 +1207,7 @@ export default function ModelsIndex() {
           )}
         </s-stack>
       </s-section>
+      </div>
     </s-page>
   );
 }

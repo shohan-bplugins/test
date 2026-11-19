@@ -110,6 +110,9 @@ model AppUser {
   // When the review popup was actually shown, last 365 days only. Rule 2 in
   // app/lib/review-prompt.server.ts allows 3 a year. Empty on older rows.
   reviewPromptDates  DateTime[]
+  isInstalled    Boolean?  @default(true)
+  installedAt    DateTime? @default(now())
+  uninstalledAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -315,3 +318,59 @@ model Preset {
 
   @@index([shop, kind])
 }
+
+// Coupons managed from Super Admin Dashboard
+model Coupon {
+  id                       String             @id @default(uuid()) @map("_id")
+  code                     String             @unique
+  description              String
+  percentage               Float              // e.g. 0.2 = 20%
+  durationLimitInIntervals Int?               // null = lifetime
+  startsAt                 DateTime?          // null = starts immediately
+  expiresAt                DateTime?          // null = never expires
+  autoApply                Boolean            @default(false)
+  active                   Boolean            @default(true)
+  usageLimit               Int?               // null = unlimited
+  usageCount               Int                @default(0)
+  applicablePlans          String[]           @default([])
+  // Banner presentation controls
+  showBanner               Boolean?           @default(false)
+  bannerHeading            String?
+  bannerText               String?
+  bannerTone               String?            @default("success") // "success" | "info" | "warning"
+  bannerPlacements         String[]           @default(["pricing", "dashboard"]) // "pricing", "dashboard"
+  bannerDismissible        Boolean?           @default(true)
+  bannerButtonText         String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  redemptions              CouponRedemption[]
+}
+
+model CouponRedemption {
+  id          String   @id @default(uuid()) @map("_id")
+  couponId    String
+  couponCode  String
+  shop        String
+  planName    String?
+  chargeId    String?
+  discountPct Float
+  redeemedAt  DateTime @default(now())
+
+  coupon      Coupon?  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@index([couponCode])
+  @@index([shop])
+}
+
+model AppStoreEvent {
+  id        String   @id @default(uuid()) @map("_id")
+  shop      String
+  type      String   // "install" | "reinstall" | "uninstall" | "plan_change" | "coupon_used"
+  detail    String?  // JSON string or summary
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+  @@index([type, createdAt])
+}
+
