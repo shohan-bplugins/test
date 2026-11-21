@@ -1770,6 +1770,7 @@
         document.removeEventListener('keydown', onKeyDown);
         setFsIcon(false);
         if (view3d.resize) view3d.resize();
+        placeHsSheet();
       };
 
       var onKeyDown = function (e) {
@@ -1787,6 +1788,7 @@
         document.addEventListener('keydown', onKeyDown);
         setFsIcon(true);
         if (view3d.resize) view3d.resize();
+        placeHsSheet();
       };
 
       // The browser drives the icon and the resize through fullscreenchange
@@ -2268,6 +2270,41 @@
   // and here. Keep the two in step: any option one side passes and the other
   // omits is a way for the storefront and the admin preview to render the same
   // model differently.
+  /*
+   * view3d renders at the full window.devicePixelRatio with MSAA and
+   * preserveDrawingBuffer on — on a phone that is DPR 3, i.e. 9 pixels shaded
+   * per CSS pixel, and in fullscreen several million per frame. That is what
+   * made dragging the model stutter on mobile. Capping the ratio (1.5 on touch
+   * devices, 2 elsewhere) is visually indistinguishable at phone sizes and
+   * cuts the fill cost by ~4x. view3d re-applies devicePixelRatio on every
+   * resize, so the cap wraps its renderer's resize(). Skipped while a WebXR
+   * session presents — the AR path manages its own ratio.
+   */
+  function maxPixelRatio() {
+    var coarse = false;
+    try {
+      coarse = window.matchMedia('(pointer: coarse)').matches;
+    } catch (e) {}
+    return coarse ? 1.5 : 2;
+  }
+
+  function capPixelRatio(view3d) {
+    var r = view3d && view3d.renderer;
+    if (!r || typeof r.resize !== 'function' || r.__e3dCapped) return;
+    r.__e3dCapped = true;
+    var original = r.resize;
+    r.resize = function () {
+      original.apply(r, arguments);
+      var three = r.threeRenderer;
+      if (!three || (three.xr && three.xr.isPresenting)) return;
+      var cap = Math.min(window.devicePixelRatio || 1, maxPixelRatio());
+      if (three.getPixelRatio() !== cap) three.setPixelRatio(cap);
+    };
+    try {
+      r.resize();
+    } catch (e) {}
+  }
+
   function buildOptions(modelUrl, posterUrl, cfg) {
     var options = {
       src: modelUrl,
@@ -3140,7 +3177,7 @@
     close.type = 'button';
     close.className = 'e3d-hotspot-sheet-close';
     close.setAttribute('aria-label', t('close'));
-    close.textContent = '×';
+    close.textContent = '\u00d7';
     var body = document.createElement('div');
     body.className = 'e3d-hotspot-sheet-body';
     sheet.appendChild(close);
@@ -3174,6 +3211,7 @@
     var s = getHsSheet();
     closeHsSheet();
     s.current = { annotation: annotation, card: card, home: hEl };
+    placeHsSheet();
     card.style.maxHeight = '';
     s.body.appendChild(card);
     s.sheet.setAttribute('aria-label', card.getAttribute('aria-label') || t('hotspot'));
@@ -3181,6 +3219,28 @@
     s.backdrop.setAttribute('data-open', '');
     s.close.focus({ preventScroll: true });
   }
+
+  /*
+   * The sheet lives on <body>, but in fullscreen that is invisible: native
+   * fullscreen paints only the fullscreen element's subtree, and the
+   * pseudo-fullscreen fallback (iPhone Safari) sits at a higher z-index than
+   * the sheet. So while the open hotspot's viewer is fullscreen the sheet is
+   * moved inside it, and back to <body> afterwards.
+   */
+  function placeHsSheet() {
+    if (!hsSheet) return;
+    var home = hsSheet.current && hsSheet.current.home;
+    var pseudo = home && home.closest && home.closest('.viewer-3d--pseudo-fullscreen');
+    var host = nativeFullscreenElement() || pseudo || document.body;
+    if (hsSheet.backdrop.parentNode !== host) host.appendChild(hsSheet.backdrop);
+  }
+
+  FS_CHANGE_EVENTS.forEach(function (evt) {
+    document.addEventListener(evt, function () {
+      // Let the pseudo-fullscreen class settle first.
+      setTimeout(placeHsSheet, 0);
+    });
+  });
 
   function closeHsSheet() {
     if (!hsSheet || !hsSheet.current) return;
@@ -3564,6 +3624,7 @@
     try {
       var view3d = new Ctor(el, options);
       console.log('[viewer-3d] initialized', modelUrl, options);
+      capPixelRatio(view3d);
 
       // Registered before anything else can throw, so a later failure still
       // leaves the instance reachable for teardown rather than orphaning the
