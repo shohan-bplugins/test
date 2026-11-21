@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "Acercar",
+  "control_zoomOut": "Alejar",
+  "control_reset": "Restablecer vista",
+  "control_fullscreen": "Pantalla completa",
+  "control_screenshot": "Captura de pantalla",
+  "control_ar": "Ver en tu espacio",
+  "control_animation": "Animación",
+  "slotTopLeft": "arriba a la izquierda",
+  "slotTopCenter": "arriba en el centro",
+  "slotTopRight": "arriba a la derecha",
+  "slotBottomLeft": "abajo a la izquierda",
+  "slotBottomCenter": "abajo en el centro",
+  "slotBottomRight": "abajo a la derecha",
+  "chipOffA11y": "{control}, desactivado. Arrástralo al visor o presiona Enter para activarlo.",
+  "chipOnA11y": "{control}, {where}. Arrastra o usa las teclas de flecha para moverlo; Supr para desactivarlo.",
+  "empty": "Vacío",
+  "instructions": "Arrastra cualquier control a una posición, o entre otros dos para definir el orden. Arrástralo a la bandeja inferior para ocultarlo, o fuera de ella para mostrarlo.",
+  "hidden": "Oculto",
+  "whereHidden": "oculto",
+  "dropToHide": "Suelta para ocultar",
+  "nothingHidden": "No hay nada oculto: arrastra un control aquí para ocultarlo"
+}

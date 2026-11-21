@@ -1,0 +1,11 @@
+{
+  "heading": "文档",
+  "backLabel": "控制面板",
+  "openSite": "打开文档网站",
+  "slow.heading": "加载时间比平时长",
+  "slow.body": "文档网站响应缓慢。您可以改为在新标签页中打开。",
+  "slow.visit": "访问文档",
+  "frameTitle": "3D Viewer 文档",
+  "loadingLabel": "正在加载文档",
+  "loading": "正在加载文档…"
+}

@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "Inzoomen",
+  "control_zoomOut": "Uitzoomen",
+  "control_reset": "Weergave resetten",
+  "control_fullscreen": "Volledig scherm",
+  "control_screenshot": "Schermafbeelding",
+  "control_ar": "Bekijk in je ruimte",
+  "control_animation": "Animatie",
+  "slotTopLeft": "linksboven",
+  "slotTopCenter": "midden boven",
+  "slotTopRight": "rechtsboven",
+  "slotBottomLeft": "linksonder",
+  "slotBottomCenter": "midden onder",
+  "slotBottomRight": "rechtsonder",
+  "chipOffA11y": "{control}, uitgeschakeld. Sleep naar de viewer of druk op Enter om in te schakelen.",
+  "chipOnA11y": "{control}, {where}. Sleep of gebruik de pijltoetsen om te verplaatsen; Delete om uit te schakelen.",
+  "empty": "Leeg",
+  "instructions": "Sleep een bedieningselement naar een positie, of tussen twee andere om de volgorde te bepalen. Sleep er een naar het vak hieronder om het te verbergen, of uit het vak om het te tonen.",
+  "hidden": "Verborgen",
+  "whereHidden": "verborgen",
+  "dropToHide": "Loslaten om te verbergen",
+  "nothingHidden": "Niets verborgen: sleep een bedieningselement hierheen om het te verbergen"
+}

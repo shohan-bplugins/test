@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "モデルをアップロードするとプレビューが表示されます",
+  "unsupportedFileType": "このファイル形式のライブプレビューにはまだ対応していません。ここで表示できるのは.glbと.gltfのモデルのみです。ファイルは通常どおり保存され、リンクされます。",
+  "fullscreenUnavailable": "全画面表示はオンラインストアでのみ機能します。このプレビュー内ではShopify管理画面によってブロックされます。",
+  "fullscreenStorefrontOnly": "全画面表示 (オンラインストアのみ)",
+  "shopButtonsStorefrontOnly": "「カートに追加」「今すぐ購入」と商品リンクはオンラインストアで機能します。",
+  "placeStillLoading": "モデルを読み込み中です。しばらくしてからもう一度お試しください。",
+  "placeMissedModel": "モデルを直接クリックしてホットスポットを配置してください。",
+  "placeFailed": "ホットスポットを配置できませんでした。ページを再読み込みしてもう一度お試しください。",
+  "moveControls": "コントロールを移動",
+  "doneMovingControls": "コントロールの移動を完了"
+}

@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "Alleen .glb- of .gltf-bestanden worden ondersteund",
+  "chooseFile": "Kies een .glb- of .gltf-bestand",
+  "tooBigRaw": "Het bestand is {size}. Maximaal {max} MB vóór optimalisatie.",
+  "tooBig": "Het bestand is {size}. De maximale grootte is {max} MB — zet ‘Optimaliseren voor sneller laden’ aan om grotere bestanden te uploaden.",
+  "stillTooBig": "Na optimalisatie nog steeds {size} (was {original}). Maximaal {max} MB.",
+  "cantShrink": "Het bestand is {size} en kon niet kleiner worden gemaakt. Maximaal {max} MB.",
+  "saving": "Geoptimaliseerd: {from} → {to} ({pct}% kleiner)",
+  "quota": "Je hebt de limiet van {limit} 3D-modellen van je {plan}-abonnement bereikt. Upgrade je abonnement om meer toe te voegen.",
+  "fileGone": "Het bestand is niet meer beschikbaar. Voeg het opnieuw toe.",
+  "uploadFailed": "Uploaden mislukt"
+}

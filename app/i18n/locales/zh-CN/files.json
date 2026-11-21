@@ -1,0 +1,12 @@
+{
+  "onlyGlb": "仅支持 .glb 或 .gltf 文件",
+  "chooseFile": "请选择 .glb 或 .gltf 文件",
+  "tooBigRaw": "文件大小为 {size}。优化前上限为 {max} MB。",
+  "tooBig": "文件大小为 {size}。最大支持 {max} MB——开启“优化以加快加载速度”即可上传更大的文件。",
+  "stillTooBig": "优化后仍为 {size}（原为 {original}）。上限为 {max} MB。",
+  "cantShrink": "文件大小为 {size}，无法进一步压缩。上限为 {max} MB。",
+  "saving": "已优化：{from} → {to}（缩小 {pct}%）",
+  "quota": "您已达到 {plan} 套餐 {limit} 个 3D 模型的上限。升级套餐即可添加更多。",
+  "fileGone": "该文件已不可用，请重新添加。",
+  "uploadFailed": "上传失败"
+}

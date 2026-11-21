@@ -1,0 +1,6 @@
+{
+  "backTo": "返回{label}",
+  "language": "语言",
+  "languageAuto": "自动（与 Shopify 后台一致）",
+  "languageHelp": "此应用的显示语言。“自动”将使用您的 Shopify 后台语言。不会影响您的在线商店。"
+}

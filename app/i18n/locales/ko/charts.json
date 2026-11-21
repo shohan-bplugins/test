@@ -1,0 +1,16 @@
+{
+  "seriesView": "조회수",
+  "seriesInteract": "상호 작용",
+  "seriesAr": "AR 클릭",
+  "grainDay": "일별",
+  "grainWeek": "주별",
+  "grainMonth": "월별",
+  "chartAriaDay": "일별 조회수, 상호 작용 및 AR 클릭. 아래 표에 일별 수치가 나와 있습니다.",
+  "chartAriaWeek": "주별 조회수, 상호 작용 및 AR 클릭. 아래 표에 일별 수치가 나와 있습니다.",
+  "chartAriaMonth": "월별 조회수, 상호 작용 및 AR 클릭. 아래 표에 일별 수치가 나와 있습니다.",
+  "weekOf": "{date} 주",
+  "monthYearShort": "’{year} {month}",
+  "partialDays": "{title} ({total}일 중 {days}일)",
+  "legendAria": "데이터 계열 표시 또는 숨기기",
+  "lockedSeriesAria": "{label} — 유료 요금제에서 사용할 수 있습니다. 업그레이드하세요."
+}

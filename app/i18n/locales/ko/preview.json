@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "모델을 업로드하면 미리 보기가 표시됩니다",
+  "unsupportedFileType": "이 파일 형식은 아직 실시간 미리 보기를 지원하지 않습니다. 여기에서는 .glb 및 .gltf 모델만 표시할 수 있으며, 파일은 정상적으로 저장되고 연결됩니다.",
+  "fullscreenUnavailable": "전체 화면은 온라인 스토어에서만 작동합니다. Shopify 관리자가 이 미리 보기에서는 전체 화면을 차단합니다.",
+  "fullscreenStorefrontOnly": "전체 화면 - 온라인 스토어 전용",
+  "shopButtonsStorefrontOnly": "\"장바구니에 추가\", \"지금 구매\" 및 제품 링크는 온라인 스토어에서 작동합니다.",
+  "placeStillLoading": "모델을 아직 로드하는 중입니다. 잠시 후 다시 시도하세요.",
+  "placeMissedModel": "모델을 직접 클릭하여 핫스팟을 배치하세요.",
+  "placeFailed": "핫스팟을 배치할 수 없습니다. 페이지를 새로 고친 후 다시 시도하세요.",
+  "moveControls": "컨트롤 이동",
+  "doneMovingControls": "컨트롤 이동 완료"
+}

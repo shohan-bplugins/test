@@ -1,0 +1,11 @@
+{
+  "heading": "ドキュメント",
+  "backLabel": "ダッシュボード",
+  "openSite": "ドキュメントサイトを開く",
+  "slow.heading": "読み込みに時間がかかっています",
+  "slow.body": "ドキュメントサイトの応答が遅くなっています。新しいタブで開くこともできます。",
+  "slow.visit": "ドキュメントを見る",
+  "frameTitle": "3D Viewerのドキュメント",
+  "loadingLabel": "ドキュメントを読み込み中",
+  "loading": "ドキュメントを読み込み中…"
+}

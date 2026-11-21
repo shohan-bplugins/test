@@ -1,0 +1,23 @@
+{
+  "control_zoomIn": "放大",
+  "control_zoomOut": "缩小",
+  "control_reset": "重置视图",
+  "control_fullscreen": "全屏",
+  "control_screenshot": "截图",
+  "control_ar": "在您的空间中查看",
+  "control_animation": "动画",
+  "slotTopLeft": "左上",
+  "slotTopCenter": "顶部居中",
+  "slotTopRight": "右上",
+  "slotBottomLeft": "左下",
+  "slotBottomCenter": "底部居中",
+  "slotBottomRight": "右下",
+  "chipOffA11y": "{control}，已关闭。拖到查看器上或按 Enter 键即可开启。",
+  "chipOnA11y": "{control}，{where}。拖动或使用方向键移动；按 Delete 键关闭。",
+  "empty": "空",
+  "instructions": "将任意控件拖到某个位置，或拖到两个控件之间以设置顺序。拖到下方的托盘中可隐藏控件，从托盘中拖出可显示控件。",
+  "hidden": "已隐藏",
+  "whereHidden": "已隐藏",
+  "dropToHide": "拖放到此处以隐藏",
+  "nothingHidden": "没有隐藏的控件——将控件拖到此处即可隐藏"
+}

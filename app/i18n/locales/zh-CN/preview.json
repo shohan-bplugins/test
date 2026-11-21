@@ -1,0 +1,12 @@
+{
+  "emptyUpload": "上传模型以查看预览",
+  "unsupportedFileType": "此文件类型暂不支持实时预览。此处只能显示 .glb 和 .gltf 模型——文件仍会正常存储和链接。",
+  "fullscreenUnavailable": "全屏仅在您的在线商店中可用。Shopify 后台会在此预览中阻止全屏。",
+  "fullscreenStorefrontOnly": "全屏——仅限在线商店",
+  "shopButtonsStorefrontOnly": "“添加到购物车”、“立即购买”和产品链接在您的在线商店中可用。",
+  "placeStillLoading": "模型仍在加载——请稍后重试。",
+  "placeMissedModel": "请直接点击模型以放置热点。",
+  "placeFailed": "无法放置热点。请重新加载页面后重试。",
+  "moveControls": "移动控件",
+  "doneMovingControls": "完成移动控件"
+}

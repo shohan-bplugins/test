@@ -1,0 +1,6 @@
+{
+  "backTo": "Back to {label}",
+  "language": "Language",
+  "languageAuto": "Automatic (match Shopify admin)",
+  "languageHelp": "The language of this app. Automatic uses your Shopify admin language. Your shop's storefront isn't affected."
+}

@@ -1,0 +1,401 @@
+import prisma from "../../db.server";
+import { parseLayers, parseRenderConfig, defaultConfig } from "./config";
+import {
+  CONFIGURATOR_NAMESPACE,
+  DRAFT_KEY,
+  PRICING_KEY,
+  RENDER_KEY,
+  VIEWER_DRAFT_KEY,
+} from "./constants";
+import { configuratorModules } from "./modules.server";
+import {
+  buildPricingPayload,
+  pricingPayloadSize,
+  PRICING_PAYLOAD_LIMIT,
+} from "./pricing";
+import type { ConfigLayer, OptionRules, ProductRenderConfig } from "./types";
+
+type Admin = {
+  graphql: (query: string, options?: any) => Promise<Response>;
+};
+
+export type ProductConfigData = {
+  productId: string;
+  enabled: boolean;
+  modelFileId: string | null;
+  config: ProductRenderConfig;
+  optionRules: OptionRules;
+  variantConfigs: Record<string, ConfigLayer>;
+  customizer: "inherit" | "on" | "off";
+  publishedAt: Date | null;
+  /** Unpublished changes were saved after the last publish. */
+  draftAt: Date | null;
+  viewerConfig?: Record<string, unknown> | null;
+};
+
+const CUSTOMIZER = ["inherit", "on", "off"] as const;
+
+/** Numeric id from a gid or a plain id; null for anything else. */
+export function numericProductId(id: string): string | null {
+  const m = String(id).match(/(\d+)$/);
+  return m ? m[1] : null;
+}
+
+export async function getProductConfig(
+  shop: string,
+  productId: string,
+): Promise<ProductConfigData | null> {
+  const row = await prisma.productConfig.findUnique({
+    where: { shop_productId: { shop, productId } },
+  });
+  if (!row) return null;
+  return {
+    productId: row.productId,
+    enabled: row.enabled,
+    modelFileId: row.modelFileId,
+    config: parseRenderConfig(row.config),
+    optionRules: parseLayers(row.optionRules),
+    variantConfigs: parseLayers(row.variantConfigs),
+    customizer: (CUSTOMIZER as readonly string[]).includes(row.customizer)
+      ? (row.customizer as ProductConfigData["customizer"])
+      : "inherit",
+    publishedAt: row.publishedAt,
+    draftAt: row.draftAt,
+  };
+}
+
+export function blankProductConfig(productId: string): ProductConfigData {
+  return {
+    productId,
+    enabled: true,
+    modelFileId: null,
+    config: defaultConfig(),
+    optionRules: {},
+    variantConfigs: {},
+    customizer: "inherit",
+    publishedAt: null,
+    draftAt: null,
+  };
+}
+
+/** Every model gid the config references — product, rules and variant layers. */
+function modelIds(data: ProductConfigData): string[] {
+  const ids = new Set<string>();
+  if (data.modelFileId) ids.add(data.modelFileId);
+  for (const l of Object.values(data.optionRules)) {
+    if (l.modelFileId) ids.add(l.modelFileId);
+  }
+  for (const l of Object.values(data.variantConfigs)) {
+    if (l.modelFileId) ids.add(l.modelFileId);
+  }
+  return [...ids];
+}
+
+/**
+ * gid -> { glb, usdz } for Shopify Files models. A Model3d's `sources` carry
+ * the GLB and, when Shopify generated one, the USDZ used for iOS Quick Look.
+ */
+export async function resolveModelUrls(
+  admin: Admin,
+  ids: string[],
+): Promise<Record<string, { glb: string; usdz?: string }>> {
+  if (!ids.length) return {};
+  const res = await admin.graphql(
+    `#graphql
+      query ConfiguratorModels($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          id
+          ... on Model3d { sources { url format } }
+          ... on GenericFile { url }
+        }
+      }`,
+    { variables: { ids } },
+  );
+  const json: any = await res.json();
+  const out: Record<string, { glb: string; usdz?: string }> = {};
+  for (const node of json?.data?.nodes ?? []) {
+    if (!node?.id) continue;
+    if (node.sources) {
+      const glb = node.sources.find((s: any) => s.format === "glb")?.url;
+      const usdz = node.sources.find((s: any) => s.format === "usdz")?.url;
+      if (glb) out[node.id] = { glb, usdz };
+    } else if (node.url) {
+      out[node.id] = { glb: node.url };
+    }
+  }
+  return out;
+}
+
+export type SaveResult =
+  | { ok: true; pricingBytes: number; mode: "draft" | "publish" }
+  | { ok: false; error: string };
+
+/** Where a save goes: "draft" stores it for preview; "publish" makes it live. */
+export type SaveMode = "draft" | "publish";
+
+/**
+ * Save the config. The DB row is written first so a failed publish never loses
+ * the merchant's work.
+ *
+ * "draft" stores the config and writes only the `render_draft` metafield, which
+ * the storefront reads in preview mode — the live `render` and `pricing`
+ * metafields (what shoppers and the Cart Transform use) stay as published.
+ * "publish" writes all three and moves `publishedAt`.
+ */
+export async function saveProductConfig(
+  admin: Admin,
+  shop: string,
+  data: ProductConfigData,
+  mode: SaveMode = "publish",
+): Promise<SaveResult> {
+  const pricing = buildPricingPayload(
+    data.config,
+    data.optionRules,
+    data.variantConfigs,
+  );
+  const pricingBytes = pricingPayloadSize(pricing);
+  if (pricingBytes > PRICING_PAYLOAD_LIMIT) {
+    return {
+      ok: false,
+      error: `Option prices take ${pricingBytes} bytes; the limit is ${PRICING_PAYLOAD_LIMIT}. Remove some priced choices or variant exceptions.`,
+    };
+  }
+
+  const fields = {
+    enabled: data.enabled,
+    modelFileId: data.modelFileId,
+    config: JSON.stringify(data.config),
+    optionRules: JSON.stringify(data.optionRules),
+    variantConfigs: JSON.stringify(data.variantConfigs),
+    customizer: data.customizer,
+  };
+  await prisma.productConfig.upsert({
+    where: { shop_productId: { shop, productId: data.productId } },
+    create: {
+      shop,
+      productId: data.productId,
+      ...fields,
+      ...(mode === "draft" ? { draftAt: new Date() } : {}),
+    },
+    update: { ...fields, ...(mode === "draft" ? { draftAt: new Date() } : {}) },
+  });
+
+  const models = await resolveModelUrls(admin, modelIds(data));
+  const render = {
+    v: 1,
+    // Lets the storefront tell a draft from what is live without comparing
+    // two large payloads.
+    rev: Date.now(),
+    enabled: data.enabled,
+    // Plan-gated modules, resolved here so the storefront can't be talked into
+    // option pricing or conditions the merchant's plan doesn't include.
+    modules: await configuratorModules(admin, shop),
+    customizer: data.customizer,
+    model: data.modelFileId,
+    models,
+    config: data.config,
+    rules: data.optionRules,
+    variants: data.variantConfigs,
+    ...(data.viewerConfig ? { viewerConfig: data.viewerConfig } : {}),
+  };
+
+  const ownerId = `gid://shopify/Product/${data.productId}`;
+  const metafield = (key: string, value: unknown) => ({
+    ownerId,
+    namespace: CONFIGURATOR_NAMESPACE,
+    key,
+    type: "json",
+    value: JSON.stringify(value),
+  });
+  const metafields =
+    mode === "draft"
+      ? [
+          metafield(DRAFT_KEY, render),
+          ...(data.viewerConfig ? [metafield(VIEWER_DRAFT_KEY, data.viewerConfig)] : []),
+        ]
+      : [
+          metafield(RENDER_KEY, render),
+          // Same payload, so a published product has no draft difference.
+          metafield(DRAFT_KEY, render),
+          metafield(PRICING_KEY, pricing),
+          ...(data.viewerConfig
+            ? [
+                {
+                  ownerId,
+                  namespace: "custom",
+                  key: "viewer_3d_config",
+                  type: "json",
+                  value: JSON.stringify(data.viewerConfig),
+                },
+              ]
+            : []),
+        ];
+  const res = await admin.graphql(
+    `#graphql
+      mutation PublishConfigurator($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+    { variables: { metafields } },
+  );
+  const json: any = await res.json();
+  const errors = json?.data?.metafieldsSet?.userErrors ?? [];
+  if (errors.length) {
+    return {
+      ok: false,
+      error: errors.map((e: any) => e.message).join("; "),
+    };
+  }
+
+  if (mode === "publish") {
+    // If published, clean up any draft viewer metafield
+    try {
+      await admin.graphql(
+        `#graphql
+          mutation DeleteDraftViewer($metafields: [MetafieldIdentifierInput!]!) {
+            metafieldsDelete(metafields: $metafields) {
+              userErrors { field message }
+            }
+          }`,
+        {
+          variables: {
+            metafields: [{ ownerId, namespace: CONFIGURATOR_NAMESPACE, key: VIEWER_DRAFT_KEY }],
+          },
+        },
+      );
+    } catch {
+      // non-blocking
+    }
+    await prisma.productConfig.update({
+      where: { shop_productId: { shop, productId: data.productId } },
+      data: { publishedAt: new Date(), draftAt: null },
+    });
+  }
+  return { ok: true, pricingBytes, mode };
+}
+
+/** Publish what is already saved (a draft), without re-posting the config. */
+export async function publishStoredConfig(
+  admin: Admin,
+  shop: string,
+  productId: string,
+): Promise<SaveResult> {
+  const data = await getProductConfig(shop, productId);
+  if (!data) return { ok: false, error: "Nothing saved to publish." };
+
+  // Check if a draft viewer config was saved
+  try {
+    const ownerId = `gid://shopify/Product/${productId}`;
+    const res = await admin.graphql(
+      `#graphql
+        query StoredViewerDraft($id: ID!) {
+          product(id: $id) {
+            draft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${VIEWER_DRAFT_KEY}") { value }
+          }
+        }`,
+      { variables: { id: ownerId } },
+    );
+    const json: any = await res.json();
+    const rawDraft = json?.data?.product?.draft?.value;
+    if (rawDraft) {
+      data.viewerConfig = JSON.parse(rawDraft);
+    }
+  } catch {
+    // ignore
+  }
+
+  return saveProductConfig(admin, shop, data, "publish");
+}
+
+/**
+ * The product's own model (custom.model_3d) was replaced or removed on the
+ * product page. The configurator keeps a copy of that model's id and URL in its
+ * saved config and in the `render` / `render_draft` metafields, and the
+ * storefront block reads those first — so without this the block keeps showing
+ * the old model.
+ *
+ * Patches only `model` / `models` in place: nothing else is republished, so
+ * unpublished draft edits stay unpublished and `rev` (draft vs. live) is kept.
+ * No-op for products that never saved a configurator config.
+ */
+export async function syncConfiguratorModel(
+  admin: Admin,
+  shop: string,
+  productId: string,
+  fileGid: string | null,
+): Promise<void> {
+  const data = await getProductConfig(shop, productId);
+  if (!data || data.modelFileId === fileGid) return;
+
+  await prisma.productConfig.update({
+    where: { shop_productId: { shop, productId } },
+    data: { modelFileId: fileGid },
+  });
+
+  const ownerId = `gid://shopify/Product/${productId}`;
+  const [res, urls] = await Promise.all([
+    admin.graphql(
+      `#graphql
+        query ConfiguratorRender($id: ID!) {
+          product(id: $id) {
+            render: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${RENDER_KEY}") { value }
+            draft: metafield(namespace: "${CONFIGURATOR_NAMESPACE}", key: "${DRAFT_KEY}") { value }
+          }
+        }`,
+      { variables: { id: ownerId } },
+    ),
+    fileGid ? resolveModelUrls(admin, [fileGid]) : Promise.resolve({}),
+  ]);
+  const json: any = await res.json();
+  const product = json?.data?.product;
+
+  // Old model's URL stays in `models` only if a variant / option layer uses it.
+  const stillUsed = new Set(modelIds({ ...data, modelFileId: fileGid }));
+  const patch = (raw: string | undefined) => {
+    if (!raw) return null;
+    let render: any;
+    try {
+      render = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    const models: Record<string, unknown> = {};
+    for (const [gid, u] of Object.entries(render.models ?? {})) {
+      if (stillUsed.has(gid)) models[gid] = u;
+    }
+    // A just-uploaded file may not have a URL yet; the block then falls back
+    // to custom.model_3d, which is already the new model.
+    if (fileGid && (urls as any)[fileGid]) models[fileGid] = (urls as any)[fileGid];
+    return { ...render, model: fileGid, models };
+  };
+
+  const metafields = [
+    [RENDER_KEY, patch(product?.render?.value)],
+    [DRAFT_KEY, patch(product?.draft?.value)],
+  ]
+    .filter(([, v]) => v)
+    .map(([key, value]) => ({
+      ownerId,
+      namespace: CONFIGURATOR_NAMESPACE,
+      key: key as string,
+      type: "json",
+      value: JSON.stringify(value),
+    }));
+  if (!metafields.length) return;
+
+  const setRes = await admin.graphql(
+    `#graphql
+      mutation SyncConfiguratorModel($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+    { variables: { metafields } },
+  );
+  const setJson: any = await setRes.json();
+  const errors = setJson?.data?.metafieldsSet?.userErrors ?? [];
+  if (errors.length) {
+    throw new Error(errors.map((e: any) => e.message).join("; "));
+  }
+}

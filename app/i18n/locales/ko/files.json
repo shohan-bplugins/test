@@ -1,0 +1,12 @@
+{
+  "onlyGlb": ".glb 또는 .gltf 파일만 지원됩니다",
+  "chooseFile": ".glb 또는 .gltf 파일을 선택하세요",
+  "tooBigRaw": "파일 크기가 {size}입니다. 최적화 전 최대 {max}MB입니다.",
+  "tooBig": "파일 크기가 {size}입니다. 최대 {max}MB까지 업로드할 수 있습니다. 더 큰 파일을 업로드하려면 \"빠른 로딩을 위해 최적화\"를 켜세요.",
+  "stillTooBig": "최적화 후에도 {size}입니다(원래 {original}). 최대 {max}MB입니다.",
+  "cantShrink": "파일 크기가 {size}이며 더 이상 줄일 수 없습니다. 최대 {max}MB입니다.",
+  "saving": "최적화됨: {from} → {to}({pct}% 감소)",
+  "quota": "{plan} 요금제의 3D 모델 한도({limit}개)에 도달했습니다. 더 추가하려면 요금제를 업그레이드하세요.",
+  "fileGone": "파일을 더 이상 사용할 수 없습니다. 다시 추가하세요.",
+  "uploadFailed": "업로드하지 못했습니다"
+}
