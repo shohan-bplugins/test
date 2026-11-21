@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "Visionneuse 3D — Produit",
+      "paragraph": "Par défaut, le modèle provient du métachamp produit custom.model_3d (géré via l’app 3D Viewer). Laissez le remplacement vide pour le fonctionnement normal. Ne collez une URL .glb / .gltf directe ci-dessous que pour remplacer le métachamp lors de tests.",
+      "model_url": {
+        "label": "URL manuelle du modèle (doit se terminer par .glb ou .gltf)",
+        "info": "Laissez vide pour utiliser le métachamp produit. Les URL qui ne sont pas des modèles sont ignorées."
+      },
+      "header_appearance": "Apparence par défaut"
+    },
+    "page": {
+      "name": "Visionneuse 3D — Tout modèle",
+      "paragraph": "Utilisez un ID de modèle ou une URL de fichier. L’ID de modèle applique aussi les réglages enregistrés de ce modèle : c’est la meilleure option. Copiez-le depuis l’app, sous Modèles 3D → (votre modèle) → ID de modèle.",
+      "model_id": {
+        "label": "ID de modèle",
+        "info": "Issu de la bibliothèque Modèles 3D de l’app. Prioritaire sur l’URL ci-dessous."
+      },
+      "model_url": {
+        "label": "URL du modèle (.glb / .gltf)",
+        "info": "Alternative à l’ID de modèle : collez une URL de fichier directe depuis Paramètres → Fichiers."
+      },
+      "caption": {
+        "label": "Légende (facultatif)"
+      },
+      "header_appearance": "Apparence",
+      "header_interaction": "Interaction",
+      "auto_rotate": {
+        "label": "Rotation automatique"
+      },
+      "show_controls": {
+        "label": "Afficher les commandes à l’écran"
+      }
+    },
+    "shared": {
+      "header_source": "Source du modèle",
+      "height": {
+        "label": "Hauteur de la visionneuse"
+      },
+      "background_color": {
+        "label": "Couleur d’arrière-plan"
+      }
+    },
+    "configurator_block": {
+      "name": "Configurateur de produit",
+      "paragraph": "Affiche le modèle 3D avec les options client définies dans l’éditeur 3D, le prix en direct et l’ajout au panier."
+    }
+  }
+}

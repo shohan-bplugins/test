@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "3D 뷰어 — 제품",
+      "paragraph": "기본적으로 모델은 제품 메타필드 custom.model_3d(3D Viewer 앱에서 관리)에서 가져옵니다. 일반적인 경우 재정의 항목은 비워 두세요. 테스트를 위해 메타필드를 재정의하려는 경우에만 아래에 .glb / .gltf 직접 URL을 붙여 넣으세요.",
+      "model_url": {
+        "label": "수동 모델 URL(.glb 또는 .gltf로 끝나야 함)",
+        "info": "비워 두면 제품 메타필드를 사용합니다. 모델이 아닌 URL은 무시됩니다."
+      },
+      "header_appearance": "기본 모양"
+    },
+    "page": {
+      "name": "3D 뷰어 — 모든 모델",
+      "paragraph": "모델 ID 또는 파일 URL 중 하나를 사용하세요. 모델 ID를 사용하면 해당 모델에 저장된 뷰어 설정도 적용되므로 더 좋은 방법입니다. 앱의 3D 모델 → (내 모델) → 모델 ID에서 복사하세요.",
+      "model_id": {
+        "label": "모델 ID",
+        "info": "앱의 3D 모델 라이브러리에서 가져옵니다. 아래 URL보다 우선합니다."
+      },
+      "model_url": {
+        "label": "모델 URL(.glb / .gltf)",
+        "info": "모델 ID 대신 설정 → 파일에서 파일 직접 URL을 붙여 넣을 수 있습니다."
+      },
+      "caption": {
+        "label": "캡션(선택 사항)"
+      },
+      "header_appearance": "모양",
+      "header_interaction": "상호작용",
+      "auto_rotate": {
+        "label": "자동 회전"
+      },
+      "show_controls": {
+        "label": "화면 컨트롤 표시"
+      }
+    },
+    "shared": {
+      "header_source": "모델 소스",
+      "height": {
+        "label": "뷰어 높이"
+      },
+      "background_color": {
+        "label": "배경색"
+      }
+    },
+    "configurator_block": {
+      "name": "제품 구성기",
+      "paragraph": "3D 편집기에서 설정한 고객 옵션, 실시간 가격, 장바구니 담기와 함께 3D 모델을 표시합니다."
+    }
+  }
+}

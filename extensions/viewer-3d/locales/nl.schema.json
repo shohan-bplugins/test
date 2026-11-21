@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "3D-viewer — Product",
+      "paragraph": "Standaard komt het model uit het productmetaveld custom.model_3d (beheerd via de 3D Viewer-app). Laat de overschrijving leeg voor de normale werking. Plak hieronder alleen een directe .glb- / .gltf-URL als je het metaveld wilt overschrijven om te testen.",
+      "model_url": {
+        "label": "Handmatige model-URL (moet eindigen op .glb of .gltf)",
+        "info": "Laat leeg om het productmetaveld te gebruiken. URL’s die geen model zijn, worden genegeerd."
+      },
+      "header_appearance": "Standaardweergave"
+    },
+    "page": {
+      "name": "3D-viewer — Elk model",
+      "paragraph": "Gebruik een model-ID of een bestands-URL. De model-ID past ook de opgeslagen viewerinstellingen van dat model toe en is dus de betere keuze — kopieer hem in de app onder 3D-modellen → (je model) → Model-ID.",
+      "model_id": {
+        "label": "Model-ID",
+        "info": "Uit de 3D-modellenbibliotheek van de app. Heeft voorrang op de URL hieronder."
+      },
+      "model_url": {
+        "label": "Model-URL (.glb / .gltf)",
+        "info": "Alternatief voor een model-ID: plak een directe bestands-URL uit Instellingen → Bestanden."
+      },
+      "caption": {
+        "label": "Bijschrift (optioneel)"
+      },
+      "header_appearance": "Weergave",
+      "header_interaction": "Interactie",
+      "auto_rotate": {
+        "label": "Automatisch draaien"
+      },
+      "show_controls": {
+        "label": "Bedieningselementen op het scherm tonen"
+      }
+    },
+    "shared": {
+      "header_source": "Modelbron",
+      "height": {
+        "label": "Hoogte van de viewer"
+      },
+      "background_color": {
+        "label": "Achtergrondkleur"
+      }
+    },
+    "configurator_block": {
+      "name": "Productconfigurator",
+      "paragraph": "Toont het 3D-model met de klantopties uit de 3D-editor, live prijs en een knop voor de winkelwagen."
+    }
+  }
+}

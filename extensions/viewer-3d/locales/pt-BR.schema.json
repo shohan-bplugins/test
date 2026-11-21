@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "Visualizador 3D — Produto",
+      "paragraph": "Por padrão, o modelo vem do metacampo de produto custom.model_3d (gerenciado pelo app 3D Viewer). Deixe a substituição em branco para o fluxo normal. Só cole uma URL .glb / .gltf direta abaixo se quiser substituir o metacampo para testes.",
+      "model_url": {
+        "label": "URL manual do modelo (deve terminar em .glb ou .gltf)",
+        "info": "Deixe em branco para usar o metacampo do produto. URLs que não sejam de modelos são ignoradas."
+      },
+      "header_appearance": "Aparência padrão"
+    },
+    "page": {
+      "name": "Visualizador 3D — Qualquer modelo",
+      "paragraph": "Use um ID de modelo ou uma URL de arquivo. O ID de modelo também aplica as configurações salvas do visualizador desse modelo, por isso é a melhor opção — copie-o no app em Modelos 3D → (seu modelo) → ID do modelo.",
+      "model_id": {
+        "label": "ID do modelo",
+        "info": "Da biblioteca de Modelos 3D do app. Tem prioridade sobre a URL abaixo."
+      },
+      "model_url": {
+        "label": "URL do modelo (.glb / .gltf)",
+        "info": "Alternativa ao ID de modelo: cole uma URL direta de arquivo em Configurações → Arquivos."
+      },
+      "caption": {
+        "label": "Legenda (opcional)"
+      },
+      "header_appearance": "Aparência",
+      "header_interaction": "Interação",
+      "auto_rotate": {
+        "label": "Rotação automática"
+      },
+      "show_controls": {
+        "label": "Mostrar controles na tela"
+      }
+    },
+    "shared": {
+      "header_source": "Origem do modelo",
+      "height": {
+        "label": "Altura do visualizador"
+      },
+      "background_color": {
+        "label": "Cor de fundo"
+      }
+    },
+    "configurator_block": {
+      "name": "Configurador de produto",
+      "paragraph": "Mostra o modelo 3D com as opções do cliente definidas no editor 3D, preço ao vivo e botão de carrinho."
+    }
+  }
+}

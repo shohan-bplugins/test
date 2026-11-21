@@ -1,0 +1,49 @@
+{
+  "viewer_3d": {
+    "product": {
+      "name": "3Dビューアー — 商品",
+      "paragraph": "モデルは通常、商品メタフィールド custom.model_3d（3D Viewer アプリで管理）から読み込まれます。通常はこの上書きを空欄のままにしてください。テストでメタフィールドを上書きしたい場合のみ、.glb / .gltf の直接URLを下に貼り付けます。",
+      "model_url": {
+        "label": "モデルURL（手動、.glb または .gltf で終わること）",
+        "info": "空欄にすると商品メタフィールドを使用します。モデル以外のURLは無視されます。"
+      },
+      "header_appearance": "デフォルトの外観"
+    },
+    "page": {
+      "name": "3Dビューアー — 任意のモデル",
+      "paragraph": "モデルIDまたはファイルURLのいずれかを使用します。モデルIDを使うと、そのモデルで保存したビューアー設定も適用されるためおすすめです。アプリの「3Dモデル → （モデル） → モデルID」からコピーしてください。",
+      "model_id": {
+        "label": "モデルID",
+        "info": "アプリの3Dモデルライブラリから取得します。下のURLより優先されます。"
+      },
+      "model_url": {
+        "label": "モデルURL（.glb / .gltf）",
+        "info": "モデルIDの代わりに、「設定 → ファイル」から直接ファイルURLを貼り付けることもできます。"
+      },
+      "caption": {
+        "label": "キャプション（任意）"
+      },
+      "header_appearance": "外観",
+      "header_interaction": "操作",
+      "auto_rotate": {
+        "label": "自動回転"
+      },
+      "show_controls": {
+        "label": "画面上のコントロールを表示"
+      }
+    },
+    "shared": {
+      "header_source": "モデルのソース",
+      "height": {
+        "label": "ビューアーの高さ"
+      },
+      "background_color": {
+        "label": "背景色"
+      }
+    },
+    "configurator_block": {
+      "name": "商品コンフィギュレーター",
+      "paragraph": "3Dエディターで設定したお客様向けオプション、リアルタイム価格、カート追加を含む3Dモデルを表示します。"
+    }
+  }
+}
