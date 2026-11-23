@@ -85,7 +85,7 @@ export function CatalogCoverageCard({
             </span>
             <a
               href="/app/products"
-              onClick={routeTo("/app/products")}
+              onClick={(e) => routeTo("/app/products")(e.nativeEvent)}
               className="cc-assign-link"
             >
               Assign models to products

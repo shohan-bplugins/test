@@ -17,11 +17,9 @@ import {
   checkAdminAuth,
   createAdminCookieHeader,
   clearAdminCookieHeader,
-  getAdminPasscode,
-  isSuperAdminShop,
+  verifyAdminPassword,
 } from "~/lib/admin-auth.server";
 import { getPlans } from "~/lib/billing.server";
-import { formatMoney } from "~/lib/billing-constants";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -192,8 +190,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Authentication unlock intent
   if (intent === "unlock") {
-    const passcode = String(form.get("passcode") ?? "").trim();
-    if (passcode === getAdminPasscode()) {
+    const passcode = String(form.get("passcode") ?? "");
+    const check = verifyAdminPassword(request, passcode);
+    if (check.ok) {
       return new Response(JSON.stringify({ ok: true }), {
         headers: {
           "Content-Type": "application/json",
@@ -201,7 +200,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       });
     }
-    return { ok: false, error: "Invalid master passcode. Access denied." };
+    return { ok: false, error: check.error };
   }
 
   // Logout intent

@@ -35,6 +35,15 @@ export type EmbedMode = "responsive" | "fixed";
 // model, short enough not to push a page's content off the first screen.
 export const RESPONSIVE_PADDING_PCT = 75;
 
+/** Escapes a value for a double-quoted HTML attribute. */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function buildEmbedSnippet(
   src: string,
   height: number,
@@ -42,8 +51,8 @@ export function buildEmbedSnippet(
   title = "3D model",
 ): string {
   const common =
-    `src="${src}" allow="fullscreen; xr-spatial-tracking" allowfullscreen ` +
-    `loading="lazy" title="${title}"`;
+    `src="${escapeAttr(src)}" allow="fullscreen; xr-spatial-tracking" allowfullscreen ` +
+    `loading="lazy" title="${escapeAttr(title)}"`;
 
   if (mode === "fixed") {
     return `<iframe ${common} width="100%" height="${height}" style="border:0;display:block"></iframe>`;

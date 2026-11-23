@@ -17,11 +17,14 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   ENV_PRESETS,
   MaterialApplier,
-  fitBounds,
+  clipPlanesFor,
+  disableUnsafeCulling,
+  fitBox,
   hierarchy,
   loadHdri,
   loadModel,
   meshKeys,
+  modelBounds,
   roomEnvironment,
 } from "~/lib/configurator/engine/scene";
 import type { SceneNode } from "~/lib/configurator/editor-state";
@@ -133,6 +136,26 @@ function Scene({
   const meshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const applierRef = useRef<MaterialApplier | null>(null);
   const homeRef = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  // Set once the merchant orbits, pans or zooms; after that a resize keeps
+  // their view instead of snapping back to the default framing.
+  const userMovedRef = useRef(false);
+  const boundsRef = useRef<THREE.Box3 | null>(null);
+  // Measured once per model: posing a skinned mesh is not free.
+  const bounds = useMemo(() => (root ? modelBounds(root) : null), [root]);
+  boundsRef.current = bounds && !bounds.isEmpty() ? bounds : null;
+  /** Keeps near/far around the model as the camera moves; see clipPlanesFor. */
+  const updateClip = () => {
+    const b = boundsRef.current;
+    if (!b) return;
+    const { near, far } = clipPlanesFor(cam.position, b);
+    if (Math.abs(near - cam.near) > cam.near * 0.01 || Math.abs(far - cam.far) > cam.far * 0.01) {
+      cam.near = near;
+      cam.far = far;
+      cam.updateProjectionMatrix();
+    }
+  };
+  const updateClipRef = useRef(updateClip);
+  updateClipRef.current = updateClip;
   const env = (config.environment ?? {}) as Env;
   const intensity = env.intensity ?? 1;
 
@@ -144,10 +167,18 @@ function Scene({
     return c;
   }, [cam, gl]);
   useEffect(() => {
-    const onChange = () => invalidate();
+    const onChange = () => {
+      updateClipRef.current();
+      invalidate();
+    };
+    const onStart = () => {
+      userMovedRef.current = true;
+    };
     controls.addEventListener("change", onChange);
+    controls.addEventListener("start", onStart);
     return () => {
       controls.removeEventListener("change", onChange);
+      controls.removeEventListener("start", onStart);
       controls.dispose();
     };
   }, [controls, invalidate]);
@@ -167,6 +198,7 @@ function Scene({
     loadModel(modelUrl)
       .then((group) => {
         if (cancelled) return;
+        disableUnsafeCulling(group);
         const meshes = meshKeys(group);
         group.traverse((o) => {
           if ((o as THREE.Mesh).isMesh) {
@@ -196,38 +228,46 @@ function Scene({
     invalidate();
   }, [root, config, intensity, invalidate]);
 
-  // Camera: saved start view, else bounds fit. Re-runs on model load and when
-  // the saved view changes (capture / reset).
+  // Camera: the merchant's saved start view, else the standard framing — the
+  // model's bounding box filling a fixed share of the viewport (FIT_FILL), seen
+  // from FIT_DIRECTION. Re-runs on model load and when the saved view changes
+  // (capture / reset); the standard framing also follows viewport resizes
+  // until the merchant moves the camera themselves.
   const camCfg = config.camera ?? null;
   const camKey = JSON.stringify(camCfg ? [camCfg.position, camCfg.target, camCfg.fov] : null);
+  const hasView =
+    Array.isArray(camCfg?.position) && Array.isArray(camCfg?.target);
   useEffect(() => {
-    if (!root) return;
+    userMovedRef.current = false;
+  }, [root, camKey]);
+  useEffect(() => {
+    if (!root || !bounds) return;
+    if (size.width < 2 || size.height < 2) return; // not laid out yet
+    if (!hasView && userMovedRef.current) return; // keep the merchant's view on resize
     const fov = typeof camCfg?.fov === "number" ? camCfg.fov : DEFAULT_FOV;
     cam.fov = fov;
-    const hasView =
-      Array.isArray(camCfg?.position) && Array.isArray(camCfg?.target);
     let target: THREE.Vector3;
     let dist: number;
     if (hasView) {
+      if (userMovedRef.current) return;
       cam.position.fromArray(camCfg!.position);
       target = new THREE.Vector3().fromArray(camCfg!.target);
       dist = cam.position.distanceTo(target);
     } else {
-      const b = fitBounds(root, fov, size.width / Math.max(1, size.height));
-      if (!b) return;
-      target = b.center;
-      dist = b.dist;
+      const fit = fitBox(bounds, fov, size.width / size.height, FIT_DIRECTION);
+      if (!fit) return;
+      target = fit.center;
+      dist = fit.dist;
       cam.position.copy(target).addScaledVector(FIT_DIRECTION, dist);
     }
-    cam.near = Math.max(0.001, dist * 0.005);
-    cam.far = dist * 100;
     cam.updateProjectionMatrix();
     controls.target.copy(target);
     controls.update();
+    updateClip();
     homeRef.current = { pos: cam.position.clone(), target: target.clone() };
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, camKey]);
+  }, [root, bounds, camKey, size.width, size.height]);
 
   // Camera locks + auto-rotate
   const lock = (camCfg?.lock ?? {}) as Record<string, number | boolean | undefined>;
@@ -292,12 +332,12 @@ function Scene({
 
   // Floor (shadow catcher + grid) sized to the model
   const floor = useMemo(() => {
-    if (!root) return null;
-    const b = new THREE.Box3().setFromObject(root);
+    if (!root || !bounds || bounds.isEmpty()) return null;
+    const b = bounds;
     const s = b.getSize(new THREE.Vector3());
     const c = b.getCenter(new THREE.Vector3());
     return { y: b.min.y, x: c.x, z: c.z, size: Math.max(s.x, s.z) * 3 || 1 };
-  }, [root]);
+  }, [root, bounds]);
 
   useImperativeHandle(
     apiRef,
@@ -305,12 +345,14 @@ function Scene({
       frame() {
         const h = homeRef.current;
         if (!h) return;
+        userMovedRef.current = false;
         cam.position.copy(h.pos);
         controls.target.copy(h.target);
         controls.update();
         invalidate();
       },
       zoom(factor) {
+        userMovedRef.current = true;
         const dir = cam.position.clone().sub(controls.target);
         cam.position.copy(controls.target).addScaledVector(dir, factor);
         controls.update();
@@ -322,6 +364,7 @@ function Scene({
         return { position: r(cam.position), target: r(controls.target), fov: cam.fov };
       },
       goTo(view) {
+        userMovedRef.current = true;
         cam.position.fromArray(view.position);
         controls.target.fromArray(view.target);
         if (view.fov) {

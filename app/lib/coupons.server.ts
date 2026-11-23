@@ -316,6 +316,15 @@ export async function recordCouponRedemption({
         })
       : null;
 
+    // One redemption per charge: SuccessBilling can be reloaded, and counting
+    // each reload let a merchant exhaust a coupon's usageLimit for everyone.
+    if (coupon && chargeId) {
+      const already = await prisma.couponRedemption.findFirst({
+        where: { couponId: coupon.id, chargeId, shop },
+      });
+      if (already) return;
+    }
+
     if (coupon) {
       await prisma.$transaction([
         prisma.couponRedemption.create({

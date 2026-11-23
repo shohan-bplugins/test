@@ -85,14 +85,18 @@ const shopify = shopifyApp({
         const shop = session?.shop;
         const accessToken = session?.accessToken;
         if (!shop || !accessToken) return;
-        const shopInfo = await fetchShopInfo(shop, accessToken);
-        await notifySwipeone({
-          type: "app.installed",
-          shop,
-          userId: session?.id,
-          installId: shopInfo?.id,
-          shopInfo: shopInfo ?? undefined,
-        });
+        // Not awaited: the merchant's first load must not wait on the CRM.
+        void fetchShopInfo(shop, accessToken)
+          .then((shopInfo) =>
+            notifySwipeone({
+              type: "app.installed",
+              shop,
+              userId: session?.id,
+              installId: shopInfo?.id,
+              shopInfo: shopInfo ?? undefined,
+            }),
+          )
+          .catch((err) => console.error("[afterAuth] swipeone notify failed:", err));
       } catch (err) {
         console.error("[afterAuth] swipeone notify failed:", err);
       }

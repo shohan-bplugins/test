@@ -559,7 +559,6 @@ function KpiTile({
       borderRadius="base"
       blockSize="100%"
       background="base"
-      style={{ backgroundColor: "#ffffff" }}
     >
       <s-stack direction="block" gap="small">
         <s-stack direction="inline" gap="small-500" alignItems="center">

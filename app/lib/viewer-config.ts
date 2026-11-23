@@ -352,6 +352,9 @@ export function resetModelSpecificConfig(config: ViewerConfig): ViewerConfig {
   return out;
 }
 
+const SAFE_BACKGROUND =
+  /^(#[0-9a-f]{3,8}|transparent|(?:rgb|rgba|hsl|hsla)\([0-9.,%\s/]+\)|https:\/\/[^\s"'<>()\\;]+)$/i;
+
 export function parseConfig(raw: string | undefined | null): ViewerConfig {
   if (!raw) return { ...DEFAULT_CONFIG };
   let parsed: any;
@@ -365,7 +368,10 @@ export function parseConfig(raw: string | undefined | null): ViewerConfig {
   const out: ViewerConfig = { ...DEFAULT_CONFIG };
   if (typeof parsed.height === "number")
     out.height = clamp(parsed.height, 200, 1200);
-  if (typeof parsed.background === "string") out.background = parsed.background;
+  // Allowlisted: this value is printed into style/data attributes by the theme
+  // blocks, so a free-form string was a stored-XSS vector on the storefront.
+  if (typeof parsed.background === "string" && SAFE_BACKGROUND.test(parsed.background.trim()))
+    out.background = parsed.background.trim();
   if (typeof parsed.exposure === "number")
     out.exposure = clamp(parsed.exposure, 0, 5);
   if ((TONE_MAPPINGS as readonly string[]).includes(parsed.toneMapping))

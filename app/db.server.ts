@@ -49,6 +49,7 @@ function getPrismaClientConstructor(): typeof PrismaClient {
             delete require.cache[k];
           }
         });
+        // eslint-disable-next-line @typescript-eslint/no-var-requires -- deliberate: re-require after clearing the cache to pick up a regenerated client in dev
         Client = require("@prisma/client").PrismaClient;
       }
     } catch {

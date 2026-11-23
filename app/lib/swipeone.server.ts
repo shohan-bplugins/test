@@ -86,6 +86,8 @@ export async function notifySwipeone({
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      // Never let the CRM hold up an install, webhook or page load.
+      signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
     console.error("[swipeone] notify failed:", err);
@@ -118,6 +120,7 @@ export async function fetchShopInfo(
           "X-Shopify-Access-Token": accessToken,
           "Content-Type": "application/json",
         },
+        signal: AbortSignal.timeout(5000),
         body: JSON.stringify({
           query: `#graphql
             query ShopInfo {

@@ -17,15 +17,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // The cached subscription is served stale for up to a day (see
     // shop-cache.server.ts); a plan change made anywhere must not wait on that.
     invalidateSubscription(shop);
+    // Fire-and-forget: Shopify times webhooks out after 5s and retries, and
+    // the CRM is not part of the billing state this handler must persist.
     if (session?.accessToken) {
-      const shopInfo = await fetchShopInfo(shop, session.accessToken);
-      await notifySwipeone({
-        type: `app.subscription_${status}`,
-        shop,
-        userId: session?.id,
-        shopInfo: shopInfo ?? undefined,
-        extra: payload as Record<string, unknown>,
-      });
+      const accessToken = session.accessToken;
+      void fetchShopInfo(shop, accessToken)
+        .then((shopInfo) =>
+          notifySwipeone({
+            type: `app.subscription_${status}`,
+            shop,
+            userId: session?.id,
+            shopInfo: shopInfo ?? undefined,
+            extra: payload as Record<string, unknown>,
+          }),
+        )
+        .catch((err) => console.error("[subscriptions_update] CRM notify failed:", err));
     }
 
     const adminGraphqlId = String(sub.admin_graphql_api_id ?? "");
@@ -42,10 +48,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!user) return new Response("OK", { status: 200 });
 
     if (
-      status === "cancelled" ||
-      status === "expired" ||
-      status === "declined" ||
-      status === "frozen"
+      (status === "cancelled" ||
+        status === "expired" ||
+        status === "declined" ||
+        status === "frozen") &&
+      // An upgrade cancels the *previous* subscription. If that webhook lands
+      // after SuccessBilling saved the new charge, it must not drop the
+      // merchant to Free — only the current (or unknown) charge may.
+      (!user.chargeId || user.chargeId === chargeId)
     ) {
       const freePlan = await prisma.plan.findUnique({
         where: { name: FREE_PLAN_NAME },

@@ -13,16 +13,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
-  try {
-    await notifySwipeone({
-      type: "app.uninstalled",
-      shop,
-      userId: session?.id,
-      shopInfo: (payload as any) ?? undefined,
-    });
-  } catch (err) {
-    console.error("[uninstalled] swipeone notify failed:", err);
-  }
+  // Fire-and-forget so a slow CRM never delays the webhook response.
+  void notifySwipeone({
+    type: "app.uninstalled",
+    shop,
+    userId: session?.id,
+    shopInfo: (payload as any) ?? undefined,
+  }).catch((err) => console.error("[uninstalled] swipeone notify failed:", err));
 
   if (session) {
     await db.session.deleteMany({ where: { shop } });
@@ -41,9 +38,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       data: {
         shop,
         type: "uninstall",
+        // Only non-personal shop fields. The full payload carries the owner's
+        // name, email, phone and address, and this row is read by the admin
+        // dashboard — it must not become a second copy of merchant PII.
         detail: JSON.stringify({
           uninstalledAt: new Date().toISOString(),
-          payload: payload ?? null,
+          name: (payload as any)?.name ?? null,
+          domain: (payload as any)?.myshopify_domain ?? shop,
+          plan: (payload as any)?.plan_name ?? null,
+          country: (payload as any)?.country_code ?? null,
         }),
       },
     });

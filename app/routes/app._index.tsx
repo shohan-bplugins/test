@@ -47,7 +47,7 @@ import {
   invalidateThemeBlocks,
   type ThemeBlockStatus,
 } from "~/lib/theme-blocks.server";
-import { getAutoApplyCoupon, getActiveBanner } from "~/lib/coupons.server";
+import { getActiveBanner } from "~/lib/coupons.server";
 
 import {
   BUTTON_FILL,
@@ -103,6 +103,8 @@ type SubscriptionDetail = {
 
 type LoaderData = {
   shop: string;
+  isAdmin: boolean;
+  promotionBanner: Awaited<ReturnType<typeof getActiveBanner>>;
   planTitle: string;
   modelLimit: number;
   productLimit: number;
@@ -341,7 +343,6 @@ export const loader = async ({
     // it, instead of failing the whole dashboard.
     analytics: getAnalyticsOverview(shop, activeSub?.status === "active"),
     isAdmin: isSuperAdminShop(shop),
-    autoApplyCoupon: await getAutoApplyCoupon(),
     promotionBanner: await getActiveBanner("dashboard"),
   };
 };
@@ -963,7 +964,6 @@ export default function Dashboard() {
     reviewPrompt,
     analytics,
     isAdmin,
-    autoApplyCoupon,
     promotionBanner,
   } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -1026,8 +1026,7 @@ export default function Dashboard() {
         {t("actions.addModel")}
       </s-button>
       <s-button
-        slot="primary-action"
-        variant="primary"
+        slot="secondary-actions"
         icon="plus"
         href="/app/products"
         onClick={routeTo("/app/products")}

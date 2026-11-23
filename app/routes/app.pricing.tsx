@@ -786,7 +786,7 @@ export default function Pricing() {
       }
     } else if (actionData?.ok && (actionData as any).cancelled) {
       shopify.toast.show(t("subscriptionCancelled"));
-    } else if (actionData && !actionData.ok && actionData.error) {
+    } else if (actionData && !actionData.ok && "error" in actionData && actionData.error) {
       shopify.toast.show(actionData.error, { isError: true });
     }
 
@@ -1121,7 +1121,7 @@ export default function Pricing() {
         wording is usually the whole explanation, and a merchant needs to be
         able to read it twice or quote it to support.
       */}
-      {actionData && !actionData.ok && actionData.error ? (
+      {actionData && !actionData.ok && "error" in actionData && actionData.error ? (
         <s-banner tone="critical" heading={t("changeFailed")}>
           <s-paragraph>{actionData.error}</s-paragraph>
         </s-banner>
@@ -1565,6 +1565,7 @@ export default function Pricing() {
           />
           <button
             type="button"
+            aria-pressed={!yearly}
             onClick={() => setYearly(false)}
             style={{
               position: "relative",
@@ -1588,6 +1589,7 @@ export default function Pricing() {
           </button>
           <button
             type="button"
+            aria-pressed={yearly}
             onClick={() => setYearly(true)}
             style={{
               position: "relative",
@@ -1667,6 +1669,9 @@ export default function Pricing() {
             >
               <input
                 type="text"
+                aria-label={t("couponPlaceholder")}
+                aria-invalid={couponError ? true : undefined}
+                aria-describedby={couponError ? "coupon-error" : undefined}
                 placeholder={t("couponPlaceholder")}
                 value={couponInput}
                 onChange={(e) => {
@@ -1679,9 +1684,8 @@ export default function Pricing() {
                   borderRadius: "8px",
                   border: couponError
                     ? "1px solid #d82c0d"
-                    : "1px solid #c9cccf",
+                    : "1px solid #8a8a8a",
                   fontSize: "13px",
-                  outline: "none",
                   backgroundColor: "#ffffff",
                   color: "#202223",
                 }}
@@ -1706,6 +1710,7 @@ export default function Pricing() {
               </button>
               <button
                 type="button"
+                aria-label={tc("close")}
                 onClick={() => {
                   setCouponOpen(false);
                   setCouponInput("");
@@ -1725,6 +1730,8 @@ export default function Pricing() {
             </div>
             {couponError ? (
               <div
+                id="coupon-error"
+                role="alert"
                 style={{
                   color: "#d82c0d",
                   fontSize: "12px",
@@ -1807,10 +1814,13 @@ export default function Pricing() {
             ? annualPrice(plan.price)
             : Number(plan.price);
 
+          const discountPlans = (
+            appliedDiscount as { applicablePlans?: string[] } | null
+          )?.applicablePlans;
           const hasDiscount = isPaid && Boolean(appliedDiscount) && (
-            !appliedDiscount?.applicablePlans ||
-            appliedDiscount.applicablePlans.length === 0 ||
-            appliedDiscount.applicablePlans.includes(plan.name)
+            !discountPlans ||
+            discountPlans.length === 0 ||
+            discountPlans.includes(plan.name)
           );
 
           const discountPct = hasDiscount ? appliedDiscount!.percentage : 0;

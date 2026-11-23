@@ -82,6 +82,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         db.design.deleteMany({ where: { shop } }),
         db.orderDesign.deleteMany({ where: { shop } }),
         db.preset.deleteMany({ where: { shop } }),
+        db.uploadJob.deleteMany({ where: { shop } }),
+        db.viewerStat.deleteMany({ where: { shop } }),
+        db.couponRedemption.deleteMany({ where: { shop } }),
+        db.appStoreEvent.deleteMany({ where: { shop } }),
       ]);
       console.log(
         `[compliance] shop/redact for ${shop} — erased`,

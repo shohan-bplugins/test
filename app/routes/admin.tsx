@@ -6,7 +6,7 @@ import {
   checkStandaloneAdminAuth,
   createAdminCookieHeader,
   clearAdminCookieHeader,
-  getAdminPassword,
+  verifyAdminPassword,
 } from "~/lib/admin-auth.server";
 import { getPlans } from "~/lib/billing.server";
 
@@ -174,10 +174,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Login with static password from .env
   if (intent === "login") {
-    const password = String(form.get("password") ?? "").trim();
-    const expected = getAdminPassword();
+    const password = String(form.get("password") ?? "");
+    const check = verifyAdminPassword(request, password);
 
-    if (password === expected) {
+    if (check.ok) {
       return new Response(JSON.stringify({ ok: true }), {
         headers: {
           "Content-Type": "application/json",
@@ -185,7 +185,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       });
     }
-    return { ok: false, error: "Incorrect admin password. Please try again." };
+    return { ok: false, error: check.error };
   }
 
   // Logout

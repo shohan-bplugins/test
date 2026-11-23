@@ -9,6 +9,8 @@ import {
   useLocation,
   useMatches,
   useNavigation,
+  useRouteError,
+  isRouteErrorResponse,
 } from "react-router";
 
 import criticalStylesUrl from "./critical.css?url";
@@ -28,8 +30,6 @@ import { localeDir } from "~/i18n/config";
 // every page. See critical.css for what is left here and why.
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: criticalStylesUrl },
-  // Warm the browser cache for the shared loader on every page.
-  { rel: "preload", as: "image", href: cubeLoaderUrl, type: "image/gif" },
 ];
 
 export const loader = () => ({ analytics: getAnalyticsConfig() });
@@ -128,6 +128,8 @@ export default function App() {
               as="script"
               href="https://cdn.shopify.com/shopifycloud/polaris.js"
             />
+            {/* The boot splash's loader. Admin only: public pages never show it. */}
+            <link rel="preload" as="image" href={cubeLoaderUrl} type="image/webp" />
           </>
         ) : null}
         <Meta />
@@ -139,6 +141,42 @@ export default function App() {
         {isAdminRoute ? null : <NavigationProgress />}
         <Outlet />
         <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+/**
+ * Last-resort boundary. Without it any uncaught loader/render error outside a
+ * route that defines its own boundary fell through to React Router's bare
+ * "Unexpected Application Error" page. Kept dependency-free (no Polaris, no
+ * loader data) because it must render even when those are what failed.
+ */
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const status = isRouteErrorResponse(error) ? error.status : 500;
+  const title = status === 404 ? "Page not found" : "Something went wrong";
+  if (import.meta.env.DEV) console.error(error);
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>{title}</title>
+        <Meta />
+        <Links />
+      </head>
+      <body style={{ backgroundColor: "#f1f1f1", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+        <main role="alert" style={{ maxWidth: 560, margin: "64px auto", padding: "24px", background: "#fff", borderRadius: 12, color: "#303030" }}>
+          <h1 style={{ fontSize: 20, margin: "0 0 8px" }}>{title}</h1>
+          <p style={{ margin: "0 0 16px", color: "#616161" }}>
+            {status === 404
+              ? "The page you were looking for does not exist."
+              : "An unexpected error occurred. Please reload the page. If it keeps happening, contact support."}
+          </p>
+          <a href="/app" style={{ color: "#005bd3" }}>Back to the app</a>
+        </main>
         <Scripts />
       </body>
     </html>

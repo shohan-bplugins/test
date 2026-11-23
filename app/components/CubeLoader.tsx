@@ -5,7 +5,9 @@
  * the s-* elements (the boot splash) and looks the same everywhere. Sizing and
  * the reduced-motion fallback live in critical.css under .cube-loader.
  */
-import cubeLoaderUrl from "~/assets/cube-loader.gif?url";
+// Animated WebP re-encode of the original cube-loader.gif: same 117 frames and
+// timing, 288 kB instead of 709 kB.
+import cubeLoaderUrl from "~/assets/cube-loader.webp?url";
 
 /*
  * Imported through Vite rather than served from /public so the URL is

@@ -37,7 +37,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw framedRedirect(request, `/app?${url.searchParams.toString()}`);
   }
 
-  return { showForm: Boolean(login) };
+  // App Store apps must not ask merchants to type their shop domain; install
+  // and login go through Shopify (managed installation). The form stays in the
+  // component for local development only.
+  return { showForm: process.env.NODE_ENV === "development" && Boolean(login) };
 };
 
 const FEATURES = [

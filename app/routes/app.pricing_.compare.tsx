@@ -49,7 +49,7 @@ type PlanRow = {
   id: string;
   title: string;
   name: string;
-  description: string;
+  description: string | null;
   price: string;
   currencyCode: string;
   trialDays: string | null;
@@ -273,7 +273,7 @@ export default function ComparePlans() {
     } else if (actionData?.ok && (actionData as any).cancelled) {
       shopify.toast.show("Subscription cancelled");
       setDowngradeTo(null);
-    } else if (actionData && !actionData.ok && actionData.error) {
+    } else if (actionData && !actionData.ok && "error" in actionData && actionData.error) {
       shopify.toast.show(actionData.error, { isError: true });
       setDowngradeTo(null);
     }
@@ -690,7 +690,7 @@ export default function ComparePlans() {
 
                   {section.rows.map((row, rIdx) => (
                     <tr key={rIdx} style={{ backgroundColor: rIdx % 2 === 1 ? "#fafbfb" : "#ffffff" }}>
-                      <td style={{ color: "#202223", fontWeight: row.bold ? 600 : 500 }}>
+                      <td style={{ color: "#202223", fontWeight: "bold" in row && row.bold ? 600 : 500 }}>
                         {row.name}
                       </td>
 
@@ -710,7 +710,7 @@ export default function ComparePlans() {
                                   : "#f8fbff"
                                 : "transparent",
                               color: "#202223",
-                              fontWeight: row.bold ? 600 : 400,
+                              fontWeight: "bold" in row && row.bold ? 600 : 400,
                             }}
                           >
                             {val}

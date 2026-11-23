@@ -265,7 +265,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // from the left panel when the editor is opened on one variant.
   if (body?.intent === "variant") return runVariantOp(admin, id, body, t);
 
-  let viewerConfig = isObject(body?.viewerConfig)
+  const viewerConfig = isObject(body?.viewerConfig)
     ? parseConfig(JSON.stringify(body.viewerConfig))
     : null;
 

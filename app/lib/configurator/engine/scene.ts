@@ -263,17 +263,143 @@ export function roomEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   return tex;
 }
 
-/** Bounds-fit: centre, radius and a camera distance that frames the model. */
-export function fitBounds(root: THREE.Object3D, fovDeg: number, aspect: number) {
-  const box = new THREE.Box3().setFromObject(root);
+/**
+ * Turns off frustum culling where three cannot cull correctly.
+ *
+ * three decides whether to draw a mesh from its geometry's bounding sphere in
+ * bind pose. For a skinned or morphed mesh that sphere ignores the bones, so it
+ * can sit far from what is actually drawn — fine while the whole model is in
+ * view, but zoom in and the stale sphere leaves the frustum and the mesh is
+ * skipped. Small separate parts (a character's eyes, teeth, collar) are the
+ * ones that vanish. Returns how many meshes were changed.
+ */
+export function disableUnsafeCulling(root: THREE.Object3D): number {
+  let n = 0;
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const morphed = Object.keys(mesh.geometry?.morphAttributes ?? {}).length > 0;
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh || morphed) {
+      mesh.frustumCulled = false;
+      n++;
+    }
+  });
+  return n;
+}
+
+/**
+ * Near/far planes that follow the camera, from how far it is from the model.
+ *
+ * Fixed planes set from the opening distance clip whatever the merchant zooms
+ * up to (near too far out) and waste depth precision (far too far out), which
+ * shows as small inset parts — eyes in their sockets — losing to the surface
+ * around them. Outside the model the near plane sits halfway to its closest
+ * point, so nothing of it is ever clipped; inside it, a tiny fraction of the
+ * model's size. Far covers the model plus the floor around it (3× its size).
+ */
+export function clipPlanesFor(cameraPos: THREE.Vector3, bounds: THREE.Box3) {
+  const size = Math.max(bounds.getSize(new THREE.Vector3()).length(), 1e-6);
+  const toBox = bounds.distanceToPoint(cameraPos);
+  const toCenter = cameraPos.distanceTo(bounds.getCenter(new THREE.Vector3()));
+  const near = Math.max(toBox * 0.5, size * 1e-4);
+  const far = Math.max(toCenter + size * 3, near * 10);
+  return { near, far };
+}
+
+/** At most this many vertices are posed per skinned mesh when measuring it. */
+const SKIN_SAMPLE_LIMIT = 20_000;
+
+/**
+ * World-space bounds of what the model actually draws.
+ *
+ * `Box3.setFromObject` (three 0.134) reads each geometry's bind-pose box and
+ * ignores bone transforms. For a rigged GLB — an armature exported at 0.01 or
+ * 100 scale is common — that box can be off by orders of magnitude, which is
+ * what made some models open as a speck and others fill the screen. Skinned
+ * meshes are measured from their posed vertices instead (sampled, so a heavy
+ * mesh costs one bounded pass).
+ */
+export function modelBounds(root: THREE.Object3D): THREE.Box3 {
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    const skinned = o as THREE.SkinnedMesh;
+    const pos = mesh.geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
+    if (skinned.isSkinnedMesh && skinned.skeleton && pos) {
+      skinned.skeleton.update();
+      const step = Math.max(1, Math.floor(pos.count / SKIN_SAMPLE_LIMIT));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i);
+        skinned.boneTransform(i, v);
+        v.applyMatrix4(skinned.matrixWorld);
+        box.expandByPoint(v);
+      }
+      return;
+    }
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const local = mesh.geometry.boundingBox;
+    if (local && !local.isEmpty()) {
+      box.union(local.clone().applyMatrix4(mesh.matrixWorld));
+    }
+  });
+  return box;
+}
+
+/**
+ * Share of the viewport's limiting dimension the model fills in the default
+ * view. Fixed, so every product opens at the same visual size whatever its
+ * real-world units: a ring modelled in millimetres and a sofa in metres both
+ * come out filling three quarters of the frame.
+ */
+export const FIT_FILL = 0.75;
+
+/**
+ * The camera distance at which `box`, seen from `direction`, fills `fill` of
+ * the viewport — exactly, using the box's eight corners rather than its
+ * bounding sphere. A sphere framed long or flat models (a pen, a rug, a sign)
+ * far too small, because the sphere is much bigger than what the camera sees.
+ */
+export function fitBox(
+  box: THREE.Box3,
+  fovDeg: number,
+  aspect: number,
+  direction: THREE.Vector3,
+  fill: number = FIT_FILL,
+) {
   if (box.isEmpty()) return null;
-  const sphere = box.getBoundingSphere(new THREE.Sphere());
-  const halfV = (fovDeg * Math.PI) / 360;
-  const half = Math.min(halfV, Math.atan(Math.tan(halfV) * (aspect || 1)));
-  return {
-    box,
-    center: sphere.center.clone(),
-    radius: sphere.radius,
-    dist: (sphere.radius / Math.sin(half)) * 1.1,
-  };
+  const center = box.getCenter(new THREE.Vector3());
+  const d = direction.clone().normalize();
+  // Camera basis looking from `d` toward the centre, world-up kept upright.
+  const forward = d.clone().negate();
+  let right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0));
+  if (right.lengthSq() < 1e-8) right = new THREE.Vector3(1, 0, 0);
+  right.normalize();
+  const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+  const tanV = Math.tan((fovDeg * Math.PI) / 360) * fill;
+  const tanH = tanV * (aspect > 0 && Number.isFinite(aspect) ? aspect : 1);
+
+  let dist = 0;
+  let nearest = 0;
+  const c = new THREE.Vector3();
+  for (let i = 0; i < 8; i++) {
+    c.set(
+      i & 1 ? box.max.x : box.min.x,
+      i & 2 ? box.max.y : box.min.y,
+      i & 4 ? box.max.z : box.min.z,
+    ).sub(center);
+    const x = Math.abs(c.dot(right));
+    const y = Math.abs(c.dot(up));
+    const z = c.dot(d); // toward the camera
+    // The corner sits at depth (dist - z); it must fit inside the frustum there.
+    dist = Math.max(dist, z + x / tanH, z + y / tanV);
+    nearest = Math.max(nearest, z);
+  }
+  const size = box.getSize(new THREE.Vector3()).length();
+  // Never put the camera inside the model, whatever the angles say.
+  dist = Math.max(dist, nearest + size * 0.05, 1e-4);
+  return { box, center, dist, size };
 }

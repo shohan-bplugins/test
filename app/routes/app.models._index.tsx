@@ -194,7 +194,12 @@ export const loader = async ({
    */
   const needsUrl = models.filter((m) => !m.fileUrl);
   if (needsUrl.length > 0) {
-    const repaired = await Promise.all(needsUrl.map((m) => repair(m, true)));
+    // Capped: a bulk upload still processing can leave dozens of rows without
+    // a URL, and firing one Admin API call per row at once trips the GraphQL
+    // throttle. The rest are picked up on the next load.
+    const repaired = await Promise.all(
+      needsUrl.slice(0, 10).map((m) => repair(m, true)),
+    );
     // Entries without a file URL are omitted from the mirror, so resolving one
     // here means the library the theme block sees is now out of date. Synced
     // beside the response, not in front of it: it is ~6 sequential Shopify and
@@ -253,7 +258,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "delete") {
     const id = String(formData.get("id") ?? "");
     if (!id) return { ok: false, error: t("missingId") };
-    await prisma.model3D.delete({ where: { id } });
+    // Scoped by shop: model ids are public (embed URLs, storefront markup), so
+    // an unscoped delete let any installed shop erase another shop's model.
+    const removed = await prisma.model3D.deleteMany({ where: { id, shop } });
+    if (removed.count === 0) return { ok: false, error: t("missingId") };
     await syncModelLibrary(admin, shop);
     return { ok: true, message: t("deleted") };
   }

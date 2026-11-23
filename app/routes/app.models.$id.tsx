@@ -131,7 +131,7 @@ export const action = async ({ params, request }: ActionFunctionArgs) => {
   if (!existing) return { ok: false, error: t("notFound") };
 
   if (intent === "delete") {
-    await prisma.model3D.delete({ where: { id } });
+    await prisma.model3D.deleteMany({ where: { id, shop } });
     await syncModelLibrary(admin, shop);
     return framedRedirect(request, "/app/models");
   }
