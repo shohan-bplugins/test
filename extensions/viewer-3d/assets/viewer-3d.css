@@ -99,6 +99,18 @@
   touch-action: none;
 }
 
+/* iOS Safari treats two quick taps as "double-tap to zoom the page", so tapping
+   the zoom in / zoom out buttons twice zoomed the whole storefront instead of
+   the model. `manipulation` keeps tap, scroll and pinch but drops the
+   double-tap page zoom. The canvas keeps its own `touch-action: none` above
+   (more specific selector), so the model's drag / pinch still work. */
+.viewer-3d,
+.viewer-3d *,
+.viewer-3d-mini-toolbar,
+.viewer-3d-mini-toolbar * {
+  touch-action: manipulation;
+}
+
 .viewer-3d__empty {
   padding: 2rem;
   text-align: center;

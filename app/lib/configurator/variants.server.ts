@@ -497,6 +497,18 @@ export async function applyVariantOp(
   return error ? bad(error) : { ok: true, done: "deleted" };
 }
 
+/** The readable message of an error thrown by admin.graphql (GraphqlQueryError). */
+function graphqlErrorMessage(err: unknown): string {
+  const e = err as any;
+  console.error("[variants] Admin API error", e?.body?.errors ?? e);
+  const errors = e?.body?.errors?.graphQLErrors ?? e?.body?.errors;
+  if (Array.isArray(errors) && errors.length) {
+    return errors.map((x: any) => x?.message).filter(Boolean).join("; ");
+  }
+  if (typeof errors?.message === "string") return errors.message;
+  return typeof e?.message === "string" ? e.message : "";
+}
+
 /**
  * Runs a posted `{ intent: "variant", op, … }` body and words the outcome with
  * the "editor" namespace's messages, ready to hand back to VariantsPanel.
@@ -509,7 +521,17 @@ export async function runVariantOp(
 ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
   const op = parseVariantOp(body);
   if (!op) return { ok: false, error: t("errVariant") };
-  const done = await applyVariantOp(admin, productId, op, { lastVariant: t("errLastVariant") });
+  let done: VariantResult;
+  try {
+    done = await applyVariantOp(admin, productId, op, { lastVariant: t("errLastVariant") });
+  } catch (err) {
+    // admin.graphql throws (rather than returning `errors`) when Shopify
+    // rejects a query: missing scope, invalid input… Hand its message back as a
+    // toast instead of letting it crash the route. A thrown Response is the
+    // library's re-auth redirect and must go through.
+    if (err instanceof Response) throw err;
+    return { ok: false, error: graphqlErrorMessage(err) || t("errVariant") };
+  }
   if (!done.ok) return { ok: false, error: done.error };
   const message = {
     optionCreated: t("variantOptionCreated"),
